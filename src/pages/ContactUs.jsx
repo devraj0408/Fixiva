@@ -40,7 +40,7 @@ const ContactUs = () => {
         <div className="text-center max-w-xl mx-auto mb-16 space-y-3">
           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Get in Touch</span>
           <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
-            Contact Fixora
+            Contact Fixiva
           </h1>
           <p className="text-slate-500 font-medium text-xs sm:text-sm">
             Have a question or request? Fill out our form below, and our operations desk will resolve it within 24 hours.
@@ -80,7 +80,7 @@ const ContactUs = () => {
 
             <div className="p-4 bg-slate-50 rounded-2xl flex gap-3 items-start border border-slate-100 text-[10px] leading-relaxed text-slate-500 font-semibold">
               <ShieldCheck className="shrink-0 text-primary mt-0.5" size={16} />
-              <p>Submitting this form raises an open resolution ticket instantly visible to Fixora operations dashboard administrators.</p>
+              <p>Submitting this form raises an open resolution ticket instantly visible to Fixiva operations dashboard administrators.</p>
             </div>
           </div>
 

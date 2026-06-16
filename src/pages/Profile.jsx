@@ -25,7 +25,7 @@ const Profile = () => {
               {getInitials(user?.name)}
             </div>
             <div className="text-center sm:text-left space-y-1">
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user?.name || 'Fixora Member'}</h2>
+              <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user?.name || 'Fixiva Member'}</h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role} Account</p>
             </div>
             <button 

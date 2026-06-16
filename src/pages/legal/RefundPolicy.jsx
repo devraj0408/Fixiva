@@ -9,7 +9,7 @@ const RefundPolicy = () => {
       <div className="legal-content space-y-8 text-gray-700 leading-relaxed">
         <section>
           <h2 className="text-2xl font-bold mb-3 text-gray-900">1. Cash on Service Policy</h2>
-          <p>FIXORA currently operates exclusively on a <strong>Cash on Service</strong> model. This means you do not pay anything upfront through our platform. Payment is made directly to the professional in cash only after the requested service is completed to your satisfaction.</p>
+          <p>FIXIVA currently operates exclusively on a <strong>Cash on Service</strong> model. This means you do not pay anything upfront through our platform. Payment is made directly to the professional in cash only after the requested service is completed to your satisfaction.</p>
           <div className="bg-orange-50 p-4 rounded-xl border border-orange-100 mt-4">
             <p className="text-sm font-bold text-orange-700 uppercase tracking-widest">Note: Digital payments coming soon.</p>
           </div>
@@ -30,7 +30,7 @@ const RefundPolicy = () => {
 
         <section>
           <h2 className="text-2xl font-bold mb-3 text-gray-900">4. Worker Cancellation Policy</h2>
-          <p>If an assigned worker needs to cancel due to an emergency, they are required to notify you and the platform immediately. In such events, FIXORA will automatically attempt to match you with another verified professional in your area for the same time slot.</p>
+          <p>If an assigned worker needs to cancel due to an emergency, they are required to notify you and the platform immediately. In such events, FIXIVA will automatically attempt to match you with another verified professional in your area for the same time slot.</p>
         </section>
 
         <section>

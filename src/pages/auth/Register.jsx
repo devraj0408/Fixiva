@@ -101,7 +101,7 @@ const Register = () => {
         
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-black text-slate-900 tracking-tight">Create an Account</h1>
-          <p className="text-xs text-slate-400 font-semibold">Join Fixora as a customer, worker professional or contractor partner.</p>
+          <p className="text-xs text-slate-400 font-semibold">Join Fixiva as a customer, worker professional or contractor partner.</p>
         </div>
 
         {/* Role Selection tab cards */}

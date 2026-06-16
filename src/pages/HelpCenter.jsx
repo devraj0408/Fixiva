@@ -15,10 +15,10 @@ const HelpCenter = () => {
   const faqs = [
     { 
       q: "How does the pricing work?", 
-      a: "Every service has a Base Price or Inspection Fee. In addition, we charge a fixed Fixora Convenience Fee to handle booking and professional verification. No hidden charges." 
+      a: "Every service has a Base Price or Inspection Fee. In addition, we charge a fixed Fixiva Convenience Fee to handle booking and professional verification. No hidden charges." 
     },
     { 
-      q: "Is it safe to book with Fixora?", 
+      q: "Is it safe to book with Fixiva?", 
       a: "Yes. Every professional undergoes a strict background check and identity verification. We also monitor their performance via our proprietary Trust Score system." 
     },
     { 
@@ -27,7 +27,7 @@ const HelpCenter = () => {
     },
     { 
       q: "When do I pay?", 
-      a: "Fixora currently operates on a 'Cash on Service' model. You pay the professional directly only after the job is completed to your satisfaction." 
+      a: "Fixiva currently operates on a 'Cash on Service' model. You pay the professional directly only after the job is completed to your satisfaction." 
     }
   ];
 
@@ -60,7 +60,7 @@ const HelpCenter = () => {
       <section className="bg-slate-900 py-20 text-center text-white relative overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="max-w-4xl mx-auto px-4 space-y-4">
-          <h1 className="text-3xl sm:text-5xl font-black tracking-tight">Fixora Help Center</h1>
+          <h1 className="text-3xl sm:text-5xl font-black tracking-tight">Fixiva Help Center</h1>
           <p className="text-slate-400 font-medium text-sm sm:text-base max-w-xl mx-auto">
             Find answers to common questions, browse policy guidelines, or raise an operations resolution ticket.
           </p>
@@ -118,7 +118,7 @@ const HelpCenter = () => {
             {/* Policy Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { icon: Book, title: 'Booking Guide', desc: 'New to Fixora? Learn how to book in under 2 minutes.' },
+                { icon: Book, title: 'Booking Guide', desc: 'New to Fixiva? Learn how to book in under 2 minutes.' },
                 { icon: XCircle, title: 'Cancellations', desc: 'Our cancellation terms, limits and protective safety guidelines.' },
                 { icon: Shield, title: 'Identity & Safety', desc: 'How we check background records of worker partners.' }
               ].map((guide, idx) => (

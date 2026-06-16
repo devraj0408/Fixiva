@@ -142,7 +142,7 @@ const AdminDashboard = () => {
               A
             </div>
             <div className="space-y-0.5">
-              <h3 className="font-extrabold text-sm leading-tight text-white">Fixora Operations Desk</h3>
+              <h3 className="font-extrabold text-sm leading-tight text-white">Fixiva Operations Desk</h3>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Super Administrator</p>
             </div>
           </div>

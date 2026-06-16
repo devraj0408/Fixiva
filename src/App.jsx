@@ -27,7 +27,7 @@ const RefundPolicy = React.lazy(() => import('./pages/legal/RefundPolicy'));
 const LoadingSkeleton = () => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#F8FAFC' }}>
     <div style={{ width: '48px', height: '48px', border: '4px solid #EFF4FF', borderTopColor: '#0F4CFF', borderRadius: '50%' }} className="animate-spin" />
-    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loading Fixora...</span>
+    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loading Fixiva...</span>
   </div>
 );
 

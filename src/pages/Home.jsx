@@ -147,7 +147,7 @@ const Home = () => {
               <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-3xl opacity-10 blur-xl"></div>
               <img 
                 src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800" 
-                alt="Fixora Home Service Expert" 
+                alt="Fixiva Home Service Expert" 
                 className="rounded-3xl shadow-premium border-8 border-white max-w-full w-96 relative z-10"
               />
             </div>
@@ -164,7 +164,7 @@ const Home = () => {
               We're Ready to Serve You
             </h2>
             <p className="text-slate-600 dark:text-slate-400 font-medium text-sm sm:text-base leading-relaxed">
-              FIXORA connects customers with verified professionals for fast, reliable, and hassle-free home services across your city. Book trusted experts in minutes and get quality service at your doorstep.
+              FIXIVA connects customers with verified professionals for fast, reliable, and hassle-free home services across your city. Book trusted experts in minutes and get quality service at your doorstep.
             </p>
           </div>
 
@@ -330,12 +330,12 @@ const Home = () => {
               <span className="text-[10px] font-black uppercase tracking-widest text-primary">Expanded Coverage</span>
               <h2 className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Serving Cities In Jharkhand</h2>
               <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-                Fixora ensures on-site assignments are completed by verified nearby service partners in selected Indian towns.
+                Fixiva ensures on-site assignments are completed by verified nearby service partners in selected Indian towns.
               </p>
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
                 <p className="font-bold text-slate-700">Don't see your city?</p>
                 <button 
-                  onClick={() => alert("Fixora interest logged! We will notify you once we launch in your area.")} 
+                  onClick={() => alert("Fixiva interest logged! We will notify you once we launch in your area.")} 
                   className="btn-secondary text-xs px-4 py-2.5 rounded-xl mt-2 block w-full sm:w-auto"
                 >
                   Request Coverage Area

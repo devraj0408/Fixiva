@@ -14,7 +14,7 @@ const Footer = () => {
                 <span className="text-white font-extrabold text-sm tracking-wider">F</span>
               </div>
               <span className="text-xl font-extrabold tracking-tight text-white group-hover:text-primary transition-all">
-                FIXORA
+                FIXIVA
               </span>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed font-medium">
@@ -113,7 +113,7 @@ const Footer = () => {
 
         {/* Footer Bottom */}
         <div className="mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium">
-          <p>&copy; {new Date().getFullYear()} Fixora Services. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} Fixiva Services. All rights reserved.</p>
           <div className="flex gap-4">
             <span className="text-slate-500">Tagline: Everything Your Home Needs.</span>
           </div>

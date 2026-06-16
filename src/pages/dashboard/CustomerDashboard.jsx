@@ -34,7 +34,7 @@ const CustomerDashboard = () => {
   const myTickets = tickets.filter(t => t.user_id === user?.id);
 
   const handleReportNoShow = (bookingId) => {
-    if(window.confirm("Report Worker No-Show? This will notify Fixora Admin for immediate action.")) {
+    if(window.confirm("Report Worker No-Show? This will notify Fixiva Admin for immediate action.")) {
       updateBookingStatus(bookingId, 'Worker No Show');
       alert("Reported. We are assigning a new professional or will contact you shortly.");
     }

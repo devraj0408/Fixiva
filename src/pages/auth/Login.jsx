@@ -49,7 +49,7 @@ const Login = () => {
             <span className="text-white font-extrabold text-sm tracking-wider">F</span>
           </div>
           <span className="text-xl font-extrabold tracking-tight text-white">
-            FIXORA
+            FIXIVA
           </span>
         </div>
 
@@ -64,7 +64,7 @@ const Login = () => {
         </div>
 
         <div className="relative z-10 text-xs text-slate-500 font-semibold uppercase tracking-wider">
-          &copy; {new Date().getFullYear()} Fixora Services. All rights reserved.
+          &copy; {new Date().getFullYear()} Fixiva Services. All rights reserved.
         </div>
       </div>
 
@@ -74,7 +74,7 @@ const Login = () => {
           
           <div className="space-y-2">
             <h1 className="text-2xl font-black text-slate-900 tracking-tight">Welcome Back</h1>
-            <p className="text-xs text-slate-400 font-semibold">Enter your credentials to access your Fixora dashboard.</p>
+            <p className="text-xs text-slate-400 font-semibold">Enter your credentials to access your Fixiva dashboard.</p>
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>

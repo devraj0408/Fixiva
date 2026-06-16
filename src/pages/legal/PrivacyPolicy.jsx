@@ -9,7 +9,7 @@ const PrivacyPolicy = () => {
       <div className="legal-content space-y-8 text-gray-700 leading-relaxed">
         <section>
           <h2 className="text-2xl font-bold mb-3 text-gray-900">1. Data Collection</h2>
-          <p>When you register or book a service on FIXORA, we collect the following personal information to facilitate the service:</p>
+          <p>When you register or book a service on FIXIVA, we collect the following personal information to facilitate the service:</p>
           <ul className="list-disc pl-6 mt-2 space-y-1">
             <li><strong>Name:</strong> To identify you on the platform and to professionals.</li>
             <li><strong>Email:</strong> For account authentication, booking updates, and support.</li>
@@ -21,7 +21,7 @@ const PrivacyPolicy = () => {
 
         <section>
           <h2 className="text-2xl font-bold mb-3 text-gray-900">2. How Data is Stored</h2>
-          <p>All personal data is securely stored using Supabase (PostgreSQL). We utilize robust Row Level Security (RLS) policies to ensure that your data is only accessible to you, the assigned professional, and authorized FIXORA administrators.</p>
+          <p>All personal data is securely stored using Supabase (PostgreSQL). We utilize robust Row Level Security (RLS) policies to ensure that your data is only accessible to you, the assigned professional, and authorized FIXIVA administrators.</p>
         </section>
 
         <section>
@@ -36,7 +36,7 @@ const PrivacyPolicy = () => {
 
         <section>
           <h2 className="text-2xl font-bold mb-3 text-gray-900">5. Third-Party Integrations</h2>
-          <p>FIXORA relies on third-party infrastructure providers like Vercel (Hosting) and Supabase (Database/Authentication). These providers maintain strict compliance with global data protection laws. We do not share your data with other third parties without your explicit consent.</p>
+          <p>FIXIVA relies on third-party infrastructure providers like Vercel (Hosting) and Supabase (Database/Authentication). These providers maintain strict compliance with global data protection laws. We do not share your data with other third parties without your explicit consent.</p>
         </section>
 
         <section>

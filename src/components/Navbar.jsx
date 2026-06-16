@@ -39,7 +39,7 @@ const Navbar = () => {
                 <span className="text-white font-extrabold text-sm tracking-wider">F</span>
               </div>
               <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent group-hover:from-primary group-hover:to-blue-600 transition-all">
-                FIXORA
+                FIXIVA
               </span>
             </Link>
           </div>
@@ -91,7 +91,7 @@ const Navbar = () => {
                   to="/register" 
                   className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-md shadow-primary/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20"
                 >
-                  Join Fixora
+                  Join Fixiva
                 </Link>
               </>
             ) : (
@@ -223,7 +223,7 @@ const Navbar = () => {
                     onClick={() => setIsOpen(false)} 
                     className="block text-center bg-primary hover:bg-primary-dark text-white font-bold py-2.5 rounded-xl shadow-md transition-all"
                   >
-                    Join Fixora
+                    Join Fixiva
                   </Link>
                 </>
               ) : (

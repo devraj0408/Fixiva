@@ -1,11 +1,11 @@
-# PROJECT GUIDE: FIXORA
+# PROJECT GUIDE: FIXIVA
 
-Welcome to the FIXORA project documentation! This guide is designed to be beginner-friendly and explain everything from the high-level architecture down to running the project locally.
+Welcome to the FIXIVA project documentation! This guide is designed to be beginner-friendly and explain everything from the high-level architecture down to running the project locally.
 
 ## A. Project Overview
 
-**What is FIXORA?**  
-FIXORA is an on-demand home services marketplace. It connects homeowners looking for maintenance, repairs, and installations with verified professionals (workers and contractors) in their local area.
+**What is FIXIVA?**  
+FIXIVA is an on-demand home services marketplace. It connects homeowners looking for maintenance, repairs, and installations with verified professionals (workers and contractors) in their local area.
 
 **Mission**  
 To provide a secure, transparent, and high-quality platform where customers can easily find reliable help, and skilled professionals can find consistent work.
@@ -14,10 +14,10 @@ To provide a secure, transparent, and high-quality platform where customers can 
 To become the standard for trusted home services across India, ensuring every household has access to verified experts.
 
 **Business Model**  
-FIXORA operates as a marketplace platform bridging the gap between demand (customers) and supply (workers/contractors). 
+FIXIVA operates as a marketplace platform bridging the gap between demand (customers) and supply (workers/contractors). 
 
 **Revenue Model**  
-FIXORA charges a **Platform Convenience Fee** on top of the worker's base price/inspection fee for every completed booking.
+FIXIVA charges a **Platform Convenience Fee** on top of the worker's base price/inspection fee for every completed booking.
 
 **Target Cities**  
 Currently rolling out city by city in India, with an initial focus on major metropolitan areas. Services can be toggled on/off on a per-city basis from the Admin Dashboard.
@@ -111,7 +111,7 @@ Only customers with `Completed` bookings can leave a 1-5 star review for the wor
 
 - **`profiles`**: The base table for all registered users (Admin, Customer, Worker, Contractor). Stores name, email, and role.
 - **`services`**: The catalog of available home services, including icons, names, and base pricing.
-- **`cities`**: A list of cities where FIXORA operates.
+- **`cities`**: A list of cities where FIXIVA operates.
 - **`bookings`**: The core transactional table. Links a customer, a worker, a service, and a city. Tracks the status of the job.
 - **`reviews`**: Stores customer feedback and 1-5 star ratings for completed bookings.
 - **`support_tickets`**: Stores customer complaints and inquiries.
@@ -126,7 +126,7 @@ Only customers with `Completed` bookings can leave a 1-5 star review for the wor
 
 ## G. How To Run Locally
 
-Follow these steps to run FIXORA on your own machine:
+Follow these steps to run FIXIVA on your own machine:
 
 1. **Install Dependencies**
    ```bash
@@ -167,7 +167,7 @@ Log in to your Supabase Dashboard ➔ Project Settings ➔ API ➔ Project URL &
 5. Click **Deploy**. Vercel will automatically run `npm run build` and host the `dist/` folder.
 
 **Connect Domain**  
-Once deployed, go to your Vercel Project Settings ➔ Domains and add your custom domain (e.g., `fixora.in`).
+Once deployed, go to your Vercel Project Settings ➔ Domains and add your custom domain (e.g., `fixiva.in`).
 
 ---
 
@@ -180,7 +180,7 @@ The Admin Dashboard is the command center. Only users with the `admin` role in t
 - **Booking Management:** Watch for `New Request` bookings and change their status to `Assigned` when a worker is found.
 - **Worker/Contractor Verification:** Review new partner applications and change their status from `Pending Verification` to `Verified`.
 - **Support Management:** Read support tickets and mark them as `Resolved` once handled.
-- **Pricing Management:** Adjust the Base Price and Fixora Fee for services directly from the dashboard. Toggle service availability per city.
+- **Pricing Management:** Adjust the Base Price and Fixiva Fee for services directly from the dashboard. Toggle service availability per city.
 
 ---
 
