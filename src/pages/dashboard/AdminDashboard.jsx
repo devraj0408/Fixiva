@@ -245,29 +245,20 @@ const AdminDashboard = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Dispatcher checklist */}
                   <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                    <h3 className="font-extrabold text-slate-800 text-sm">Dispatches Pending Assignee</h3>
+                    <h3 className="font-extrabold text-slate-800 text-sm">Auto-Dispatch Queue</h3>
                     {bookings.filter(b => b.status === 'New Request').length === 0 ? (
                       <p className="text-slate-400 text-xs font-semibold text-center py-8">No requests currently in pipeline.</p>
                     ) : (
                       <div className="space-y-3">
                         {bookings.filter(b => b.status === 'New Request').map(b => (
-                          <div key={b.id} className="p-4 bg-white border border-slate-100 rounded-xl space-y-3 text-xs font-semibold text-slate-600 shadow-sm">
+                          <div key={b.id} className="p-4 bg-white border border-slate-100 rounded-xl space-y-2 text-xs font-semibold text-slate-600 shadow-sm">
                             <div className="flex justify-between items-start">
                               <div>
                                 <h4 className="font-extrabold text-slate-800 text-sm">{b.service_name}</h4>
                                 <p className="text-[10px] text-slate-400 font-bold">{b.city} • Customer: {b.customer_name}</p>
                               </div>
                             </div>
-                            <select 
-                              className="w-full text-xs p-2 bg-slate-50 border border-slate-200 rounded-xl font-bold text-primary outline-none cursor-pointer"
-                              onChange={(e) => handleAssignWorker(b.id, e.target.value)}
-                              defaultValue=""
-                            >
-                              <option value="" disabled>Assign verified specialist...</option>
-                              {workers.filter(w => w.status === 'Verified' && w.city === b.city).map(w => (
-                                <option key={w.id} value={w.id}>{w.name} ({w.skills})</option>
-                              ))}
-                            </select>
+                            <p className="text-[11px] text-primary font-bold">The platform will auto-assign this booking to the next verified worker in the same city.</p>
                           </div>
                         ))}
                       </div>
@@ -343,16 +334,7 @@ const AdminDashboard = () => {
                                     <p className="text-[10px] text-slate-400 mt-0.5">{b.worker_phone}</p>
                                   </div>
                                 ) : (
-                                  <select 
-                                    className="text-xs p-1.5 bg-slate-50 border border-slate-200 rounded-lg font-bold text-primary cursor-pointer outline-none"
-                                    onChange={(e) => handleAssignWorker(b.id, e.target.value)}
-                                    defaultValue=""
-                                  >
-                                    <option value="" disabled>Assign...</option>
-                                    {workers.filter(w => w.status === 'Verified' && w.city === b.city).map(w => (
-                                      <option key={w.id} value={w.id}>{w.name}</option>
-                                    ))}
-                                  </select>
+                                  <span className="text-[11px] font-bold text-amber-600">Auto-dispatch pending</span>
                                 )}
                               </td>
                               <td className="p-4">

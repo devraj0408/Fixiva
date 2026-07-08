@@ -57,7 +57,7 @@ const ContactUs = () => {
                 <div className="w-10 h-10 bg-blue-50 text-primary rounded-xl flex items-center justify-center shrink-0">
                   <Mail size={18} />
                 </div>
-                <div className="space-y-0.5">
+                 <div className="space-y-0.5">
                   <h4 className="font-bold text-slate-950 text-xs uppercase tracking-wider">Email Support</h4>
                   <a href="mailto:sinhadev739@gmail.com" className="text-primary text-xs font-bold hover:underline break-all">
                     sinhadev739@gmail.com

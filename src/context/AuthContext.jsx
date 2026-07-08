@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   // Auth state
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState(null);
 
   // Application data
   const [bookings, setBookings] = useState([]);
@@ -99,6 +100,12 @@ export const AuthProvider = ({ children }) => {
   // ---------------------------------------------------------------------
   useEffect(() => {
     const init = async () => {
+      if (!supabase) {
+        setInitError(new Error('Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.'));
+        setLoading(false);
+        return;
+      }
+
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         await fetchUserProfile(session.user.id);
@@ -110,6 +117,8 @@ export const AuthProvider = ({ children }) => {
     };
 
     init();
+
+    if (!supabase) return;
 
     // Listen for Auth changes dynamically
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -128,6 +137,33 @@ export const AuthProvider = ({ children }) => {
   // ---------------------------------------------------------------------
   // Auth helpers
   // ---------------------------------------------------------------------
+  const uploadProfilePhoto = async (userId, file) => {
+    if (!file) return { publicUrl: '' };
+
+    const filenameParts = file.name.split('.');
+    const fileExtension = filenameParts.length > 1 ? filenameParts.pop() : 'jpg';
+    const filePath = `profile-photos/${userId}/profile-photo.${fileExtension}`;
+    const { error: uploadError } = await supabase.storage
+      .from('profile-photos')
+      .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+    if (uploadError) {
+      console.warn('Profile photo upload warning:', uploadError);
+      return { publicUrl: '' };
+    }
+
+    const { data: urlData, error: urlError } = supabase.storage
+      .from('profile-photos')
+      .getPublicUrl(filePath);
+
+    if (urlError) {
+      console.warn('Failed to generate profile photo URL:', urlError);
+      return { publicUrl: '' };
+    }
+
+    return { publicUrl: urlData.publicUrl };
+  };
+
   const register = async (email, password, role, extra) => {
     setLoading(true);
     const { data: signUp, error: signUpError } = await supabase.auth.signUp({ email, password });
@@ -144,6 +180,17 @@ export const AuthProvider = ({ children }) => {
     if (role === 'admin') {
       setLoading(false);
       return { success: false, error: { message: "Security Violation: Cannot register as admin." } };
+    }
+
+    let profilePhotoUrl = extra?.profile_photo_url || '';
+    if (extra?.profile_photo) {
+      const { publicUrl, error: uploadError } = await uploadProfilePhoto(signUp.user.id, extra.profile_photo);
+      if (uploadError) {
+        console.error('Profile photo upload error:', uploadError);
+        setLoading(false);
+        return { success: false, error: new Error(uploadError.message || 'Profile photo upload failed. Please check Supabase storage bucket configuration.') };
+      }
+      profilePhotoUrl = publicUrl;
     }
 
     const profile = {
@@ -171,7 +218,7 @@ export const AuthProvider = ({ children }) => {
         whatsapp: extra?.whatsapp || '',
         experience: extra?.experience || '',
         id_proof_url: extra?.id_proof_url || '',
-        profile_photo_url: extra?.profile_photo_url || ''
+        profile_photo_url: profilePhotoUrl
       };
       const { error: workerError } = await supabase.from('workers').insert(worker);
       if (workerError) {
@@ -252,10 +299,76 @@ export const AuthProvider = ({ children }) => {
   // ---------------------------------------------------------------------
   // Data mutation helpers
   // ---------------------------------------------------------------------
+  const getBookingCityName = (booking) => {
+    if (booking?.city) return booking.city;
+    if (booking?.city_id && cities.length > 0) {
+      const city = cities.find((item) => item.id === booking.city_id);
+      return city?.name || '';
+    }
+    return '';
+  };
+
+  const autoAssignBookingToWorker = async (booking) => {
+    if (!booking || booking.worker_id) {
+      return { success: false, reason: 'already-assigned' };
+    }
+
+    const bookingCityName = getBookingCityName(booking);
+    const availableWorkers = workers.filter((worker) => {
+      const workerCity = (worker.city || '').toLowerCase();
+      const targetCity = (bookingCityName || '').toLowerCase();
+      return worker.status === 'Verified' && (!targetCity || workerCity === targetCity);
+    });
+
+    if (availableWorkers.length === 0) {
+      return { success: false, reason: 'no-worker-found' };
+    }
+
+    const bestWorker = [...availableWorkers].sort((a, b) => (b.trust_score ?? 100) - (a.trust_score ?? 100))[0];
+    const profile = profiles.find((item) => item.id === bestWorker.id);
+    const assignmentPayload = {
+      worker_id: bestWorker.id,
+      worker_name: profile?.name || profile?.email || 'Verified Specialist',
+      worker_phone: profile?.phone || null,
+      status: 'Assigned',
+    };
+
+    const { error } = await supabase.from('bookings').update(assignmentPayload).eq('id', booking.id);
+    if (!error) {
+      setBookings((prev) => prev.map((item) => item.id === booking.id ? { ...item, ...assignmentPayload } : item));
+      return { success: true, worker: bestWorker, profile };
+    }
+
+    return { success: false, error };
+  };
+
+  const autoAssignPendingBookingToWorker = async (workerData) => {
+    const worker = workerData || workers.find((item) => item.id === workerData?.id);
+    if (!worker || worker.status !== 'Verified') {
+      return { success: false, reason: 'worker-not-ready' };
+    }
+
+    const pendingBooking = bookings.find((booking) => {
+      if (booking.status !== 'New Request' || booking.worker_id) return false;
+      const bookingCityName = getBookingCityName(booking);
+      const workerCity = (worker.city || '').toLowerCase();
+      const targetCity = (bookingCityName || '').toLowerCase();
+      return !targetCity || workerCity === targetCity;
+    });
+
+    if (!pendingBooking) {
+      return { success: false, reason: 'no-pending-booking' };
+    }
+
+    return autoAssignBookingToWorker(pendingBooking);
+  };
+
   const addBooking = async (booking) => {
     const { data, error } = await supabase.from('bookings').insert({ ...booking, status: 'New Request' }).select();
     if (!error && data) {
-      setBookings((prev) => [...prev, data[0]]);
+      const newBooking = data[0];
+      setBookings((prev) => [...prev, newBooking]);
+      await autoAssignBookingToWorker(newBooking);
     }
     return { data, error };
   };
@@ -305,6 +418,10 @@ export const AuthProvider = ({ children }) => {
     if (!error) {
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
 
+      if (status === 'Verified') {
+        await autoAssignPendingBookingToWorker({ id, status });
+      }
+
       // Also check if this worker is a contractor, and sync status
       const isContractor = contractors.some(c => c.id === id);
       if (isContractor) {
@@ -328,6 +445,10 @@ export const AuthProvider = ({ children }) => {
       const workerStatus = status === 'Approved' ? 'Verified' : status === 'Rejected' ? 'Rejected' : 'Pending Verification';
       await supabase.from('workers').update({ status: workerStatus }).eq('id', id);
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, status: workerStatus } : w)));
+
+      if (workerStatus === 'Verified') {
+        await autoAssignPendingBookingToWorker({ id, status: workerStatus });
+      }
     } else {
       console.error("Contractor status update failed", error);
       alert("Failed to update contractor status.");
@@ -460,7 +581,24 @@ export const AuthProvider = ({ children }) => {
     refreshData: fetchMarketplaceData
   };
 
-  return <AppContext.Provider value={value}>{!loading && children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      {!loading && (
+        initError ? (
+          <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+            <div className="max-w-xl w-full bg-white p-8 rounded-3xl shadow-xl border border-slate-200 text-slate-700">
+              <h1 className="text-xl font-black text-slate-900 mb-4">Configuration required</h1>
+              <p className="text-sm text-slate-600 mb-3">Fixiva needs Supabase credentials to run.</p>
+              <pre className="bg-slate-100 p-4 rounded-xl text-xs text-slate-800 overflow-x-auto">
+{`VITE_SUPABASE_URL=https://your-project-id.supabase.co\nVITE_SUPABASE_ANON_KEY=your-anon-key`}
+              </pre>
+              <p className="text-sm text-slate-500 mt-3">Create a <code className="bg-slate-100 px-1 rounded">.env</code> file in the project root and restart the dev server.</p>
+            </div>
+          </div>
+        ) : children
+      )}
+    </AppContext.Provider>
+  );
 };
 
 export const useApp = () => {

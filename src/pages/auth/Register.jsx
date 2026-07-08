@@ -25,8 +25,8 @@ const Register = () => {
     skills: '',
     experience: '',
     whatsapp: '',
-    id_proof_url: '',
-    profile_photo_url: '',
+    id_proof_number: '', // Changed from id_proof_url to number
+    profile_photo: null, // Changed from url string to null (for File object)
 
     // Contractor fields
     company: '',
@@ -49,6 +49,7 @@ const Register = () => {
       if (!formData.skills) newErrors.skills = 'Please list primary skills';
       if (!formData.experience) newErrors.experience = 'Experience count is required';
       if (!formData.whatsapp) newErrors.whatsapp = 'WhatsApp mobile is required';
+      if (!formData.id_proof_number) newErrors.id_proof_number = 'ID Proof number is required';
     }
     if (role === 'contractor') {
       if (!formData.company) newErrors.company = 'Company name is required';
@@ -75,8 +76,8 @@ const Register = () => {
       skills: formData.skills,
       experience: formData.experience,
       whatsapp: formData.whatsapp,
-      id_proof_url: formData.id_proof_url,
-      profile_photo_url: formData.profile_photo_url,
+      id_proof_url: formData.id_proof_number,
+      profile_photo: formData.profile_photo, // Pass the File object to AuthContext for upload
 
       // Contractor properties
       company: formData.company,
@@ -85,8 +86,11 @@ const Register = () => {
       services_offered: formData.services_offered
     };
 
+    // Note: If your AuthContext sends this to a backend API, ensure it uses 
+    // FormData to handle the profile_photo File object properly.
     const { success, error } = await register(formData.email, formData.password, role, extraPayload);
     setLoading(false);
+    
     if (!success) {
       console.error('Registration failed:', error);
       alert('Registration failed: ' + (error?.message || 'Invalid registration details. Please check your credentials.'));
@@ -142,7 +146,7 @@ const Register = () => {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
-                {errors.name && <p className="text-danger text-[10px] font-bold">{errors.name}</p>}
+                {errors.name && <p className="text-danger text-[10px] font-bold text-red-500">{errors.name}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -154,7 +158,7 @@ const Register = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 />
-                {errors.email && <p className="text-danger text-[10px] font-bold">{errors.email}</p>}
+                {errors.email && <p className="text-danger text-[10px] font-bold text-red-500">{errors.email}</p>}
               </div>
             </div>
 
@@ -168,7 +172,7 @@ const Register = () => {
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
                 />
-                {errors.city && <p className="text-danger text-[10px] font-bold">{errors.city}</p>}
+                {errors.city && <p className="text-danger text-[10px] font-bold text-red-500">{errors.city}</p>}
               </div>
 
               <div className="space-y-1.5">
@@ -180,7 +184,7 @@ const Register = () => {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
-                {errors.phone && <p className="text-danger text-[10px] font-bold">{errors.phone}</p>}
+                {errors.phone && <p className="text-danger text-[10px] font-bold text-red-500">{errors.phone}</p>}
               </div>
             </div>
           </div>
@@ -199,7 +203,7 @@ const Register = () => {
                   value={formData.skills}
                   onChange={(e) => setFormData({ ...formData, skills: e.target.value })}
                 />
-                {errors.skills && <p className="text-danger text-[10px] font-bold">{errors.skills}</p>}
+                {errors.skills && <p className="text-danger text-[10px] font-bold text-red-500">{errors.skills}</p>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -212,7 +216,7 @@ const Register = () => {
                     value={formData.experience}
                     onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
                   />
-                  {errors.experience && <p className="text-danger text-[10px] font-bold">{errors.experience}</p>}
+                  {errors.experience && <p className="text-danger text-[10px] font-bold text-red-500">{errors.experience}</p>}
                 </div>
 
                 <div className="space-y-1.5">
@@ -224,30 +228,30 @@ const Register = () => {
                     value={formData.whatsapp}
                     onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
                   />
-                  {errors.whatsapp && <p className="text-danger text-[10px] font-bold">{errors.whatsapp}</p>}
+                  {errors.whatsapp && <p className="text-danger text-[10px] font-bold text-red-500">{errors.whatsapp}</p>}
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Aadhaar / ID Proof URL</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ID Proof Number (e.g. PAN)</label>
                   <input
                     type="text"
-                    placeholder="Document link URL / text"
+                    placeholder="Enter ID proof number"
                     className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                    value={formData.id_proof_url}
-                    onChange={(e) => setFormData({ ...formData, id_proof_url: e.target.value })}
+                    value={formData.id_proof_number}
+                    onChange={(e) => setFormData({ ...formData, id_proof_number: e.target.value })}
                   />
+                  {errors.id_proof_number && <p className="text-danger text-[10px] font-bold text-red-500">{errors.id_proof_number}</p>}
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Profile Photo URL</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Profile Photo (Camera / Gallery)</label>
                   <input
-                    type="text"
-                    placeholder="Avatar image link URL"
-                    className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                    value={formData.profile_photo_url}
-                    onChange={(e) => setFormData({ ...formData, profile_photo_url: e.target.value })}
+                    type="file"
+                    accept="image/*"
+                    className="w-full h-11 px-4 py-2.5 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold text-slate-500 outline-none transition-all file:mr-3 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-[10px] file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90 cursor-pointer"
+                    onChange={(e) => setFormData({ ...formData, profile_photo: e.target.files[0] })}
                   />
                 </div>
               </div>
@@ -267,7 +271,7 @@ const Register = () => {
                   value={formData.company}
                   onChange={(e) => setFormData({ ...formData, company: e.target.value })}
                 />
-                {errors.company && <p className="text-danger text-[10px] font-bold">{errors.company}</p>}
+                {errors.company && <p className="text-danger text-[10px] font-bold text-red-500">{errors.company}</p>}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -280,7 +284,7 @@ const Register = () => {
                     value={formData.owner_name}
                     onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })}
                   />
-                  {errors.owner_name && <p className="text-danger text-[10px] font-bold">{errors.owner_name}</p>}
+                  {errors.owner_name && <p className="text-danger text-[10px] font-bold text-red-500">{errors.owner_name}</p>}
                 </div>
 
                 <div className="space-y-1.5">
@@ -292,6 +296,7 @@ const Register = () => {
                     value={formData.gst}
                     onChange={(e) => setFormData({ ...formData, gst: e.target.value })}
                   />
+                  {errors.gst && <p className="text-danger text-[10px] font-bold text-red-500">{errors.gst}</p>}
                 </div>
               </div>
 
@@ -305,7 +310,7 @@ const Register = () => {
                     value={formData.whatsapp}
                     onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
                   />
-                  {errors.whatsapp && <p className="text-danger text-[10px] font-bold">{errors.whatsapp}</p>}
+                  {errors.whatsapp && <p className="text-danger text-[10px] font-bold text-red-500">{errors.whatsapp}</p>}
                 </div>
 
                 <div className="space-y-1.5">
@@ -335,7 +340,7 @@ const Register = () => {
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
             </div>
-            {errors.password && <p className="text-danger text-xs font-bold">{errors.password}</p>}
+            {errors.password && <p className="text-danger text-xs font-bold text-red-500">{errors.password}</p>}
           </div>
 
           <div className="p-4 bg-slate-50 rounded-2xl flex gap-3 items-start border border-slate-100 text-[10px] leading-relaxed text-slate-500 font-semibold">
@@ -348,7 +353,7 @@ const Register = () => {
           <button
             type="submit"
             disabled={loading}
-            className="w-full btn-primary text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5"
+            className="w-full btn-primary bg-primary text-white text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {loading ? <Loader2 className="animate-spin" size={16} /> : (
               <>
