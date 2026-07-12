@@ -1,6 +1,7 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { getCityOptions } from '../data/mockData';
 
 const AppContext = createContext();
 
@@ -51,7 +52,7 @@ export const AuthProvider = ({ children }) => {
     setProfiles(pr || []);
     setTickets(tk || []);
     setServices(sv || []);
-    setCities(cList || []);
+    setCities(getCityOptions(cList || []));
 
     // Process reviews to match frontend expectations
     const processedReviews = (rv || []).map(r => {
@@ -218,12 +219,19 @@ export const AuthProvider = ({ children }) => {
         whatsapp: extra?.whatsapp || '',
         experience: extra?.experience || '',
         id_proof_url: extra?.id_proof_url || '',
-        profile_photo_url: profilePhotoUrl
+        profile_photo_url: profilePhotoUrl,
+        location_text: extra?.location_text || '',
+        location_latitude: extra?.location_latitude ?? null,
+        location_longitude: extra?.location_longitude ?? null,
+        location_source: extra?.location_source || ''
       };
       const { error: workerError } = await supabase.from('workers').insert(worker);
       if (workerError) {
         setLoading(false);
-        return { success: false, error: workerError };
+        return {
+          success: false,
+          error: new Error(workerError.message || 'Worker registration failed. Please verify your Supabase schema includes the workers location columns.'),
+        };
       }
     } else if (role === 'contractor') {
       const contractor = {
@@ -234,7 +242,11 @@ export const AuthProvider = ({ children }) => {
         owner_name: extra?.owner_name || '',
         whatsapp: extra?.whatsapp || '',
         gst: extra?.gst || '',
-        services_offered: extra?.services_offered || ''
+        services_offered: extra?.services_offered || '',
+        location_text: extra?.location_text || '',
+        location_latitude: extra?.location_latitude ?? null,
+        location_longitude: extra?.location_longitude ?? null,
+        location_source: extra?.location_source || ''
       };
       const { error: contractorError } = await supabase.from('contractors').insert(contractor);
       if (contractorError) {
@@ -248,13 +260,20 @@ export const AuthProvider = ({ children }) => {
         status: 'Pending Verification',
         trust_score: 100,
         skills: 'Contractor',
-        city: extra?.city || ''
+        city: extra?.city || '',
+        location_text: extra?.location_text || '',
+        location_latitude: extra?.location_latitude ?? null,
+        location_longitude: extra?.location_longitude ?? null,
+        location_source: extra?.location_source || ''
       };
       const { error: workerError } = await supabase.from('workers').insert(workerForContractor);
       if (workerError) {
         console.error('Failed to create matching worker for contractor:', workerError);
         setLoading(false);
-        return { success: false, error: workerError };
+        return {
+          success: false,
+          error: new Error(workerError.message || 'Contractor registration failed while creating matching worker. Please verify your Supabase schema includes the workers location columns.'),
+        };
       }
     }
 
@@ -308,6 +327,22 @@ export const AuthProvider = ({ children }) => {
     return '';
   };
 
+  const getDistanceKm = (lat1, lon1, lat2, lon2) => {
+    if ([lat1, lon1, lat2, lon2].some((value) => value === null || value === undefined || Number.isNaN(value))) {
+      return Number.POSITIVE_INFINITY;
+    }
+
+    const toRadians = (value) => (value * Math.PI) / 180;
+    const radius = 6371;
+    const dLat = toRadians(lat2 - lat1);
+    const dLon = toRadians(lon2 - lon1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLon / 2) ** 2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return radius * c;
+  };
+
   const autoAssignBookingToWorker = async (booking) => {
     if (!booking || booking.worker_id) {
       return { success: false, reason: 'already-assigned' };
@@ -324,7 +359,19 @@ export const AuthProvider = ({ children }) => {
       return { success: false, reason: 'no-worker-found' };
     }
 
-    const bestWorker = [...availableWorkers].sort((a, b) => (b.trust_score ?? 100) - (a.trust_score ?? 100))[0];
+    const bookingLatitude = booking?.location_latitude ?? null;
+    const bookingLongitude = booking?.location_longitude ?? null;
+    const bestWorker = [...availableWorkers].sort((a, b) => {
+      const aDistance = bookingLatitude !== null && bookingLongitude !== null && a?.location_latitude !== null && a?.location_longitude !== null
+        ? getDistanceKm(bookingLatitude, bookingLongitude, a.location_latitude, a.location_longitude)
+        : Number.POSITIVE_INFINITY;
+      const bDistance = bookingLatitude !== null && bookingLongitude !== null && b?.location_latitude !== null && b?.location_longitude !== null
+        ? getDistanceKm(bookingLatitude, bookingLongitude, b.location_latitude, b.location_longitude)
+        : Number.POSITIVE_INFINITY;
+      const distanceCompare = aDistance - bDistance;
+      if (distanceCompare !== 0) return distanceCompare;
+      return (b.trust_score ?? 100) - (a.trust_score ?? 100);
+    })[0];
     const profile = profiles.find((item) => item.id === bestWorker.id);
     const assignmentPayload = {
       worker_id: bestWorker.id,

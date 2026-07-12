@@ -3,30 +3,27 @@ import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, Calendar, CheckSquare, ArrowRight,
-  ArrowLeft, Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert
+  ArrowLeft, Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { INDIA_CITIES, getCityOptions } from '../data/mockData';
 
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+const DEFAULT_CITIES = INDIA_CITIES;
 
 const BookingFlow = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { services, addBooking, user, isAuthenticated } = useApp();
-  const [cities, setCities] = useState([]);
+  const [cities, setCities] = useState(DEFAULT_CITIES);
 
   useEffect(() => {
     const fetchCities = async () => {
       const { data, error } = await supabase.from('cities').select('*');
-      if (!error) setCities(data);
+      if (!error) {
+        setCities(getCityOptions(data || []));
+      }
     };
     fetchCities();
   }, []);
@@ -35,6 +32,8 @@ const BookingFlow = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [bookingId, setBookingId] = useState('');
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoMessage, setGeoMessage] = useState('');
 
   // Pre-fill user data if logged in
   const [formData, setFormData] = useState({
@@ -47,7 +46,11 @@ const BookingFlow = () => {
     date: '',
     payment: 'Cash on Service',
     notes: '',
-    timeSlot: ''
+    timeSlot: '',
+    locationText: '',
+    locationLatitude: null,
+    locationLongitude: null,
+    locationSource: ''
   });
 
   useEffect(() => {
@@ -75,6 +78,37 @@ const BookingFlow = () => {
   const basePrice = selectedService?.base_price || selectedService?.inspection_fee || 0;
   const platformFee = selectedService?.platform_fee || 0;
   const totalAmount = basePrice + platformFee;
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoMessage('Geolocation is not supported in this browser.');
+      return;
+    }
+
+    setGeoLoading(true);
+    setGeoMessage('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData(prev => ({
+          ...prev,
+          locationText: `Auto-detected (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`,
+          locationLatitude: position.coords.latitude,
+          locationLongitude: position.coords.longitude,
+          locationSource: 'device'
+        }));
+        setGeoLoading(false);
+        setGeoMessage('Current location detected successfully.');
+      },
+      (error) => {
+        setGeoLoading(false);
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location access was denied. You can still enter a location manually.'
+          : 'Unable to detect your location right now. You can still enter a location manually.';
+        setGeoMessage(message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
 
   const validateStep = (s) => {
     let newErrors = {};
@@ -120,11 +154,13 @@ const BookingFlow = () => {
       setTimeout(async () => {
         try {
           const combinedAddress = `${formData.address}${formData.notes ? ` (Notes: ${formData.notes})` : ''}${formData.timeSlot ? ` (Slot: ${formData.timeSlot})` : ''}`;
+          const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+          const selectedCityRecord = displayCities.find((city) => (city.name || '').toLowerCase() === (formData.city || '').trim().toLowerCase());
           const payload = {
             id: generatedId,
             customer_id: user?.id,
             service_id: formData.service,
-            city_id: (cities && cities.length > 0 ? cities : DEFAULT_CITIES).find(c => c.name === formData.city)?.id,
+            city_id: selectedCityRecord?.id ?? null,
             address: combinedAddress,
             preferred_date: formData.date,
             status: "New Request",
@@ -140,7 +176,11 @@ const BookingFlow = () => {
             city: formData.city,
             booking_date: formData.date,
             price: basePrice,
-            platform_fee: platformFee
+            platform_fee: platformFee,
+            location_text: formData.locationText || '',
+            location_latitude: formData.locationLatitude,
+            location_longitude: formData.locationLongitude,
+            location_source: formData.locationSource || (formData.locationText ? 'manual' : '')
           };
           
           const { error } = await addBooking(payload);
@@ -283,6 +323,35 @@ const BookingFlow = () => {
                       </select>
                     </div>
                     {errors.city && <p className="text-danger text-xs font-bold">{errors.city}</p>}
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Precise Location (Optional)</label>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        className="flex-1 h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                        placeholder="Enter landmark, locality, or area"
+                        value={formData.locationText}
+                        onChange={(e) => setFormData(prev => ({ ...prev, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' }))}
+                      />
+                      <button
+                        type="button"
+                        onClick={handleUseCurrentLocation}
+                        disabled={geoLoading}
+                        className="h-11 px-4 rounded-xl border border-sky-200/80 bg-gradient-to-r from-sky-200 via-cyan-100 to-sky-100 text-slate-700 text-xs font-black shadow-sm shadow-sky-200/40 flex items-center justify-center gap-2 disabled:opacity-60 hover:shadow-md hover:shadow-sky-200/50 transition-all"
+                      >
+                        {geoLoading ? (
+                          <Loader2 size={18} className="animate-spin" />
+                        ) : (
+                          <span className="rounded-full bg-white/15 p-1.5">
+                            <LocateFixed size={18} />
+                          </span>
+                        )}
+                        {geoLoading ? 'Detecting...' : 'Use Current Location'}
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-semibold">We use your city first, then your precise location to find the best nearby worker.</p>
+                    {geoMessage && <p className={`text-[10px] font-semibold ${geoMessage.includes('successfully') ? 'text-green-600' : 'text-amber-600'}`}>{geoMessage}</p>}
                   </div>
 
                   {/* Select Service */}

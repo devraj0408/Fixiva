@@ -13,12 +13,135 @@ export const INITIAL_SERVICES = [
   { id: 'renovation', name: 'Home Renovation', icon: 'Home', inspectionFee: 199, platformFee: 99, active: true },
 ];
 
-export const INITIAL_CITIES = {
-  'Jharkhand': ['Ranchi', 'Jamshedpur', 'Dhanbad', 'Bokaro', 'Deoghar'],
-  'Bihar': ['Patna', 'Gaya', 'Muzaffarpur'],
-  'NCR': ['Delhi', 'Noida', 'Greater Noida'],
-  'Maharashtra': ['Mumbai', 'Navi Mumbai'],
-  'South India': ['Bengaluru', 'Hyderabad', 'Chennai'],
+export const INDIA_CITIES = [
+  { id: 1, name: 'Agra', region: 'Uttar Pradesh' },
+  { id: 2, name: 'Ahmedabad', region: 'Gujarat' },
+  { id: 3, name: 'Ajmer', region: 'Rajasthan' },
+  { id: 4, name: 'Aizawl', region: 'Mizoram' },
+  { id: 5, name: 'Allahabad', region: 'Uttar Pradesh' },
+  { id: 6, name: 'Amritsar', region: 'Punjab' },
+  { id: 7, name: 'Asansol', region: 'West Bengal' },
+  { id: 8, name: 'Aurangabad', region: 'Maharashtra' },
+  { id: 9, name: 'Bengaluru', region: 'Karnataka' },
+  { id: 10, name: 'Bhopal', region: 'Madhya Pradesh' },
+  { id: 11, name: 'Bhubaneswar', region: 'Odisha' },
+  { id: 12, name: 'Bhilai', region: 'Chhattisgarh' },
+  { id: 13, name: 'Bilaspur', region: 'Chhattisgarh' },
+  { id: 14, name: 'Bokaro', region: 'Jharkhand' },
+  { id: 15, name: 'Chandigarh', region: 'Chandigarh' },
+  { id: 16, name: 'Chennai', region: 'Tamil Nadu' },
+  { id: 17, name: 'Coimbatore', region: 'Tamil Nadu' },
+  { id: 18, name: 'Cuttack', region: 'Odisha' },
+  { id: 19, name: 'Dehradun', region: 'Uttarakhand' },
+  { id: 20, name: 'Deoghar', region: 'Jharkhand' },
+  { id: 21, name: 'Delhi', region: 'Delhi' },
+  { id: 22, name: 'Dhanbad', region: 'Jharkhand' },
+  { id: 23, name: 'Dharamshala', region: 'Himachal Pradesh' },
+  { id: 24, name: 'Durgapur', region: 'West Bengal' },
+  { id: 25, name: 'Faridabad', region: 'Haryana' },
+  { id: 26, name: 'Gaya', region: 'Bihar' },
+  { id: 27, name: 'Ghaziabad', region: 'Uttar Pradesh' },
+  { id: 28, name: 'Gorakhpur', region: 'Uttar Pradesh' },
+  { id: 29, name: 'Greater Noida', region: 'Uttar Pradesh' },
+  { id: 30, name: 'Gurugram', region: 'Haryana' },
+  { id: 31, name: 'Guwahati', region: 'Assam' },
+  { id: 32, name: 'Gwalior', region: 'Madhya Pradesh' },
+  { id: 33, name: 'Haridwar', region: 'Uttarakhand' },
+  { id: 34, name: 'Hazaribagh', region: 'Jharkhand' },
+  { id: 35, name: 'Hyderabad', region: 'Telangana' },
+  { id: 36, name: 'Imphal', region: 'Manipur' },
+  { id: 37, name: 'Indore', region: 'Madhya Pradesh' },
+  { id: 38, name: 'Itanagar', region: 'Arunachal Pradesh' },
+  { id: 39, name: 'Jabalpur', region: 'Madhya Pradesh' },
+  { id: 40, name: 'Jaipur', region: 'Rajasthan' },
+  { id: 41, name: 'Jalandhar', region: 'Punjab' },
+  { id: 42, name: 'Jamshedpur', region: 'Jharkhand' },
+  { id: 43, name: 'Jammu', region: 'Jammu and Kashmir' },
+  { id: 44, name: 'Jodhpur', region: 'Rajasthan' },
+  { id: 45, name: 'Jorhat', region: 'Assam' },
+  { id: 46, name: 'Kanpur', region: 'Uttar Pradesh' },
+  { id: 47, name: 'Karaikal', region: 'Puducherry' },
+  { id: 48, name: 'Kavaratti', region: 'Lakshadweep' },
+  { id: 49, name: 'Kochi', region: 'Kerala' },
+  { id: 50, name: 'Kohima', region: 'Nagaland' },
+  { id: 51, name: 'Kolkata', region: 'West Bengal' },
+  { id: 52, name: 'Kollam', region: 'Kerala' },
+  { id: 53, name: 'Kota', region: 'Rajasthan' },
+  { id: 54, name: 'Kozhikode', region: 'Kerala' },
+  { id: 55, name: 'Lucknow', region: 'Uttar Pradesh' },
+  { id: 56, name: 'Ludhiana', region: 'Punjab' },
+  { id: 57, name: 'Mangaluru', region: 'Karnataka' },
+  { id: 58, name: 'Meerut', region: 'Uttar Pradesh' },
+  { id: 59, name: 'Mumbai', region: 'Maharashtra' },
+  { id: 60, name: 'Mysuru', region: 'Karnataka' },
+  { id: 61, name: 'Nagpur', region: 'Maharashtra' },
+  { id: 62, name: 'Naharlagun', region: 'Arunachal Pradesh' },
+  { id: 63, name: 'Nashik', region: 'Maharashtra' },
+  { id: 64, name: 'Noida', region: 'Uttar Pradesh' },
+  { id: 65, name: 'Panaji', region: 'Goa' },
+  { id: 66, name: 'Patiala', region: 'Punjab' },
+  { id: 67, name: 'Patna', region: 'Bihar' },
+  { id: 68, name: 'Pondicherry', region: 'Puducherry' },
+  { id: 69, name: 'Port Blair', region: 'Andaman and Nicobar Islands' },
+  { id: 70, name: 'Prayagraj', region: 'Uttar Pradesh' },
+  { id: 71, name: 'Pune', region: 'Maharashtra' },
+  { id: 72, name: 'Raipur', region: 'Chhattisgarh' },
+  { id: 73, name: 'Rajkot', region: 'Gujarat' },
+  { id: 74, name: 'Ranchi', region: 'Jharkhand' },
+  { id: 75, name: 'Rourkela', region: 'Odisha' },
+  { id: 76, name: 'Rudrapur', region: 'Uttarakhand' },
+  { id: 77, name: 'Salem', region: 'Tamil Nadu' },
+  { id: 78, name: 'Sambalpur', region: 'Odisha' },
+  { id: 79, name: 'Shillong', region: 'Meghalaya' },
+  { id: 80, name: 'Shimla', region: 'Himachal Pradesh' },
+  { id: 81, name: 'Silchar', region: 'Assam' },
+  { id: 82, name: 'Siliguri', region: 'West Bengal' },
+  { id: 83, name: 'Solan', region: 'Himachal Pradesh' },
+  { id: 84, name: 'Srinagar', region: 'Jammu and Kashmir' },
+  { id: 85, name: 'Surat', region: 'Gujarat' },
+  { id: 86, name: 'Thiruvananthapuram', region: 'Kerala' },
+  { id: 87, name: 'Tiruchirappalli', region: 'Tamil Nadu' },
+  { id: 88, name: 'Tirupati', region: 'Andhra Pradesh' },
+  { id: 89, name: 'Udaipur', region: 'Rajasthan' },
+  { id: 90, name: 'Vadodara', region: 'Gujarat' },
+  { id: 91, name: 'Varanasi', region: 'Uttar Pradesh' },
+  { id: 92, name: 'Vasco da Gama', region: 'Goa' },
+  { id: 93, name: 'Vijayawada', region: 'Andhra Pradesh' },
+  { id: 94, name: 'Visakhapatnam', region: 'Andhra Pradesh' },
+  { id: 95, name: 'Warangal', region: 'Telangana' },
+  { id: 96, name: 'Daman', region: 'Daman and Diu' },
+  { id: 97, name: 'Silvassa', region: 'Dadra and Nagar Haveli' },
+  { id: 98, name: 'Leh', region: 'Ladakh' },
+  { id: 99, name: 'Agartala', region: 'Tripura' },
+  { id: 100, name: 'Ujjain', region: 'Madhya Pradesh' }
+];
+
+export const INITIAL_CITIES = INDIA_CITIES;
+
+export const getCityOptions = (dbCities = []) => {
+  const merged = new Map();
+
+  INDIA_CITIES.forEach((city) => {
+    merged.set((city.name || '').trim().toLowerCase(), {
+      id: city.id,
+      name: city.name,
+      region: city.region || 'India'
+    });
+  });
+
+  (dbCities || []).forEach((city) => {
+    const key = (city?.name || '').trim().toLowerCase();
+    if (!key) return;
+
+    const existing = merged.get(key);
+    merged.set(key, {
+      id: city?.id ?? existing?.id,
+      name: city?.name || existing?.name,
+      region: city?.region || existing?.region || 'India'
+    });
+  });
+
+  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
 };
 
 // Initial states for the application

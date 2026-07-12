@@ -7,6 +7,7 @@ import {
   ArrowRight, MapPin, IndianRupee, Star, Filter, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { INDIA_CITIES } from '../data/mockData';
 
 const IconMap = {
   zap: Zap,
@@ -29,13 +30,7 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+const DEFAULT_CITIES = INDIA_CITIES;
 
 const Services = () => {
   const { services, cities } = useApp();

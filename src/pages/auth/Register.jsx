@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
-import { Loader2, Mail, Lock, User, Briefcase, Info, Building, ShieldCheck, Phone, CheckCircle, ArrowRight } from 'lucide-react';
+import { INDIA_CITIES } from '../../data/mockData';
+import { Loader2, Mail, Lock, User, Briefcase, Info, Building, ShieldCheck, Phone, CheckCircle, ArrowRight, LocateFixed } from 'lucide-react';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -10,8 +11,11 @@ const Register = () => {
   const initialRole = queryParams.get('role') || 'customer';
 
   const [role, setRole] = useState(initialRole);
-  const { register } = useApp();
+  const { register, cities } = useApp();
   const [loading, setLoading] = useState(false);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoMessage, setGeoMessage] = useState('');
+  const cityOptions = (cities && cities.length > 0 ? cities : INDIA_CITIES).slice().sort((a, b) => a.name.localeCompare(b.name));
   
   // Registration data fields
   const [formData, setFormData] = useState({
@@ -20,6 +24,10 @@ const Register = () => {
     password: '',
     city: '',
     phone: '',
+    locationText: '',
+    locationLatitude: null,
+    locationLongitude: null,
+    locationSource: '',
     
     // Worker fields
     skills: '',
@@ -36,6 +44,37 @@ const Register = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  const handleUseCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setGeoMessage('Geolocation is not supported in this browser.');
+      return;
+    }
+
+    setGeoLoading(true);
+    setGeoMessage('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormData(prev => ({
+          ...prev,
+          locationText: `Auto-detected (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`,
+          locationLatitude: position.coords.latitude,
+          locationLongitude: position.coords.longitude,
+          locationSource: 'device'
+        }));
+        setGeoLoading(false);
+        setGeoMessage('Current location detected successfully.');
+      },
+      (error) => {
+        setGeoLoading(false);
+        const message = error.code === error.PERMISSION_DENIED
+          ? 'Location access was denied. You can still enter a location manually.'
+          : 'Unable to detect your location right now. You can still enter a location manually.';
+        setGeoMessage(message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  };
 
   const validate = () => {
     let newErrors = {};
@@ -71,6 +110,10 @@ const Register = () => {
       name: formData.name,
       phone: formData.phone,
       city: formData.city,
+      location_text: formData.locationText,
+      location_latitude: formData.locationLatitude,
+      location_longitude: formData.locationLongitude,
+      location_source: formData.locationSource || (formData.locationText ? 'manual' : ''),
       
       // Worker properties
       skills: formData.skills,
@@ -165,14 +208,49 @@ const Register = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operating City</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Ranchi"
-                  className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                <select
+                  className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all"
                   value={formData.city}
                   onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                />
+                >
+                  <option value="">Select city</option>
+                  {cityOptions.map((city) => (
+                    <option key={city.id} value={city.name}>
+                      {city.name}
+                    </option>
+                  ))}
+                </select>
                 {errors.city && <p className="text-danger text-[10px] font-bold text-red-500">{errors.city}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Precise Location (Optional)</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="text"
+                    placeholder="Enter locality, landmark, or area"
+                    className="flex-1 h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                    value={formData.locationText}
+                    onChange={(e) => setFormData({ ...formData, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' })}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleUseCurrentLocation}
+                    disabled={geoLoading}
+                    className="h-11 px-4 rounded-xl border border-sky-200/80 bg-gradient-to-r from-sky-200 via-cyan-100 to-sky-100 text-slate-700 text-xs font-black shadow-sm shadow-sky-200/40 flex items-center justify-center gap-2 disabled:opacity-60 hover:shadow-md hover:shadow-sky-200/50 transition-all"
+                  >
+                    {geoLoading ? (
+                      <Loader2 size={18} className="animate-spin" />
+                    ) : (
+                      <span className="rounded-full bg-white/15 p-1.5">
+                        <LocateFixed size={18} />
+                      </span>
+                    )}
+                    {geoLoading ? 'Detecting...' : 'Use Current Location'}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-400 font-semibold">City is used first for matching; your precise location helps find nearby jobs.</p>
+                {geoMessage && <p className={`text-[10px] font-semibold ${geoMessage.includes('successfully') ? 'text-green-600' : 'text-amber-600'}`}>{geoMessage}</p>}
               </div>
 
               <div className="space-y-1.5">

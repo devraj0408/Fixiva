@@ -7,6 +7,7 @@ import {
   Star, MapPin, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { INDIA_CITIES } from '../data/mockData';
 
 const IconMap = {
   zap: Zap,
@@ -29,13 +30,7 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+const DEFAULT_CITIES = INDIA_CITIES;
 
 const Home = () => {
   const { services, reviews, cities } = useApp();
@@ -96,7 +91,7 @@ const Home = () => {
             </h1>
 
             <p className="text-lg text-slate-600 font-medium max-w-xl">
-              Book professional home services instant dispatch. Connect with certified plumbers, electricians, painters and construction contractors in Ranchi, Dhanbad, and beyond.
+              Book professional home services instant dispatch. Connect with certified plumbers, electricians, painters and construction contractors across India.
             </p>
 
             {/* Premium search & Select City controls combined */}
@@ -328,7 +323,7 @@ const Home = () => {
           <div className="flex flex-col lg:flex-row gap-12 items-center">
             <div className="lg:w-1/3 space-y-4">
               <span className="text-[10px] font-black uppercase tracking-widest text-primary">Expanded Coverage</span>
-              <h2 className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Serving Cities In Jharkhand</h2>
+              <h2 className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Serving Cities Across India</h2>
               <p className="text-slate-500 text-sm font-semibold leading-relaxed">
                 Fixiva ensures on-site assignments are completed by verified nearby service partners in selected Indian towns.
               </p>
