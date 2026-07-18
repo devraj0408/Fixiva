@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { 
-  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug, 
-  Trash2, Truck, HardHat, Home as HomeIcon, CheckCircle, 
+import {
+  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
+  Trash2, Truck, HardHat, Home as HomeIcon,
   Star, MapPin, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
@@ -33,7 +33,7 @@ const IconMap = {
 const DEFAULT_CITIES = INDIA_CITIES;
 
 const Home = () => {
-  const { services, reviews, cities } = useApp();
+  const { services, reviews, cities, showToast } = useApp();
   const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
   const navigate = useNavigate();
   
@@ -67,7 +67,7 @@ const Home = () => {
   return (
     <div className="bg-slate-50 min-h-screen">
       {/* Hero Section */}
-      <section className="relative py-20 lg:py-28 bg-gradient-to-br from-blue-50 via-indigo-50/30 to-white overflow-hidden border-b border-slate-100">
+      <section className="relative py-20 lg:py-28 hero-shell overflow-hidden border-b border-slate-100">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl -z-10"></div>
         <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-3xl -z-10"></div>
 
@@ -79,23 +79,29 @@ const Home = () => {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-full text-xs font-bold uppercase tracking-wider shadow-sm border border-slate-100/80 text-primary">
-              <ShieldCheck size={14} className="animate-pulse" /> Official Marketplace Launched
+            <div className="section-label">
+              <ShieldCheck size={13} /> Official Marketplace Launched
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-tight">
+            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[0.95]">
               One App.<br/>
-              <span className="bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
+              <span className="hero-title-highlight">
                 Every Solution.
               </span>
             </h1>
 
-            <p className="text-lg text-slate-600 font-medium max-w-xl">
-              Book professional home services instant dispatch. Connect with certified plumbers, electricians, painters and construction contractors across India.
+            <p className="text-lg text-slate-600 font-medium max-w-xl leading-8">
+              Book professional home services with instant dispatch, verified experts, and a clear experience from first click to final service.
             </p>
 
+            <div className="flex flex-wrap gap-3">
+              <span className="stat-pill"><ShieldCheck size={15} className="text-primary" /> 4.9/5 rated partners</span>
+              <span className="stat-pill"><Clock size={15} className="text-primary" /> Fast dispatch</span>
+              <span className="stat-pill"><Lock size={15} className="text-primary" /> Secure booking</span>
+            </div>
+
             {/* Premium search & Select City controls combined */}
-            <form onSubmit={handleSearchSubmit} className="bg-white p-2.5 rounded-2xl shadow-xl shadow-slate-100 border border-slate-100 flex flex-col md:flex-row gap-2 max-w-2xl">
+            <form onSubmit={handleSearchSubmit} className="hero-panel p-2.5 rounded-[1.6rem] flex flex-col md:flex-row gap-2 max-w-2xl">
               <div className="flex-1 flex items-center gap-2 px-3 border-b md:border-b-0 md:border-r border-slate-100 pb-2 md:pb-0">
                 <Search size={18} className="text-slate-400 shrink-0" />
                 <input 
@@ -139,11 +145,17 @@ const Home = () => {
             transition={{ duration: 0.6, delay: 0.1 }}
           >
             <div className="relative">
-              <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-3xl opacity-10 blur-xl"></div>
+              <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-[2rem] opacity-10 blur-3xl"></div>
+              <div className="absolute -bottom-6 -left-6 hero-panel rounded-[1.4rem] p-4 max-w-[220px] z-20">
+                <div className="flex items-center gap-2 text-primary text-sm font-bold">
+                  <Sparkles size={16} /> Trusted by 1200+ homes
+                </div>
+                <p className="mt-2 text-xs text-slate-500 leading-5">Verified professionals, transparent pricing, and a polished booking experience.</p>
+              </div>
               <img 
                 src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800" 
                 alt="Fixiva Home Service Expert" 
-                className="rounded-3xl shadow-premium border-8 border-white max-w-full w-96 relative z-10"
+                className="rounded-[2rem] border-[8px] border-white shadow-[0_30px_60px_-24px_rgba(15,23,42,0.35)] max-w-full w-96 relative z-10"
               />
             </div>
           </motion.div>
@@ -214,7 +226,7 @@ const Home = () => {
                   key={idx} 
                   variants={itemVariants}
                   whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                  className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md border border-white/60 dark:border-slate-800/80 p-8 rounded-3xl shadow-sm hover:shadow-premium-lg hover:border-primary/20 dark:hover:border-primary/30 transition-all duration-300 flex flex-col justify-between"
+                  className="elevated-card p-8 rounded-[1.65rem] transition-all duration-300 flex flex-col justify-between"
                 >
                   <div className="space-y-4">
                     <div className={`h-11 w-11 rounded-xl bg-gradient-to-tr ${item.color} text-white flex items-center justify-center shadow-sm`}>
@@ -264,7 +276,7 @@ const Home = () => {
                   <motion.div key={s.id} variants={itemVariants}>
                     <Link 
                       to={`/book/${s.id}`} 
-                      className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center h-full"
+                      className="group section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center h-full"
                     >
                       <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
                         <Icon size={22} />
@@ -304,7 +316,7 @@ const Home = () => {
             ].map((item, idx) => (
               <div 
                 key={idx} 
-                className="bg-white p-8 rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-md transition-all text-center flex flex-col items-center"
+                className="elevated-card p-8 rounded-[1.4rem] transition-all text-center flex flex-col items-center"
               >
                 <div className="h-12 w-12 rounded-full bg-primary/10 text-primary font-black text-base flex items-center justify-center mb-6">
                   {item.step}
@@ -330,7 +342,7 @@ const Home = () => {
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
                 <p className="font-bold text-slate-700">Don't see your city?</p>
                 <button 
-                  onClick={() => alert("Fixiva interest logged! We will notify you once we launch in your area.")} 
+                  onClick={() => showToast("Fixiva interest logged! We will notify you once we launch in your area.", 'success')} 
                   className="btn-secondary text-xs px-4 py-2.5 rounded-xl mt-2 block w-full sm:w-auto"
                 >
                   Request Coverage Area
@@ -342,7 +354,7 @@ const Home = () => {
               {displayCities.map(c => (
                 <div 
                   key={c.id} 
-                  className="p-5 border border-slate-100 rounded-2xl bg-white shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all"
+                  className="p-5 rounded-[1.2rem] section-surface flex items-center gap-3.5 hover:shadow-[0_16px_34px_-24px_rgba(15,23,42,0.2)] transition-all"
                 >
                   <div className="p-2 bg-blue-50 text-primary rounded-xl">
                     <MapPin size={18} />
@@ -401,7 +413,7 @@ const Home = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
               {reviews.slice(0, 3).map((r, idx) => (
-                <div key={idx} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between h-full">
+                <div key={idx} className="elevated-card p-8 rounded-[1.5rem] flex flex-col justify-between h-full">
                   <div>
                     <div className="flex gap-1 text-warning mb-4">
                       {[...Array(5)].map((_, j) => (
@@ -428,7 +440,7 @@ const Home = () => {
       {/* Book CTA callout */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-br from-primary to-indigo-600 rounded-[2.5rem] p-12 text-center text-white shadow-xl shadow-primary/10 relative overflow-hidden">
+          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-primary rounded-[2.5rem] p-12 text-center text-white shadow-[0_25px_55px_-20px_rgba(15,23,42,0.35)] relative overflow-hidden">
             <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-3xl"></div>
             <div className="relative z-10 space-y-6 max-w-xl mx-auto">
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Ready to clear your tasks list?</h2>

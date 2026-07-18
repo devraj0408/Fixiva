@@ -1,20 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
-import { 
-  Clock, CheckCircle, Star, MapPin, 
-  Settings, HelpCircle, LogOut, Package, Phone, Send, Info, User, AlertTriangle
+import {
+  Clock, CheckCircle, Star, MapPin, AlertTriangle, Phone,
+  Settings, HelpCircle, LogOut, Package
 } from 'lucide-react';
 
 const CustomerDashboard = () => {
-  const { user, bookings, updateBookingStatus, reviews, addReview, tickets, addTicket, logout } = useApp();
+  const { user, bookings, updateBookingStatus, reviews, addReview, tickets, addTicket, logout, showToast, confirm } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState(tabParam || 'bookings');
+  const activeTab = tabParam || 'bookings';
   const [reviewingBooking, setReviewingBooking] = useState(null);
   
   // Support ticket fields
@@ -22,22 +22,15 @@ const CustomerDashboard = () => {
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketLoading, setTicketLoading] = useState(false);
 
-  // Sync tab param from URL
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
   // Filters
   const myBookings = bookings.filter(b => b.customer_id === user?.id);
   const myTickets = tickets.filter(t => t.user_id === user?.id);
 
-  const handleReportNoShow = (bookingId) => {
-    if(window.confirm("Report Worker No-Show? This will notify Fixiva Admin for immediate action.")) {
-      updateBookingStatus(bookingId, 'Worker No Show');
-      alert("Reported. We are assigning a new professional or will contact you shortly.");
-    }
+  const handleReportNoShow = async (bookingId) => {
+    const ok = await confirm('Report Worker No-Show? This will notify Fixiva Admin for immediate action.');
+    if (!ok) return;
+    await updateBookingStatus(bookingId, 'Worker No Show');
+    showToast('Reported. We are assigning a new professional or will contact you shortly.', 'success');
   };
 
   const handleReviewSubmit = async (e) => {
@@ -54,16 +47,16 @@ const CustomerDashboard = () => {
     const { error } = await addReview(reviewData);
     if (!error) {
       setReviewingBooking(null);
-      alert('Thank you for your feedback!');
+      showToast('Thank you for your feedback!', 'success');
     } else {
-      alert('Failed to submit review: ' + error.message);
+      showToast('Failed to submit review: ' + error.message, 'error');
     }
   };
 
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!ticketSubject || !ticketMessage) {
-      alert('Please fill out all fields');
+      showToast('Please fill out all fields', 'error');
       return;
     }
     setTicketLoading(true);
@@ -74,11 +67,11 @@ const CustomerDashboard = () => {
     });
     setTicketLoading(false);
     if (!error) {
-      alert('Support ticket raised successfully!');
+      showToast('Support ticket raised successfully!', 'success');
       setTicketSubject('');
       setTicketMessage('');
     } else {
-      alert('Failed to raise support ticket: ' + error.message);
+      showToast('Failed to raise support ticket: ' + error.message, 'error');
     }
   };
 
@@ -137,7 +130,7 @@ const CustomerDashboard = () => {
           {/* Navigation Options */}
           <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
             <button 
-              onClick={() => { setActiveTab('bookings'); navigate(`${location.pathname}?tab=bookings`); }}
+              onClick={() => navigate(`${location.pathname}?tab=bookings`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'bookings' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -145,7 +138,7 @@ const CustomerDashboard = () => {
               <Clock size={16} /> My Bookings
             </button>
             <button 
-              onClick={() => { setActiveTab('reviews'); navigate(`${location.pathname}?tab=reviews`); }}
+              onClick={() => navigate(`${location.pathname}?tab=reviews`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'reviews' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -153,7 +146,7 @@ const CustomerDashboard = () => {
               <Star size={16} /> My Reviews
             </button>
             <button 
-              onClick={() => { setActiveTab('support'); navigate(`${location.pathname}?tab=support`); }}
+              onClick={() => navigate(`${location.pathname}?tab=support`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'support' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -161,7 +154,7 @@ const CustomerDashboard = () => {
               <HelpCircle size={16} /> Support Tickets
             </button>
             <button 
-              onClick={() => { setActiveTab('profile'); navigate(`${location.pathname}?tab=profile`); }}
+              onClick={() => navigate(`${location.pathname}?tab=profile`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'profile' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}

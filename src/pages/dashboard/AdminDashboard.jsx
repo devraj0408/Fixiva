@@ -1,21 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart3, Users, Briefcase, FileText,
-  MessageCircle, Settings, CheckCircle, Clock,
-  ShieldCheck, IndianRupee, MapPin, CheckSquare,
-  HelpCircle, LogOut, Award, ShieldAlert, TrendingUp, DollarSign
+  MessageCircle, CheckCircle, Clock,
+  ShieldCheck, IndianRupee,
+  LogOut, TrendingUp, Sparkles, Zap
 } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 
 const AdminDashboard = () => {
   const {
+    user,
     bookings, workers, contractors, tickets,
+    profiles,
     services, updateServicePrice, updateWorkerStatus,
     updateContractorStatus, updateBookingStatus, updateTicketStatus,
-    refreshData, logout
+    refreshData, logout, showToast,
+    createService, updateService, deleteService, updateUserRole,
   } = useApp();
 
   const navigate = useNavigate();
@@ -23,32 +26,21 @@ const AdminDashboard = () => {
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState(tabParam || 'overview');
+  const activeTab = tabParam || 'overview';
   const [priceInputs, setPriceInputs] = useState({});
   const [citiesList, setCitiesList] = useState([]);
-  const [allProfiles, setAllProfiles] = useState([]);
   
   // City creation
   const [newCityName, setNewCityName] = useState('');
   const [newCityRegion, setNewCityRegion] = useState('');
 
-  // Sync tab param from URL
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
   useEffect(() => {
     const fetchData = async () => {
       const { data: cData } = await supabase.from('cities').select('*');
       if (cData) setCitiesList(cData);
-
-      const { data: pData } = await supabase.from('profiles').select('*');
-      if (pData) setAllProfiles(pData);
     };
     fetchData();
-  }, [bookings, workers, contractors]);
+  }, []);
 
   const handlePriceChange = (id, field, value) => {
     setPriceInputs(prev => ({ ...prev, [id]: { ...prev[id], [field]: value } }));
@@ -61,26 +53,6 @@ const AdminDashboard = () => {
     await refreshData();
   };
 
-  const handleAssignWorker = async (bookingId, workerId) => {
-    if (!workerId) return;
-    const worker = workers.find(w => w.id === workerId);
-    if (!worker) return;
-
-    const { error } = await supabase.from('bookings').update({
-      worker_id: worker.id,
-      worker_name: worker.name,
-      worker_phone: worker.phone,
-      status: 'Assigned'
-    }).eq('id', bookingId);
-
-    if (!error) {
-      alert(`Assigned ${worker.name} to booking.`);
-      await refreshData();
-    } else {
-      alert("Failed to assign worker: " + error.message);
-    }
-  };
-
   const handleAddCity = async (e) => {
     e.preventDefault();
     if (!newCityName || !newCityRegion) return;
@@ -89,7 +61,7 @@ const AdminDashboard = () => {
       region: newCityRegion
     });
     if (!error) {
-      alert('City added successfully!');
+      showToast('City added successfully!', 'success');
       setNewCityName('');
       setNewCityRegion('');
       // Refresh cities
@@ -97,7 +69,7 @@ const AdminDashboard = () => {
       if (data) setCitiesList(data);
       await refreshData();
     } else {
-      alert('Error adding city: ' + error.message);
+      showToast('Error adding city: ' + error.message, 'error');
     }
   };
 
@@ -107,6 +79,11 @@ const AdminDashboard = () => {
   const pendingWorkers = workers.filter(w => w.status === 'Pending Verification' && !w.isContractor).length;
   const pendingContractors = contractors.filter(c => c.status === 'Pending Approval').length;
   const openTickets = tickets.filter(t => t.status === 'Open' || t.status === 'In Progress').length;
+  const verifiedWorkers = workers.filter(w => w.status === 'Verified' && !w.isContractor).length;
+  const totalUsers = (profiles || []).length;
+  const recentActivity = [...bookings]
+    .sort((a, b) => new Date(b.booking_date || b.preferred_date || 0) - new Date(a.booking_date || a.preferred_date || 0))
+    .slice(0, 4);
 
   // Revenues (Revenue Protection)
   const validBookings = bookings.filter(b => b.status !== 'Cancelled');
@@ -123,6 +100,15 @@ const AdminDashboard = () => {
     { label: 'Completed Jobs', value: completedBookings, icon: <CheckCircle className="text-success" />, color: 'bg-green-50 text-success' },
     { label: 'Worker Approvals', value: pendingWorkers, icon: <ShieldCheck className="text-primary" />, color: 'bg-blue-50 text-primary' },
     { label: 'Support Tickets', value: openTickets, icon: <MessageCircle className="text-danger" />, color: 'bg-red-50 text-danger' },
+    { label: 'Verified Workers', value: verifiedWorkers, icon: <Briefcase className="text-slate-700" />, color: 'bg-slate-100 text-slate-700' },
+    { label: 'Registered Users', value: totalUsers, icon: <Users className="text-violet-600" />, color: 'bg-violet-50 text-violet-600' },
+  ];
+
+  const quickActions = [
+    { label: 'Dispatch queue', tab: 'bookings', desc: 'Assign live bookings with speed' },
+    { label: 'Partner verifications', tab: 'verification', desc: 'Approve workers and contractors' },
+    { label: 'Pricing & cities', tab: 'pricing', desc: 'Update service tariffs and coverage' },
+    { label: 'Support inbox', tab: 'tickets', desc: 'Resolve customer issues quickly' },
   ];
 
   const handleLogoutClick = () => {
@@ -139,18 +125,18 @@ const AdminDashboard = () => {
           {/* Profile Card */}
           <div className="bg-slate-900 rounded-3xl p-6 text-center space-y-4 shadow-sm text-white">
             <div className="h-14 w-14 mx-auto rounded-xl bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase shadow-md">
-              A
+              {(user?.name || 'A').charAt(0)}
             </div>
             <div className="space-y-0.5">
-              <h3 className="font-extrabold text-sm leading-tight text-white">Fixiva Operations Desk</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Super Administrator</p>
+              <h3 className="font-extrabold text-sm leading-tight text-white">{user?.name || 'Fixiva Operations Desk'}</h3>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role === 'admin' ? 'Super Administrator' : 'Operations Access'}</p>
             </div>
           </div>
 
           {/* Navigation Options */}
           <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
             <button 
-              onClick={() => { setActiveTab('overview'); navigate(`${location.pathname}?tab=overview`); }}
+              onClick={() => navigate(`${location.pathname}?tab=overview`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'overview' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -158,7 +144,7 @@ const AdminDashboard = () => {
               <BarChart3 size={16} /> Hub Overview
             </button>
             <button 
-              onClick={() => { setActiveTab('bookings'); navigate(`${location.pathname}?tab=bookings`); }}
+              onClick={() => navigate(`${location.pathname}?tab=bookings`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'bookings' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -166,7 +152,7 @@ const AdminDashboard = () => {
               <FileText size={16} /> Dispatch Board
             </button>
             <button 
-              onClick={() => { setActiveTab('users'); navigate(`${location.pathname}?tab=users`); }}
+              onClick={() => navigate(`${location.pathname}?tab=users`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'users' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -174,7 +160,7 @@ const AdminDashboard = () => {
               <Users size={16} /> Directory List
             </button>
             <button 
-              onClick={() => { setActiveTab('verification'); navigate(`${location.pathname}?tab=verification`); }}
+              onClick={() => navigate(`${location.pathname}?tab=verification`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'verification' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -182,7 +168,7 @@ const AdminDashboard = () => {
               <ShieldCheck size={16} /> Verifications
             </button>
             <button 
-              onClick={() => { setActiveTab('pricing'); navigate(`${location.pathname}?tab=pricing`); }}
+              onClick={() => navigate(`${location.pathname}?tab=pricing`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'pricing' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -190,7 +176,15 @@ const AdminDashboard = () => {
               <IndianRupee size={16} /> Tariffs & Cities
             </button>
             <button 
-              onClick={() => { setActiveTab('tickets'); navigate(`${location.pathname}?tab=tickets`); }}
+              onClick={() => navigate(`${location.pathname}?tab=services`)}
+              className={`flex items-center gap-2.5 p-3 rounded-xl ${
+                activeTab === 'services' ? 'btn-primary shadow-md' : 'btn-secondary'
+              }`}
+            >
+              <Briefcase size={16} /> Services
+            </button>
+            <button 
+              onClick={() => navigate(`${location.pathname}?tab=tickets`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'tickets' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -198,7 +192,7 @@ const AdminDashboard = () => {
               <MessageCircle size={16} /> Resolve Tickets
             </button>
             <button 
-              onClick={() => { setActiveTab('revenue'); navigate(`${location.pathname}?tab=revenue`); }}
+              onClick={() => navigate(`${location.pathname}?tab=revenue`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'revenue' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -230,7 +224,7 @@ const AdminDashboard = () => {
                 <h2 className="text-xl font-black text-slate-900 tracking-tight border-b pb-4">Operations Hub Overview</h2>
 
                 {/* Metrics */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                   {stats.map((stat, idx) => (
                     <div key={idx} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
                       <div className={`p-2.5 rounded-xl shrink-0 ${stat.color}`}>{stat.icon}</div>
@@ -282,6 +276,45 @@ const AdminDashboard = () => {
                           <div key={c.id} className="p-3 bg-white border border-slate-100 rounded-xl text-xs font-semibold flex justify-between items-center shadow-sm">
                             <span className="text-slate-700">Contractor: {c.company}</span>
                             <button onClick={() => updateContractorStatus(c.id, 'Approved')} className="btn-success text-[10px] px-2.5 py-1 rounded-lg shadow-sm font-bold">Approve</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="text-primary" size={16} />
+                      <h3 className="font-extrabold text-slate-800 text-sm">Quick control panel</h3>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {quickActions.map((action) => (
+                        <button key={action.tab} onClick={() => navigate(`${location.pathname}?tab=${action.tab}`)} className="rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm hover:border-primary/40 hover:shadow-md transition-all">
+                          <p className="text-xs font-black text-slate-800">{action.label}</p>
+                          <p className="mt-1 text-[10px] font-semibold text-slate-500">{action.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Zap className="text-warning" size={16} />
+                      <h3 className="font-extrabold text-slate-800 text-sm">Latest live activity</h3>
+                    </div>
+                    {recentActivity.length === 0 ? (
+                      <p className="text-slate-400 text-xs font-semibold py-4">No recent booking activity yet.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        {recentActivity.map((booking) => (
+                          <div key={booking.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-black text-slate-800">{booking.service_name || 'Service Request'}</p>
+                              <span className="text-[10px] font-semibold text-slate-500">{booking.status}</span>
+                            </div>
+                            <p className="mt-1 text-[10px] font-semibold text-slate-500">{booking.customer_name || 'Customer'} • {booking.city || 'Unknown city'}</p>
                           </div>
                         ))}
                       </div>
@@ -388,10 +421,11 @@ const AdminDashboard = () => {
                         <th className="p-4">Email Address</th>
                         <th className="p-4">Account Role</th>
                         <th className="p-4">Registered On</th>
+                        <th className="p-4">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {allProfiles.map(p => (
+                      {(profiles || []).map(p => (
                         <tr key={p.id} className="hover:bg-slate-50/50">
                           <td className="p-4 text-slate-400 font-mono">{p.id.substring(0, 8)}...</td>
                           <td className="p-4 font-bold text-slate-900">{p.name}</td>
@@ -406,6 +440,25 @@ const AdminDashboard = () => {
                             </span>
                           </td>
                           <td className="p-4">{new Date(p.created_at).toLocaleDateString()}</td>
+                          <td className="p-4 space-y-2">
+                            <div className="grid gap-2">
+                              <button onClick={() => updateUserRole(p.id, 'admin')} className="btn-primary text-[10px] px-3 py-1.5 rounded">Make Admin</button>
+                              <button
+                                onClick={() => updateUserRole(p.id, 'worker')}
+                                className="btn-secondary text-[10px] px-3 py-1.5 rounded"
+                                disabled={user?.id === p.id}
+                              >
+                                Make Worker
+                              </button>
+                              <button
+                                onClick={() => updateUserRole(p.id, 'customer')}
+                                className="btn-danger text-[10px] px-3 py-1.5 rounded"
+                                disabled={user?.id === p.id}
+                              >
+                                Make Customer
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -567,6 +620,49 @@ const AdminDashboard = () => {
               </motion.div>
             )}
 
+            {activeTab === 'services' && (
+              <motion.div 
+                key="services"
+                className="space-y-6"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <h2 className="text-xl font-black text-slate-900 border-b pb-4">Services Management</h2>
+
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="bg-white border border-slate-100 p-6 rounded-2xl shadow-sm lg:col-span-2 space-y-4">
+                    <h3 className="font-extrabold text-slate-850 text-sm">Existing Services</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
+                        <thead>
+                          <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100">
+                            <th className="p-3">Name</th>
+                            <th className="p-3">Category</th>
+                            <th className="p-3">Description</th>
+                            <th className="p-3">Base (₹)</th>
+                            <th className="p-3">Platform (₹)</th>
+                            <th className="p-3">Cities</th>
+                            <th className="p-3">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {services.map(s => (
+                            <ServiceRow key={s.id} service={s} citiesList={citiesList} onUpdate={updateService} onDelete={deleteService} />
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
+                    <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Create New Service</h3>
+                    <CreateServiceForm citiesList={citiesList} onCreate={async (payload) => { await createService(payload); await refreshData(); }} />
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             {activeTab === 'tickets' && (
               <motion.div 
                 key="tickets"
@@ -664,6 +760,147 @@ const AdminDashboard = () => {
 
       </div>
     </div>
+  );
+};
+
+// Helper subcomponents for services management
+const ServiceRow = ({ service, citiesList = [], onUpdate, onDelete }) => {
+  const { confirm, cityControl } = useApp();
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({
+    name: service.name || '',
+    category: service.category || '',
+    description: service.description || '',
+    base_price: service.base_price || 0,
+    platform_fee: service.platform_fee || 0,
+  });
+  const [selectedCities, setSelectedCities] = useState(() => (
+    (citiesList || []).filter(c => (cityControl?.[c.id]?.[service.id])).map(c => c.id)
+  ));
+
+  const toggleCity = (id) => {
+    setSelectedCities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  const startEditing = () => {
+    setForm({
+      name: service.name || '',
+      category: service.category || '',
+      description: service.description || '',
+      base_price: service.base_price || 0,
+      platform_fee: service.platform_fee || 0,
+    });
+    setSelectedCities((citiesList || []).filter(c => (cityControl?.[c.id]?.[service.id])).map(c => c.id));
+    setEditing(true);
+  };
+
+  const save = async () => {
+    await onUpdate(service.id, { name: form.name, category: form.category, description: form.description, base_price: Number(form.base_price), platform_fee: Number(form.platform_fee) }, selectedCities);
+    setEditing(false);
+  };
+
+  const remove = async () => {
+    const ok = await confirm('Delete this service?');
+    if (!ok) return;
+    await onDelete(service.id);
+  };
+
+  return (
+    <tr>
+      <td className="p-3">
+        {editing ? <input className="border p-1 text-xs rounded" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /> : <span className="font-bold">{service.name}</span>}
+      </td>
+      <td className="p-3">{editing ? <input className="border p-1 text-xs rounded" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /> : (service.category || '-')}</td>
+      <td className="p-3">{editing ? <input className="border p-1 text-xs rounded" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /> : (service.description || '-')}</td>
+      <td className="p-3">{editing ? <input type="number" className="border p-1 text-xs rounded w-20" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} /> : (service.base_price || 0)}</td>
+      <td className="p-3">{editing ? <input type="number" className="border p-1 text-xs rounded w-20" value={form.platform_fee} onChange={(e) => setForm({ ...form, platform_fee: e.target.value })} /> : (service.platform_fee || 0)}</td>
+      <td className="p-3">
+        {editing ? (
+          <div className="max-h-28 overflow-auto">
+            {(citiesList || []).map(c => (
+              <label key={c.id} className="block text-[11px]">
+                <input type="checkbox" checked={selectedCities.includes(c.id)} onChange={() => toggleCity(c.id)} /> <span className="ml-2">{c.name}</span>
+              </label>
+            ))}
+          </div>
+        ) : (
+          <div className="text-[11px] text-slate-500">{(citiesList || []).filter(c => (cityControl?.[c.id]?.[service.id])).map(c => c.name).join(', ') || 'All'}</div>
+        )}
+      </td>
+      <td className="p-3">
+        {editing ? (
+          <div className="flex gap-2">
+            <button onClick={save} className="btn-primary text-[10px] px-3 py-1.5 rounded">Save</button>
+            <button onClick={() => setEditing(false)} className="btn-secondary text-[10px] px-3 py-1.5 rounded">Cancel</button>
+          </div>
+        ) : (
+          <div className="flex gap-2">
+            <button onClick={startEditing} className="btn-primary text-[10px] px-3 py-1.5 rounded">Edit</button>
+            <button onClick={remove} className="btn-danger text-[10px] px-3 py-1.5 rounded">Delete</button>
+          </div>
+        )}
+      </td>
+    </tr>
+  );
+};
+
+const CreateServiceForm = ({ citiesList = [], onCreate }) => {
+  const [form, setForm] = useState({ name: '', category: '', description: '', base_price: '', platform_fee: '' });
+  const [selectedCities, setSelectedCities] = useState([]);
+  const [errors, setErrors] = useState({});
+
+  const toggleCity = (id) => setSelectedCities(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  const validate = () => {
+    const e = {};
+    if (!form.name || String(form.name).trim().length < 2) e.name = 'Name is required (min 2 chars)';
+    if (String(form.name || '').length > 100) e.name = 'Name too long';
+    if (form.base_price !== '' && Number(form.base_price) < 0) e.base_price = 'Base price must be >= 0';
+    if (form.platform_fee !== '' && Number(form.platform_fee) < 0) e.platform_fee = 'Platform fee must be >= 0';
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!validate()) return;
+    await onCreate({ name: form.name.trim(), description: form.description.trim(), category: form.category.trim(), base_price: Number(form.base_price || 0), platform_fee: Number(form.platform_fee || 0), cityIds: selectedCities });
+    setForm({ name: '', category: '', description: '', base_price: '', platform_fee: '' });
+    setSelectedCities([]);
+    setErrors({});
+  };
+
+  const canSubmit = () => {
+    return form.name && String(form.name).trim().length >= 2 && (form.base_price === '' || Number(form.base_price) >= 0) && (form.platform_fee === '' || Number(form.platform_fee) >= 0);
+  };
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <div>
+        <input placeholder="Service name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full h-10 px-3 rounded border" />
+        {errors.name && <div className="text-xs text-red-600 mt-1">{errors.name}</div>}
+      </div>
+      <input placeholder="Category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full h-10 px-3 rounded border" />
+      <input placeholder="Short description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full h-10 px-3 rounded border" />
+      <div className="flex gap-2">
+        <div className="w-1/2">
+          <input placeholder="Base price" type="number" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} className="w-full h-10 px-3 rounded border" />
+          {errors.base_price && <div className="text-xs text-red-600 mt-1">{errors.base_price}</div>}
+        </div>
+        <div className="w-1/2">
+          <input placeholder="Platform fee" type="number" value={form.platform_fee} onChange={(e) => setForm({ ...form, platform_fee: e.target.value })} className="w-full h-10 px-3 rounded border" />
+          {errors.platform_fee && <div className="text-xs text-red-600 mt-1">{errors.platform_fee}</div>}
+        </div>
+      </div>
+      <div className="max-h-36 overflow-auto border p-2 rounded">
+        {(citiesList || []).map(c => (
+          <label key={c.id} className="block text-[12px]">
+            <input type="checkbox" checked={selectedCities.includes(c.id)} onChange={() => toggleCity(c.id)} /> <span className="ml-2">{c.name}</span>
+          </label>
+        ))}
+      </div>
+      <button type="submit" disabled={!canSubmit()} className={`w-full py-2 rounded ${canSubmit() ? 'btn-primary' : 'btn-disabled'}`}>Create Service</button>
+    </form>
   );
 };
 

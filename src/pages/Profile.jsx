@@ -1,9 +1,8 @@
-import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Shield, Edit } from 'lucide-react';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, showToast } = useAuth();
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -29,7 +28,7 @@ const Profile = () => {
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role} Account</p>
             </div>
             <button 
-              onClick={() => alert("Profile edits are coming soon in next deployment release.")}
+              onClick={() => showToast("Profile edits are coming soon in next deployment release.", 'info')}
               className="mt-4 sm:mt-0 sm:ml-auto btn-secondary text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5"
             >
               <Edit size={14} /> Edit Details
@@ -65,7 +64,7 @@ const Profile = () => {
           <div className="pt-6 border-t border-slate-100">
              <h3 className="font-extrabold text-slate-800 text-sm mb-4">Security</h3>
              <button 
-              onClick={() => alert("Password changes reset coordinates dispatched on registered emails.")}
+              onClick={() => showToast("Password changes reset coordinates dispatched on registered emails.", 'info')}
               className="btn-secondary text-xs px-4 py-2 rounded-xl"
              >
               Change Account Password

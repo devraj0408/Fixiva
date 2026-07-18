@@ -1,23 +1,22 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
-import { 
-  Building, MapPin, Briefcase, Plus, 
-  Settings, Layout, Link as LinkIcon,
-  ShieldCheck, Hourglass, XCircle, FileText,
-  Users, CheckCircle, HelpCircle, LogOut, Send, Info, Phone
+import {
+  Building, MapPin, Briefcase, Plus,
+  Settings, Layout, ShieldCheck, Hourglass,
+  Users, CheckCircle, HelpCircle, LogOut
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 const ContractorDashboard = () => {
-  const { user, bookings, updateBookingStatus, tickets, addTicket, logout, refreshData } = useApp();
+  const { user, bookings, updateBookingStatus, tickets, addTicket, logout, refreshData, showToast, confirm } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState(tabParam || 'leads');
+  const activeTab = tabParam || 'leads';
 
   // Parse and serialize helper functions
   const parseServicesAndTeam = (servicesOffered) => {
@@ -39,8 +38,8 @@ const ContractorDashboard = () => {
     return `${services} | TEAM_JSON:${JSON.stringify(teamList)}`;
   };
 
-  // Team states
-  const [team, setTeam] = useState([]);
+  // Team metadata derived from the contractor profile
+  const team = user?.services_offered ? parseServicesAndTeam(user.services_offered).teamList : [];
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
@@ -55,13 +54,6 @@ const ContractorDashboard = () => {
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketLoading, setTicketLoading] = useState(false);
 
-  // Sync tab param from URL
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
   useEffect(() => {
     const fetchCitiesList = async () => {
       const { data, error } = await supabase.from('cities').select('*');
@@ -70,23 +62,14 @@ const ContractorDashboard = () => {
     fetchCitiesList();
   }, []);
 
-  // Sync team from user metadata
-  useEffect(() => {
-    if (user?.services_offered) {
-      const { teamList } = parseServicesAndTeam(user.services_offered);
-      setTeam(teamList);
-    }
-  }, [user]);
-
   const updateTeamInDB = async (newTeam) => {
     const { services } = parseServicesAndTeam(user?.services_offered);
     const serialized = serializeServicesAndTeam(services, newTeam);
     const { error } = await supabase.from('contractors').update({ services_offered: serialized }).eq('id', user.id);
     if (!error) {
-      setTeam(newTeam);
       await refreshData();
     } else {
-      alert('Failed to update team in database: ' + error.message);
+      showToast('Failed to update team in database: ' + error.message, 'error');
     }
   };
 
@@ -113,7 +96,8 @@ const ContractorDashboard = () => {
   };
 
   const handleDeleteTeamMember = async (idxToDelete) => {
-    if (window.confirm("Remove this staff member from directory?")) {
+    const ok = await confirm('Remove this staff member from directory?');
+    if (ok) {
       const newTeam = team.filter((_, idx) => idx !== idxToDelete);
       await updateTeamInDB(newTeam);
     }
@@ -133,7 +117,7 @@ const ContractorDashboard = () => {
     if (!error) {
       await refreshData();
     } else {
-      alert('Failed to update services offered: ' + error.message);
+      showToast('Failed to update services offered: ' + error.message, 'error');
     }
   };
 
@@ -146,11 +130,11 @@ const ContractorDashboard = () => {
       status: 'Confirmed'
     }).eq('id', bookingId);
     if (!error) {
-      alert(`Assigned ${staffName} to project.`);
+      showToast(`Assigned ${staffName} to project.`, 'success');
       setAssigningBooking(null);
       await refreshData();
     } else {
-      alert('Failed to assign staff: ' + error.message);
+      showToast('Failed to assign staff: ' + error.message, 'error');
     }
   };
 
@@ -165,19 +149,19 @@ const ContractorDashboard = () => {
   };
 
   const handleAcceptLead = async (bookingId) => {
-    if (window.confirm("Accept this booking and assign to your firm?")) {
-      const { error } = await supabase.from('bookings').update({
-        worker_id: user.id,
-        worker_name: user.company || user.name,
-        worker_phone: user.phone,
-        status: 'Assigned'
-      }).eq('id', bookingId);
-      if (!error) {
-        alert("Booking accepted! You can now assign workers under Projects.");
-        await refreshData();
-      } else {
-        alert("Failed to accept booking: " + error.message);
-      }
+    const ok = await confirm('Accept this booking and assign to your firm?');
+    if (!ok) return;
+    const { error } = await supabase.from('bookings').update({
+      worker_id: user.id,
+      worker_name: user.company || user.name,
+      worker_phone: user.phone,
+      status: 'Assigned'
+    }).eq('id', bookingId);
+    if (!error) {
+      showToast("Booking accepted! You can now assign workers under Projects.", 'success');
+      await refreshData();
+    } else {
+      showToast("Failed to accept booking: " + error.message, 'error');
     }
   };
 
@@ -192,7 +176,7 @@ const ContractorDashboard = () => {
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!ticketSubject || !ticketMessage) {
-      alert('Please fill out all fields');
+      showToast('Please fill out all fields', 'error');
       return;
     }
     setTicketLoading(true);
@@ -203,27 +187,18 @@ const ContractorDashboard = () => {
     });
     setTicketLoading(false);
     if (!error) {
-      alert('Support ticket raised successfully!');
+      showToast('Support ticket raised successfully!', 'success');
       setTicketSubject('');
       setTicketMessage('');
       await refreshData();
     } else {
-      alert('Failed to raise support ticket: ' + error.message);
+      showToast('Failed to raise support ticket: ' + error.message, 'error');
     }
   };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const getInitials = (name) => {
-    if (!name) return 'C';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   };
 
   return (
@@ -253,7 +228,7 @@ const ContractorDashboard = () => {
           {/* Navigation Options */}
           <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
             <button 
-              onClick={() => { setActiveTab('leads'); navigate(`${location.pathname}?tab=leads`); }}
+              onClick={() => navigate(`${location.pathname}?tab=leads`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'leads' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -261,7 +236,7 @@ const ContractorDashboard = () => {
               <Layout size={16} /> Leads Command
             </button>
             <button 
-              onClick={() => { setActiveTab('projects'); navigate(`${location.pathname}?tab=projects`); }}
+              onClick={() => navigate(`${location.pathname}?tab=projects`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'projects' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -269,7 +244,7 @@ const ContractorDashboard = () => {
               <Briefcase size={16} /> Projects ({activeProjects.length})
             </button>
             <button 
-              onClick={() => { setActiveTab('team'); navigate(`${location.pathname}?tab=team`); }}
+              onClick={() => navigate(`${location.pathname}?tab=team`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'team' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -277,7 +252,7 @@ const ContractorDashboard = () => {
               <Users size={16} /> Manage Team
             </button>
             <button 
-              onClick={() => { setActiveTab('services'); navigate(`${location.pathname}?tab=services`); }}
+              onClick={() => navigate(`${location.pathname}?tab=services`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'services' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -285,7 +260,7 @@ const ContractorDashboard = () => {
               <CheckCircle size={16} /> Service Management
             </button>
             <button 
-              onClick={() => { setActiveTab('areas'); navigate(`${location.pathname}?tab=areas`); }}
+              onClick={() => navigate(`${location.pathname}?tab=areas`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'areas' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -293,7 +268,7 @@ const ContractorDashboard = () => {
               <MapPin size={16} /> Service Areas
             </button>
             <button 
-              onClick={() => { setActiveTab('support'); navigate(`${location.pathname}?tab=support`); }}
+              onClick={() => navigate(`${location.pathname}?tab=support`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'support' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -301,7 +276,7 @@ const ContractorDashboard = () => {
               <HelpCircle size={16} /> Support Tickets
             </button>
             <button 
-              onClick={() => { setActiveTab('profile'); navigate(`${location.pathname}?tab=profile`); }}
+              onClick={() => navigate(`${location.pathname}?tab=profile`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'profile' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -730,7 +705,7 @@ const ContractorDashboard = () => {
                 <div className="text-center py-6 text-slate-400 text-xs font-semibold space-y-2">
                   <p>No staff members found in directory.</p>
                   <button 
-                    onClick={() => { setAssigningBooking(null); setActiveTab('team'); navigate(`${location.pathname}?tab=team`); }}
+                    onClick={() => { setAssigningBooking(null); navigate(`${location.pathname}?tab=team`); }}
                     className="btn-primary text-xs px-4 py-2 rounded-xl shadow-md text-center inline-block"
                   >
                     Add Staff Members

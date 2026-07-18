@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { Fragment, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   MapPin, Calendar, CheckSquare, ArrowRight,
-  ArrowLeft, Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert, LocateFixed
+  Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -15,7 +16,7 @@ const BookingFlow = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { services, addBooking, user, isAuthenticated } = useApp();
+  const { services, addBooking, user, isAuthenticated, showToast } = useApp();
   const [cities, setCities] = useState(DEFAULT_CITIES);
 
   useEffect(() => {
@@ -142,7 +143,7 @@ const BookingFlow = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!isAuthenticated) {
-      alert("Please login first to book a service.");
+      showToast("Please login first to book a service.", 'error');
       navigate('/login');
       return;
     }
@@ -186,13 +187,13 @@ const BookingFlow = () => {
           const { error } = await addBooking(payload);
           setLoading(false);
           if (error) {
-            alert('Booking creation failed: ' + error.message);
+            showToast('Booking creation failed: ' + error.message, 'error');
           } else {
             setSuccess(true);
           }
-        } catch (err) {
+        } catch {
           setLoading(false);
-          alert('Booking dispatch failed.');
+          showToast('Booking dispatch failed.', 'error');
         }
       }, 1000);
     }
@@ -266,7 +267,7 @@ const BookingFlow = () => {
       {/* Visual Step Stepper */}
       <div className="max-w-lg mx-auto mb-16 flex items-center justify-between">
         {[1, 2, 3].map((num) => (
-          <React.Fragment key={num}>
+          <Fragment key={num}>
             <div className="flex flex-col items-center">
               <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
                 step >= num 
@@ -284,7 +285,7 @@ const BookingFlow = () => {
                 step > num ? 'bg-primary' : 'bg-slate-200'
               }`} />
             )}
-          </React.Fragment>
+          </Fragment>
         ))}
       </div>
 

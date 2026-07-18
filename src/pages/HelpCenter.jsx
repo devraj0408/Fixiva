@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { 
-  HelpCircle, Book, Shield, XCircle, 
-  Mail, CheckCircle, ChevronDown, 
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  HelpCircle, Book, Shield, XCircle,
+  Mail, CheckCircle, ChevronDown,
   ChevronUp, Loader2, MapPin, AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 
 const HelpCenter = () => {
-  const { addTicket } = useApp();
+  const { user, addTicket, showToast } = useApp();
   const [activeFaq, setActiveFaq] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -43,10 +44,14 @@ const HelpCenter = () => {
 
     setLoading(true);
     setTimeout(async () => {
-      const { error } = await addTicket({ ...ticketData, user_id: undefined });
+      const payload = {
+        ...ticketData,
+        ...(user?.id ? { user_id: user.id } : {}),
+      };
+      const { error } = await addTicket(payload);
       setLoading(false);
       if (error) {
-        alert('Failed to submit ticket: ' + error.message);
+        showToast('Failed to submit ticket: ' + error.message, 'error');
       } else {
         setSubmitted(true);
         e.target.reset();

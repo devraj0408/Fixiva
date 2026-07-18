@@ -1,22 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
-import { 
-  Briefcase, Star, Clock, User, 
-  CheckCircle, List, Settings, AlertTriangle,
-  MapPin, PhoneOff, Filter, CheckSquare, IndianRupee, HelpCircle, LogOut, Send, Award, Phone, ShieldAlert
+import {
+  Clock, List, Settings, CheckSquare, IndianRupee, HelpCircle, LogOut, Award, MapPin, PhoneOff
 } from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
 
 const WorkerDashboard = () => {
-  const { user, bookings, updateBookingStatus, refreshData, tickets, addTicket, logout } = useApp();
+  const { user, bookings, updateBookingStatus, refreshData, tickets, addTicket, logout, showToast, confirm } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const [activeTab, setActiveTab] = useState(tabParam || 'jobs');
+  const activeTab = tabParam || 'jobs';
   
   // Support & Profile fields
   const [ticketSubject, setTicketSubject] = useState('');
@@ -29,24 +27,6 @@ const WorkerDashboard = () => {
   const [hourlyRate, setHourlyRate] = useState(user?.hourly_rate || '');
   const [visitCharge, setVisitCharge] = useState(user?.visit_charge || '');
   const [profileLoading, setProfileLoading] = useState(false);
-
-  // Sync tab param from URL
-  useEffect(() => {
-    if (tabParam) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam]);
-
-  // Sync profile details
-  useEffect(() => {
-    if (user) {
-      setSkills(user.skills || '');
-      setExperience(user.experience || '');
-      setWhatsapp(user.whatsapp || '');
-      setHourlyRate(user.hourly_rate || '');
-      setVisitCharge(user.visit_charge || '');
-    }
-  }, [user]);
 
   // Filter jobs
   const myJobs = bookings.filter(b => b.worker_id === user?.id);
@@ -66,34 +46,34 @@ const WorkerDashboard = () => {
   };
 
   const handleRejectJob = async (bookingId) => {
-    if (window.confirm("Reject this job? It will be sent back to Admin for reassignment.")) {
-      const { error } = await supabase.from('bookings').update({
-        status: 'New Request',
-        worker_id: null,
-        worker_name: null,
-        worker_phone: null
-      }).eq('id', bookingId);
-      
-      if (!error) {
-        alert("Job rejected.");
-        await refreshData();
-      } else {
-        alert("Failed to reject job: " + error.message);
-      }
+    const ok = await confirm('Reject this job? It will be sent back to Admin for reassignment.');
+    if (!ok) return;
+    const { error } = await supabase.from('bookings').update({
+      status: 'New Request',
+      worker_id: null,
+      worker_name: null,
+      worker_phone: null
+    }).eq('id', bookingId);
+    
+    if (!error) {
+      showToast('Job rejected.', 'success');
+      await refreshData();
+    } else {
+      showToast('Failed to reject job: ' + error.message, 'error');
     }
   };
 
   const handleReportCustomerNoShow = async (bookingId) => {
-    if(window.confirm("Confirm Customer No-Show? This will notify Admin.")) {
-      await updateBookingStatus(bookingId, 'Customer No Show');
-      await refreshData();
-    }
+    const ok = await confirm('Confirm Customer No-Show? This will notify Admin.');
+    if (!ok) return;
+    await updateBookingStatus(bookingId, 'Customer No Show');
+    await refreshData();
   };
 
   const handleCreateTicket = async (e) => {
     e.preventDefault();
     if (!ticketSubject || !ticketMessage) {
-      alert('Please fill out all fields');
+      showToast('Please fill out all fields', 'error');
       return;
     }
     setTicketLoading(true);
@@ -104,12 +84,12 @@ const WorkerDashboard = () => {
     });
     setTicketLoading(false);
     if (!error) {
-      alert('Support ticket raised successfully!');
+      showToast('Support ticket raised successfully!', 'success');
       setTicketSubject('');
       setTicketMessage('');
       await refreshData();
     } else {
-      alert('Failed to raise ticket: ' + error.message);
+      showToast('Failed to raise ticket: ' + error.message, 'error');
     }
   };
 
@@ -125,10 +105,10 @@ const WorkerDashboard = () => {
     }).eq('id', user.id);
     setProfileLoading(false);
     if (!error) {
-      alert('Profile details updated successfully!');
+      showToast('Profile details updated successfully!', 'success');
       await refreshData();
     } else {
-      alert('Failed to update profile: ' + error.message);
+      showToast('Failed to update profile: ' + error.message, 'error');
     }
   };
 
@@ -182,7 +162,7 @@ const WorkerDashboard = () => {
           {/* Navigation Options */}
           <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
             <button 
-              onClick={() => { setActiveTab('jobs'); navigate(`${location.pathname}?tab=jobs`); }}
+              onClick={() => navigate(`${location.pathname}?tab=jobs`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'jobs' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -190,7 +170,7 @@ const WorkerDashboard = () => {
               <List size={16} /> Job Schedules
             </button>
             <button 
-              onClick={() => { setActiveTab('earnings'); navigate(`${location.pathname}?tab=earnings`); }}
+              onClick={() => navigate(`${location.pathname}?tab=earnings`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'earnings' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -198,7 +178,7 @@ const WorkerDashboard = () => {
               <IndianRupee size={16} /> Earnings Ledger
             </button>
             <button 
-              onClick={() => { setActiveTab('support'); navigate(`${location.pathname}?tab=support`); }}
+              onClick={() => navigate(`${location.pathname}?tab=support`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'support' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}
@@ -206,7 +186,7 @@ const WorkerDashboard = () => {
               <HelpCircle size={16} /> Support Tickets
             </button>
             <button 
-              onClick={() => { setActiveTab('profile'); navigate(`${location.pathname}?tab=profile`); }}
+              onClick={() => navigate(`${location.pathname}?tab=profile`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'profile' ? 'btn-primary shadow-md' : 'btn-secondary'
               }`}

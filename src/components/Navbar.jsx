@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, User, LogOut, Settings, HelpCircle, Briefcase, FileText, LifeBuoy } from 'lucide-react';
+import { Menu, X, LogOut, Settings, Briefcase, FileText, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -25,22 +25,50 @@ const Navbar = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
-  const dashboardPath = user ? `/dashboard/${user.role}` : '/login';
+  const normalizedUser = user || {};
+  const dashboardPath = normalizedUser.role ? `/dashboard/${normalizedUser.role}` : '/login';
 
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md border-b border-slate-100 transition-all duration-300">
+    <nav className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.22)] transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center gap-2 group">
-              <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center shadow-md shadow-primary/20 transform group-hover:scale-105 transition-all">
-                <span className="text-white font-extrabold text-sm tracking-wider">F</span>
-              </div>
-              <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent group-hover:from-primary group-hover:to-blue-600 transition-all">
-                FIXIVA
-              </span>
+            <Link to="/" className="flex items-center gap-3 group">
+              <svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="Fixiva logo" className="shrink-0">
+                <defs>
+                  <linearGradient id="fxGrad" x1="0" x2="1" y1="0" y2="1">
+                    <stop offset="0%" stopColor="#2563EB" />
+                    <stop offset="100%" stopColor="#1D4ED8" />
+                  </linearGradient>
+                  <filter id="logoShadow" x="-25%" y="-25%" width="150%" height="150%" filterUnits="userSpaceOnUse">
+                    <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#0F172A" floodOpacity="0.18" />
+                  </filter>
+                  {/* Multicolor gradient for the FIXIVA wordmark (Google-like) */}
+                  <linearGradient id="fxTextGrad" x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0%" stopColor="#4285F4" />
+                    <stop offset="20%" stopColor="#DB4437" />
+                    <stop offset="40%" stopColor="#F4B400" />
+                    <stop offset="60%" stopColor="#4285F4" />
+                    <stop offset="80%" stopColor="#0F9D58" />
+                    <stop offset="100%" stopColor="#DB4437" />
+                  </linearGradient>
+                </defs>
+
+                {/* Mark */}
+                <g transform="translate(-1 0)" filter="url(#logoShadow)">
+                  {/* Outer white ring */}
+                  <rect x="0" y="0" width="44" height="44" rx="11" fill="#FFFFFF" stroke="#F1F5F9" strokeWidth="1" />
+                  {/* Blue inner square */}
+                  <rect x="4" y="3" width="36" height="36" rx="9" fill="#2563EB" />
+                  {/* Crisp white F using text for better rendering */}
+                  <text x="22" y="23.5" textAnchor="middle" fontFamily="Poppins, Inter, system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="18" fill="#FFFFFF" dominantBaseline="central">F</text>
+                </g>
+
+                {/* Wordmark */}
+                <text x="52" y="26" fontFamily="Poppins, Inter, system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="18" fill="url(#fxTextGrad)">FIXIVA</text>
+              </svg>
             </Link>
           </div>
 
@@ -83,13 +111,13 @@ const Navbar = () => {
                 <div className="h-4 w-px bg-slate-200"></div>
                 <Link 
                   to="/login" 
-                  className="text-sm font-bold text-slate-700 hover:text-primary transition-all px-3 py-2"
+                  className="text-sm font-bold text-slate-700 hover:text-primary transition-all px-3 py-2 rounded-full hover:bg-slate-50"
                 >
                   Login
                 </Link>
                 <Link 
                   to="/register" 
-                  className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2.5 rounded-xl shadow-md shadow-primary/10 transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20"
+                  className="join-cta"
                 >
                   Join Fixiva
                 </Link>
@@ -110,7 +138,7 @@ const Navbar = () => {
                 >
                   <FileText size={16} /> Bookings
                 </Link>
-                {user.role !== 'admin' && (
+                {normalizedUser.role !== 'admin' && (
                   <Link 
                     to={`${dashboardPath}?tab=support`} 
                     className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
@@ -119,7 +147,7 @@ const Navbar = () => {
                   </Link>
                 )}
                 <Link 
-                  to={user.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
+                  to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                   className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
                 >
                   <Settings size={16} /> Profile
@@ -129,18 +157,18 @@ const Navbar = () => {
 
                 <div className="flex items-center gap-3">
                   <Link 
-                    to={user.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
+                    to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                     className="flex items-center gap-2 group"
                   >
                     <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-xs flex items-center justify-center uppercase tracking-wider shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all">
-                      {getInitials(user.name)}
+                      {getInitials(normalizedUser.name)}
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-primary transition-all">
-                        {user.name || 'User'}
+                        {normalizedUser.name || 'User'}
                       </span>
                       <span className="text-[10px] text-slate-400 capitalize font-medium leading-none">
-                        {user.role}
+                        {normalizedUser.role || 'guest'}
                       </span>
                     </div>
                   </Link>
@@ -177,7 +205,7 @@ const Navbar = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden border-t border-slate-100 bg-white overflow-hidden"
+            className="md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 space-y-2">
               {!isAuthenticated ? (
@@ -221,7 +249,7 @@ const Navbar = () => {
                   <Link 
                     to="/register" 
                     onClick={() => setIsOpen(false)} 
-                    className="block text-center bg-primary hover:bg-primary-dark text-white font-bold py-2.5 rounded-xl shadow-md transition-all"
+                    className="block text-center join-cta-mobile"
                   >
                     Join Fixiva
                   </Link>
@@ -230,11 +258,11 @@ const Navbar = () => {
                 <>
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl mb-4">
                     <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
-                      {getInitials(user.name)}
+                      {getInitials(normalizedUser.name)}
                     </div>
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800 leading-tight">{user.name}</h4>
-                      <p className="text-[10px] text-slate-400 capitalize font-medium">{user.role}</p>
+                      <h4 className="text-sm font-bold text-slate-800 leading-tight">{normalizedUser.name || 'User'}</h4>
+                      <p className="text-[10px] text-slate-400 capitalize font-medium">{normalizedUser.role || 'guest'}</p>
                     </div>
                   </div>
                   <Link 
@@ -251,7 +279,7 @@ const Navbar = () => {
                   >
                     Bookings
                   </Link>
-                  {user.role !== 'admin' && (
+                  {normalizedUser.role !== 'admin' && (
                     <Link 
                       to={`${dashboardPath}?tab=support`} 
                       onClick={() => setIsOpen(false)}
@@ -261,7 +289,7 @@ const Navbar = () => {
                     </Link>
                   )}
                   <Link 
-                    to={user.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
+                    to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >

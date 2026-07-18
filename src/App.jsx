@@ -3,9 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { ToastProvider } from './context/ToastContext';
 
-// Lazy loading all pages (Phase Performance)
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
 const BookingFlow = React.lazy(() => import('./pages/BookingFlow'));
@@ -34,17 +33,9 @@ const LoadingSkeleton = () => (
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
 
-  if (loading) {
-    return <LoadingSkeleton />;
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to={`/dashboard/${user?.role}`} replace />;
-  }
+  if (loading) return <LoadingSkeleton />;
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (allowedRoles && !allowedRoles.includes(user?.role)) return <Navigate to={`/dashboard/${user?.role || 'customer'}`} replace />;
 
   return children;
 };
@@ -52,8 +43,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 function App() {
   return (
     <Router>
-      <AppProvider>
-        <div className="app-container">
+      <ToastProvider>
+        <AppProvider>
+          <div className="app-container">
           <Navbar />
           <main className="content">
             <Suspense fallback={<LoadingSkeleton />}>
@@ -62,52 +54,17 @@ function App() {
                 <Route path="/services" element={<Services />} />
                 <Route path="/book/:serviceId?" element={<BookingFlow />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/fixora-admin" element={<Login adminMode />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
-                
-                <Route 
-                  path="/dashboard/customer" 
-                  element={
-                    <ProtectedRoute allowedRoles={['customer']}>
-                      <CustomerDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/worker" 
-                  element={
-                    <ProtectedRoute allowedRoles={['worker']}>
-                      <WorkerDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/contractor" 
-                  element={
-                    <ProtectedRoute allowedRoles={['contractor']}>
-                      <ContractorDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/admin" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                
+                <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+                <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+                <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+                <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/fixora-admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/help" element={<HelpCenter />} />
-                <Route 
-                  path="/profile" 
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  } 
-                />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/contact" element={<ContactUs />} />
                 <Route path="/terms" element={<TermsAndConditions />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -118,7 +75,8 @@ function App() {
           </main>
           <Footer />
         </div>
-      </AppProvider>
+        </AppProvider>
+      </ToastProvider>
     </Router>
   );
 }

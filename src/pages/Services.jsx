@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useMemo, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug, 
+import {
+  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon, Search, ShieldCheck,
-  ArrowRight, MapPin, IndianRupee, Star, Filter, RotateCcw
+  ArrowRight, MapPin, Star, Filter, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { INDIA_CITIES } from '../data/mockData';
@@ -36,7 +37,7 @@ const Services = () => {
   const { services, cities } = useApp();
   const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
+  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   
   const initialSearch = queryParams.get('search') || '';
   const initialCity = queryParams.get('city') || '';
@@ -51,7 +52,7 @@ const Services = () => {
   useEffect(() => {
     setSearchTerm(queryParams.get('search') || '');
     setSelectedCity(queryParams.get('city') || '');
-  }, [location.search]);
+  }, [location.search, queryParams]);
 
   // Unique categories list
   const categories = ['all', ...new Set(services.map(s => s.category || 'General').filter(Boolean))];

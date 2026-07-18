@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Mail, MapPin, Loader2, CheckCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useApp } from '../context/AuthContext';
 
 const ContactUs = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const { showToast } = useApp();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +28,7 @@ const ContactUs = () => {
     
     setLoading(false);
     if (error) {
-      alert('Failed to send message: ' + error.message);
+      showToast('Failed to send message: ' + error.message, 'error');
     } else {
       setSubmitted(true);
       e.target.reset();
