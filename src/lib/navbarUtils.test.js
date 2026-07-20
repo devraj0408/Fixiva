@@ -15,5 +15,8 @@ test('normalizeNavbarUser returns a safe guest profile when user is null', () =>
 
 test('getDashboardPath falls back to login when the role is missing', () => {
   assert.equal(getDashboardPath({ name: 'Test User' }), '/login');
-  assert.equal(getDashboardPath({ role: 'admin' }), '/dashboard/admin');
+  assert.equal(getDashboardPath({ role: 'admin' }), '/fixora-admin/dashboard');
+  assert.equal(getDashboardPath({ role: 'worker' }), '/worker-dashboard');
+  assert.equal(getDashboardPath({ role: 'contractor' }), '/contractor-dashboard');
+  assert.equal(getDashboardPath({ role: 'customer' }), '/dashboard/customer');
 });

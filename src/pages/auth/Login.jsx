@@ -5,7 +5,7 @@ import { Loader2, Mail, ArrowRight } from 'lucide-react';
 
 const Login = ({ adminMode = false }) => {
   const navigate = useNavigate();
-  const { requestOtp, verifyOtp, user, isAuthenticated, showToast } = useAuth();
+  const { requestOtp, verifyOtp, logout, user, isAuthenticated, showToast } = useAuth();
   const [loading, setLoading] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
@@ -28,6 +28,10 @@ const Login = ({ adminMode = false }) => {
   // Redirect automatically if already logged in
   useEffect(() => {
     if (isAuthenticated && user) {
+      if (adminMode && user.role !== 'admin') {
+        navigate('/');
+        return;
+      }
       if (user.role === 'admin') {
         navigate('/fixora-admin/dashboard');
       } else if (user.role === 'worker') {
@@ -38,7 +42,7 @@ const Login = ({ adminMode = false }) => {
         navigate('/dashboard');
       }
     }
-  }, [isAuthenticated, user, navigate]);
+  }, [isAuthenticated, user, navigate, adminMode]);
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -124,28 +128,42 @@ const Login = ({ adminMode = false }) => {
 
     if (!success) {
       const errorMsg = error?.message || '';
-      if (errorMsg.includes('expired') || errorMsg.includes('expire')) {
+      if (errorMsg.includes('OTP failure') || errorMsg.includes('Session failure') || errorMsg.includes('Profile query failure') || errorMsg.includes('RLS failure') || errorMsg.includes('Role mismatch') || errorMsg.includes('Redirect failure')) {
+        setErrors({ otp: errorMsg });
+      } else if (errorMsg.includes('expired') || errorMsg.includes('expire')) {
         setErrors({ otp: 'Expired Code. Please request a new verification code.' });
       } else if (errorMsg.includes('too many') || errorMsg.includes('rate limit') || attempts >= 4) {
         setErrors({ otp: 'Too Many Attempts. Please request a new code.' });
       } else if (errorMsg.includes('invalid') || errorMsg.includes('incorrect') || errorMsg.includes('does not match')) {
         setErrors({ otp: `Invalid Code. (${5 - (attempts + 1)} attempts remaining)` });
       } else {
-        setErrors({ otp: error?.message || 'Invalid Code.' });
+        setErrors({ otp: errorMsg || 'Invalid Code.' });
       }
+      return;
+    }
+
+    if (adminMode && profile?.role !== 'admin') {
+      await logout();
+      showToast('Access Denied', 'error');
+      setErrors({ otp: 'Role mismatch: Access Denied. Non-admin account.' });
       return;
     }
 
     showToast('Login Successful', 'success');
 
-    if (profile?.role === 'admin') {
-      navigate('/fixora-admin/dashboard');
-    } else if (profile?.role === 'worker') {
-      navigate('/worker-dashboard');
-    } else if (profile?.role === 'contractor') {
-      navigate('/contractor-dashboard');
-    } else {
-      navigate('/dashboard');
+    try {
+      if (profile?.role === 'admin') {
+        navigate('/fixora-admin/dashboard');
+      } else if (profile?.role === 'worker') {
+        navigate('/worker-dashboard');
+      } else if (profile?.role === 'contractor') {
+        navigate('/contractor-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
+    } catch (redirectErr) {
+      console.error("Navigation redirect error:", redirectErr);
+      setErrors({ otp: 'Redirect failure: Unable to route to dashboard.' });
     }
   };
 

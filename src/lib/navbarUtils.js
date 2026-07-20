@@ -11,7 +11,19 @@ export const normalizeNavbarUser = (user = null) => {
 
 export const getDashboardPath = (user = null) => {
   const normalizedUser = normalizeNavbarUser(user);
-  return normalizedUser.role && normalizedUser.role !== 'guest'
-    ? `/dashboard/${normalizedUser.role}`
-    : '/login';
+  const role = String(normalizedUser.role || '').trim().toLowerCase();
+
+  if (!role || role === 'guest') {
+    return '/login';
+  }
+  if (role === 'admin') {
+    return '/fixora-admin/dashboard';
+  }
+  if (role === 'worker') {
+    return '/worker-dashboard';
+  }
+  if (role === 'contractor') {
+    return '/contractor-dashboard';
+  }
+  return `/dashboard/${role}`;
 };

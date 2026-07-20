@@ -15,7 +15,8 @@ const SearchableDropdown = ({
   variant = 'boxed', // 'boxed' | 'borderless'
   isStateDropdown = false,
   totalStatesFromAPI = 0,
-  totalStatesAfterFiltering = 0
+  totalStatesAfterFiltering = 0,
+  usePortal = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -44,7 +45,7 @@ const SearchableDropdown = ({
   };
 
   useEffect(() => {
-    if (isOpen && isStateDropdown) {
+    if (isOpen && (isStateDropdown || usePortal)) {
       updateCoords();
       window.addEventListener('scroll', updateCoords, true);
       window.addEventListener('resize', updateCoords);
@@ -53,7 +54,7 @@ const SearchableDropdown = ({
       window.removeEventListener('scroll', updateCoords, true);
       window.removeEventListener('resize', updateCoords);
     };
-  }, [isOpen, isStateDropdown]);
+  }, [isOpen, isStateDropdown, usePortal]);
 
   if (isStateDropdown) {
     console.log("Total states received from API:", totalStatesFromAPI);
@@ -194,7 +195,7 @@ const SearchableDropdown = ({
       </button>
 
       {/* Dropdown Panel */}
-      {isStateDropdown ? (
+      {(isStateDropdown || usePortal) ? (
         createPortal(
           <AnimatePresence>
             {isOpen && (

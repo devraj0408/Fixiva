@@ -1,6 +1,6 @@
 // src/context/AuthContext.jsx
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useState, useContext, useEffect } from 'react';
+import { createContext, useState, useContext, useEffect, useRef } from 'react';
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
@@ -54,10 +54,13 @@ const setStoredDevAdminSession = (value) => {
 const getEffectiveRole = (profile) => {
   const configuredAdminList = getConfiguredAdminList();
   const email = normalizeEmail(profile?.email);
-  if (profile?.role === 'admin' || (configuredAdminList.includes(email) && email)) {
+  const rawRole = String(profile?.role || '').trim().toLowerCase();
+  if (rawRole === 'admin' || rawRole === 'administrator' || (configuredAdminList.includes(email) && email)) {
     return 'admin';
   }
-  return profile?.role || 'customer';
+  if (rawRole === 'worker') return 'worker';
+  if (rawRole === 'contractor') return 'contractor';
+  return 'customer';
 };
 
 export const AuthProvider = ({ children }) => {
@@ -69,6 +72,15 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
   const [devAdminSession, setDevAdminSession] = useState(getStoredDevAdminSession());
+
+  // Refs to prevent race conditions and double loading
+  const isVerifyingOtpRef = useRef(false);
+  const isInitializingRef = useRef(false);
+  const userRef = useRef(user);
+
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Application data
   const [bookings, setBookings] = useState([]);
@@ -149,31 +161,80 @@ export const AuthProvider = ({ children }) => {
     setCityControl(cityMap);
   };
 
-  const fetchUserProfile = async (userId) => {
+
+  const fetchUserProfile = async (userId, isRetry = false) => {
     if (!supabase || !userId) {
       setUser(null);
-      return;
+      return null;
     }
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+    try {
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    if (profile) {
+      if (error || !profile) {
+        if (error) {
+          console.error(`Failed to fetch profile: ${error.message}`);
+        }
+        
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const sessionEmail = session?.user?.email;
+          if (sessionEmail && isAdminEmail(sessionEmail, getConfiguredAdminList().join(','))) {
+            console.log("Auto-creating missing admin profile for:", sessionEmail);
+            const adminPayload = {
+              id: userId,
+              email: sessionEmail,
+              role: 'admin',
+              name: sessionEmail.split('@')[0] || 'Administrator',
+              phone: '',
+              city: ''
+            };
+            const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
+            if (!insertError) {
+              return await fetchUserProfile(userId, true);
+            } else {
+              console.error("Failed to auto-create admin profile during fetch:", insertError.message);
+            }
+          }
+        } catch (sessionErr) {
+          console.error("Failed to get session email for auto-create:", sessionErr);
+        }
+
+        if (!isRetry) {
+          console.warn("Profile fetch failed or empty; retrying once in 1s...");
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return await fetchUserProfile(userId, true);
+        }
+        setUser(null);
+        return null;
+      }
+
       const role = getEffectiveRole(profile);
+      let userData = { ...profile, role };
+
       if (profile.role === 'worker' || role === 'worker') {
         const { data: workerData } = await supabase.from('workers').select('*').eq('id', userId).maybeSingle();
-        setUser({ ...profile, ...workerData, role, trustScore: workerData?.trust_score ?? 100 });
+        userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
       } else if (profile.role === 'contractor' || role === 'contractor') {
         const { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
-        setUser({ ...profile, ...contractorData, role });
-      } else {
-        setUser({ ...profile, role });
+        userData = { ...userData, ...contractorData };
       }
-    } else {
+
+      setUser(userData);
+      return userData;
+    } catch (e) {
+      console.error(`Exception in fetchUserProfile:`, e);
+      if (!isRetry) {
+        console.warn("Exception in fetchUserProfile; retrying once in 1s...");
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return await fetchUserProfile(userId, true);
+      }
       setUser(null);
+      return null;
     }
   };
 
@@ -205,9 +266,12 @@ export const AuthProvider = ({ children }) => {
     };
 
     const init = async () => {
+      setLoading(true);
+      isInitializingRef.current = true;
       if (!supabase) {
         setInitError(new Error('Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.'));
         setLoading(false);
+        isInitializingRef.current = false;
         return;
       }
 
@@ -216,16 +280,23 @@ export const AuthProvider = ({ children }) => {
         console.warn('Supabase schema verification failed; continuing startup for partial frontend support.');
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (devAdminSession?.email) {
-        setUser({ id: devAdminSession.id || devAdminSession.email, email: devAdminSession.email, role: 'admin', name: devAdminSession.name || 'Local Dev Admin' });
-      } else if (session?.user) {
-        await fetchUserProfile(session.user.id);
-      } else {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (devAdminSession?.email) {
+          setUser({ id: devAdminSession.id || devAdminSession.email, email: devAdminSession.email, role: 'admin', name: devAdminSession.name || 'Local Dev Admin' });
+        } else if (session?.user) {
+          await fetchUserProfile(session.user.id);
+        } else {
+          setUser(null);
+        }
+      } catch (err) {
+        console.error("Session restoration error during init:", err);
         setUser(null);
       }
+
       await fetchMarketplaceData();
       setLoading(false);
+      isInitializingRef.current = false;
     };
 
     init();
@@ -234,8 +305,24 @@ export const AuthProvider = ({ children }) => {
 
     // Listen for Auth changes dynamically
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      // Prevent concurrent execution or race conditions with verification or initialization
+      if (isInitializingRef.current || isVerifyingOtpRef.current) {
+        return;
+      }
+
       if (session?.user) {
-        await fetchUserProfile(session.user.id);
+        if (userRef.current && userRef.current.id === session.user.id) {
+          // Profile is already loaded, skip redundant fetching
+          return;
+        }
+        setLoading(true);
+        try {
+          await fetchUserProfile(session.user.id);
+          await fetchMarketplaceData();
+        } catch (err) {
+          console.error("Auth state change processing error:", err);
+        }
+        setLoading(false);
       } else {
         setUser(null);
       }
@@ -280,7 +367,11 @@ export const AuthProvider = ({ children }) => {
     if (purpose === 'sign-in') {
       const { data: profile, error: profileErr } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
       if (!profile || profileErr) {
-        return { success: false, error: new Error('User Not Found: No profile exists for this email address. Please register first.') };
+        if (isAdminEmail(email, getConfiguredAdminList().join(','))) {
+          // Allow configured admins to sign in without pre-existing profile row
+        } else {
+          return { success: false, error: new Error('User Not Found: No profile exists for this email address. Please register first.') };
+        }
       }
     }
 
@@ -345,83 +436,151 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('No account was found for that mobile number.') };
     }
 
-    const { data, error } = await supabase.auth.verifyOtp({
-      email,
-      token: String(otpCode).replace(/\D/g, ''),
-      type: 'email',
-    });
+    setLoading(true);
+    isVerifyingOtpRef.current = true;
 
-    if (error) {
-      return { success: false, error };
-    }
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email,
+        token: String(otpCode).replace(/\D/g, ''),
+        type: 'email',
+      });
 
-    const authUserId = data?.user?.id;
-    if (!authUserId) {
-      return { success: false, error: new Error('Unable to create an authenticated session.') };
-    }
+      if (error) {
+        setLoading(false);
+        const otpErrObj = new Error('OTP failure: ' + error.message);
+        return { success: false, error: otpErrObj };
+      }
 
-    if (purpose === 'sign-up') {
-      const { data: existingProfile } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-      if (!existingProfile) {
-        const role = isAdminEmail(email, getConfiguredAdminList().join(',')) ? 'admin' : (metadata.role === 'admin' ? 'customer' : (metadata.role || 'customer'));
-        const profilePayload = {
-          id: authUserId,
-          email,
-          role,
-          name: metadata.name || '',
-          phone: metadata.phone || '',
-          city: metadata.city || '',
-        };
+      const authUserId = data?.user?.id;
+      if (!authUserId) {
+        setLoading(false);
+        const sessionErrObj = new Error('Session failure: Unable to create authenticated session.');
+        return { success: false, error: sessionErrObj };
+      }
 
-        const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
-        if (profileError && !profileError.message?.includes('duplicate')) {
-          return { success: false, error: profileError };
+      if (purpose === 'sign-up') {
+        const { data: existingProfile, error: checkError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
+        if (checkError) {
+          const isRls = checkError.message?.toLowerCase().includes('row level security') || checkError.code === '42501';
+          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + checkError.message);
+          setLoading(false);
+          return { success: false, error: errObj };
         }
+        if (!existingProfile) {
+          const role = isAdminEmail(email, getConfiguredAdminList().join(',')) ? 'admin' : (metadata.role === 'admin' ? 'customer' : (metadata.role || 'customer'));
+          const profilePayload = {
+            id: authUserId,
+            email,
+            role,
+            name: metadata.name || '',
+            phone: metadata.phone || '',
+            city: metadata.city || '',
+            account_status: 'active',
+            email_verified: true
+          };
 
-        if (role === 'worker') {
-          await supabase.from('workers').insert({
-            id: authUserId,
-            status: 'Pending Verification',
-            trust_score: 100,
-            skills: metadata.extra?.skills || '',
-            city: metadata.city || '',
-            whatsapp: metadata.extra?.whatsapp || '',
-            experience: metadata.extra?.experience || '',
-            id_proof_url: metadata.extra?.id_proof_number || '',
-          });
-        }
+          const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
+          if (profileError && !profileError.message?.includes('duplicate')) {
+            const isRls = profileError.message?.toLowerCase().includes('row level security') || profileError.code === '42501';
+            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + profileError.message);
+            setLoading(false);
+            return { success: false, error: errObj };
+          }
 
-        if (role === 'contractor') {
-          await supabase.from('contractors').insert({
-            id: authUserId,
-            status: 'Pending Approval',
-            company: metadata.extra?.company || '',
-            city: metadata.city || '',
-            owner_name: metadata.extra?.owner_name || '',
-            whatsapp: metadata.extra?.whatsapp || '',
-            gst: metadata.extra?.gst || '',
-            services_offered: metadata.extra?.services_offered || '',
-          });
-          await supabase.from('workers').insert({
-            id: authUserId,
-            status: 'Pending Verification',
-            trust_score: 100,
-            skills: 'Contractor',
-            city: metadata.city || '',
-          });
+          if (role === 'worker') {
+            await supabase.from('workers').insert({
+              id: authUserId,
+              status: 'Pending Verification',
+              trust_score: 100,
+              skills: metadata.extra?.skills || '',
+              city: metadata.city || '',
+              whatsapp: metadata.extra?.whatsapp || '',
+              experience: metadata.extra?.experience || '',
+              id_proof_url: metadata.extra?.id_proof_number || '',
+            });
+          }
+
+          if (role === 'contractor') {
+            await supabase.from('contractors').insert({
+              id: authUserId,
+              status: 'Pending Approval',
+              company: metadata.extra?.company || '',
+              city: metadata.city || '',
+              owner_name: metadata.extra?.owner_name || '',
+              whatsapp: metadata.extra?.whatsapp || '',
+              gst: metadata.extra?.gst || '',
+              services_offered: metadata.extra?.services_offered || '',
+            });
+            await supabase.from('workers').insert({
+              id: authUserId,
+              status: 'Pending Verification',
+              trust_score: 100,
+              skills: 'Contractor',
+              city: metadata.city || '',
+            });
+          }
         }
       }
+
+      const { data: existingProfile, error: queryError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
+      if (queryError) {
+        const isRls = queryError.message?.toLowerCase().includes('row level security') || queryError.code === '42501';
+        const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + queryError.message);
+        setLoading(false);
+        return { success: false, error: errObj };
+      }
+
+      const isConfiguredAdmin = isAdminEmail(email, getConfiguredAdminList().join(','));
+
+      if (isConfiguredAdmin) {
+        if (!existingProfile) {
+          const adminPayload = {
+            id: authUserId,
+            email,
+            role: 'admin',
+            name: email.split('@')[0] || 'Administrator',
+            phone: '',
+            city: '',
+            account_status: 'active',
+            email_verified: true
+          };
+          const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
+          if (insertError) {
+            console.error("Failed to auto-create admin profile:", insertError.message);
+            const isRls = insertError.message?.toLowerCase().includes('row level security') || insertError.code === '42501';
+            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + insertError.message);
+            setLoading(false);
+            return { success: false, error: errObj };
+          }
+        } else if (existingProfile.role !== 'admin') {
+          const { error: updateError } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', authUserId);
+          if (updateError) {
+            const isRls = updateError.message?.toLowerCase().includes('row level security') || updateError.code === '42501';
+            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + updateError.message);
+            setLoading(false);
+            return { success: false, error: errObj };
+          }
+        }
+      }
+
+      const profileRow = await fetchUserProfile(authUserId);
+      await fetchMarketplaceData();
+
+      if (!profileRow) {
+        setLoading(false);
+        return { success: false, error: new Error('Profile query failure: User profile record could not be fetched after authentication.') };
+      }
+
+      setLoading(false);
+      return { success: true, user: data?.user, profile: profileRow };
+    } catch (err) {
+      console.error("Verification execution error:", err);
+      setLoading(false);
+      return { success: false, error: new Error('Session failure: ' + (err instanceof Error ? err.message : String(err))) };
+    } finally {
+      isVerifyingOtpRef.current = false;
     }
-
-    if (isAdminEmail(email, getConfiguredAdminList().join(','))) {
-      await supabase.from('profiles').update({ role: 'admin' }).eq('id', authUserId).catch(() => null);
-    }
-
-    await fetchUserProfile(authUserId);
-    await fetchMarketplaceData();
-
-    const { data: profileRow } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-    return { success: true, user: data?.user, profile: profileRow };
   };
 
   const register = async (email, password, role, extra) => ({ success: true, payload: { email, password, role, extra } });

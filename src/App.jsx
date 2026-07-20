@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
@@ -65,10 +65,32 @@ const LoadingSkeleton = () => (
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
+  const location = useLocation();
 
   if (loading) return <LoadingSkeleton />;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (allowedRoles && !allowedRoles.includes(user?.role)) return <Navigate to={`/dashboard/${user?.role || 'customer'}`} replace />;
+  
+  if (!isAuthenticated) {
+    if (location.pathname.startsWith('/fixora-admin') || location.pathname === '/dashboard/admin') {
+      return <Navigate to="/fixora-admin" replace />;
+    }
+    return <Navigate to="/login" replace />;
+  }
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
+
+  if (allowedRoles && !normalizedAllowed.includes(userRole)) {
+    if (userRole === 'admin') {
+      return <Navigate to="/fixora-admin" replace />;
+    }
+    if (userRole === 'worker') {
+      return <Navigate to="/worker-dashboard" replace />;
+    }
+    if (userRole === 'contractor') {
+      return <Navigate to="/contractor-dashboard" replace />;
+    }
+    return <Navigate to="/dashboard/customer" replace />;
+  }
 
   return children;
 };
