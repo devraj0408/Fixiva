@@ -28,9 +28,10 @@ const resolveEmailForAuth = async (supabaseClient, normalized) => {
   return normalizeEmail(normalized);
 };
 const getConfiguredAdminList = () => {
-  const configuredValue = typeof import.meta !== 'undefined' && import.meta.env
+  const envValue = typeof import.meta !== 'undefined' && import.meta.env
     ? (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
     : '';
+  const configuredValue = envValue || 'fixiva869@gmail.com,sinhadev739@gmail.com';
   return getConfiguredAdminEmails(configuredValue);
 };
 
