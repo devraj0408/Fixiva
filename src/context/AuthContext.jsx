@@ -214,6 +214,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       const role = getEffectiveRole(profile);
+      if (role === 'admin' && profile.role !== 'admin') {
+        await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).catch(() => null);
+        profile.role = 'admin';
+      }
       let userData = { ...profile, role };
 
       if (profile.role === 'worker' || role === 'worker') {
@@ -382,10 +386,11 @@ export const AuthProvider = ({ children }) => {
       }
     }
 
+    const isConfiguredAdmin = isAdminEmail(email, getConfiguredAdminList().join(','));
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: purpose === 'sign-up',
+        shouldCreateUser: purpose === 'sign-up' || isConfiguredAdmin,
       },
     });
 
