@@ -368,29 +368,10 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('No account was found for that mobile number.') };
     }
 
-    if (purpose === 'sign-in') {
-      const { data: profile, error: profileErr } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
-      if (!profile || profileErr) {
-        if (isAdminEmail(email, getConfiguredAdminList().join(','))) {
-          // Allow configured admins to sign in without pre-existing profile row
-        } else {
-          return { success: false, error: new Error('User Not Found: No profile exists for this email address. Please register first.') };
-        }
-      }
-    }
-
-    if (purpose === 'sign-up') {
-      const { data: profile } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
-      if (profile) {
-        return { success: false, error: new Error('This email address is already registered. Please login instead.') };
-      }
-    }
-
-    const isConfiguredAdmin = isAdminEmail(email, getConfiguredAdminList().join(','));
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: purpose === 'sign-up' || isConfiguredAdmin,
+        shouldCreateUser: true,
       },
     });
 
