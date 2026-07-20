@@ -398,3 +398,14 @@ INSERT INTO public.city_services (city_id, service_id, enabled) VALUES
   (5, 'electrician', true), (5, 'plumber', true), (5, 'ac-repair', true), (5, 'cleaning', true), (5, 'painter', true), (5, 'carpenter', true)
 ON CONFLICT (city_id, service_id) DO NOTHING;
 
+-- Create coverage_requests table
+CREATE TABLE IF NOT EXISTS public.coverage_requests (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  city text NOT NULL,
+  state text NOT NULL,
+  email text NOT NULL,
+  status text NOT NULL DEFAULT 'Pending',
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT unique_city_email UNIQUE (city, email)
+);
+

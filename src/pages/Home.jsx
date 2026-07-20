@@ -4,10 +4,10 @@ import { motion } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon,
-  Star, MapPin, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
+  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { INDIA_CITIES } from '../data/mockData';
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const IconMap = {
   zap: Zap,
@@ -30,16 +30,54 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = INDIA_CITIES;
-
 const Home = () => {
-  const { services, reviews, cities, showToast } = useApp();
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  const { services, reviews, cities = [], showToast, submitCoverageRequest } = useApp();
   const navigate = useNavigate();
   
   // Search & City selectors inside the Hero
   const [selectedCity, setSelectedCity] = useState('');
+  const [selectedState, setSelectedState] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Coverage Request Form States
+  const [reqCity, setReqCity] = useState('');
+  const [reqState, setReqState] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+
+  const handleRequestSubmit = async (e) => {
+    e.preventDefault();
+    if (!reqCity.trim() || !reqState.trim() || !reqEmail.trim()) {
+      showToast("Please fill in all fields.", 'error');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(reqEmail.trim())) {
+      showToast("Please enter a valid email address.", 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await submitCoverageRequest(reqCity.trim(), reqState.trim(), reqEmail.trim());
+      if (res.success) {
+        setIsSuccess(true);
+        setReqCity('');
+        setReqState('');
+        setReqEmail('');
+      } else if (res.error === 'duplicate') {
+        showToast("You've already requested this city.", 'error');
+      } else {
+        showToast("Something went wrong. Please try again.", 'error');
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to submit request.", 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -47,6 +85,7 @@ const Home = () => {
     const params = new URLSearchParams();
     if (searchQuery) params.append('search', searchQuery);
     if (selectedCity) params.append('city', selectedCity);
+    if (selectedState) params.append('state', selectedState);
     navigate(`/services?${params.toString()}`);
   };
 
@@ -95,9 +134,9 @@ const Home = () => {
             </p>
 
             <div className="flex flex-wrap gap-3">
-              <span className="stat-pill"><ShieldCheck size={15} className="text-primary" /> 4.9/5 rated partners</span>
-              <span className="stat-pill"><Clock size={15} className="text-primary" /> Fast dispatch</span>
-              <span className="stat-pill"><Lock size={15} className="text-primary" /> Secure booking</span>
+              <span className="stat-pill"><ShieldCheck size={15} className="text-primary" /> Background Verified</span>
+              <span className="stat-pill"><Clock size={15} className="text-primary" /> Quick Booking</span>
+              <span className="stat-pill"><Lock size={15} className="text-primary" /> Secure Booking</span>
             </div>
 
             {/* Premium search & Select City controls combined */}
@@ -113,16 +152,20 @@ const Home = () => {
                 />
               </div>
 
-              <div className="flex-none md:w-48 flex items-center gap-2 px-3 pb-2 md:pb-0">
-                <MapPin size={18} className="text-slate-400 shrink-0" />
-                <select 
-                  className="w-full bg-transparent border-0 outline-none text-slate-700 text-sm font-bold placeholder-slate-400 cursor-pointer focus:ring-0"
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                >
-                  <option value="">Select City</option>
-                  {displayCities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
+              <div className="flex-none md:w-[320px] flex items-center gap-2 px-2 pb-2 md:pb-0">
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedCity}
+                  onChange={(district, state) => {
+                    setSelectedCity(district);
+                    setSelectedState(state);
+                  }}
+                  statePlaceholder="State"
+                  districtPlaceholder="City"
+                  variant="borderless"
+                  layout="row"
+                  className="w-full"
+                />
               </div>
 
               <button 
@@ -146,11 +189,19 @@ const Home = () => {
           >
             <div className="relative">
               <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-[2rem] opacity-10 blur-3xl"></div>
-              <div className="absolute -bottom-6 -left-6 hero-panel rounded-[1.4rem] p-4 max-w-[220px] z-20">
-                <div className="flex items-center gap-2 text-primary text-sm font-bold">
-                  <Sparkles size={16} /> Trusted by 1200+ homes
+              <div className="absolute -bottom-6 -left-6 hero-panel rounded-[1.4rem] p-5 min-w-[240px] z-20 space-y-2.5 shadow-xl border border-slate-100/80 bg-white/95 backdrop-blur-md">
+                <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> Verified Professionals
                 </div>
-                <p className="mt-2 text-xs text-slate-500 leading-5">Verified professionals, transparent pricing, and a polished booking experience.</p>
+                <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> Transparent Pricing
+                </div>
+                <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> Quality Assured Services
+                </div>
+                <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> Easy Booking Experience
+                </div>
               </div>
               <img 
                 src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800" 
@@ -329,44 +380,194 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Service Region Badges */}
-      <section className="py-20 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row gap-12 items-center">
-            <div className="lg:w-1/3 space-y-4">
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Expanded Coverage</span>
+      {/* Service Region & Expansion Hub */}
+      <section className="py-24 bg-white border-b border-slate-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-20">
+          
+          {/* Header & Coverage Lists */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+            <div className="lg:col-span-4 space-y-4">
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Service Coverage</span>
               <h2 className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Serving Cities Across India</h2>
               <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-                Fixiva ensures on-site assignments are completed by verified nearby service partners in selected Indian towns.
+                Fixiva is building India's trusted home services network. We are continuously expanding into new regions to connect households with verified professionals for reliable, transparent, and hassle-free home services.
               </p>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                <p className="font-bold text-slate-700">Don't see your city?</p>
-                <button 
-                  onClick={() => showToast("Fixiva interest logged! We will notify you once we launch in your area.", 'success')} 
-                  className="btn-secondary text-xs px-4 py-2.5 rounded-xl mt-2 block w-full sm:w-auto"
-                >
-                  Request Coverage Area
-                </button>
-              </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
-              {displayCities.map(c => (
-                <div 
-                  key={c.id} 
-                  className="p-5 rounded-[1.2rem] section-surface flex items-center gap-3.5 hover:shadow-[0_16px_34px_-24px_rgba(15,23,42,0.2)] transition-all"
-                >
-                  <div className="p-2 bg-blue-50 text-primary rounded-xl">
-                    <MapPin size={18} />
+            <div className="lg:col-span-8 space-y-10">
+              {/* Dynamic Available Locations Grouped by State */}
+              {(() => {
+                const liveCities = cities.filter(c => c.status === 'Live');
+                const availableGroups = {};
+                liveCities.forEach(city => {
+                  const region = city.region || 'India';
+                  if (!availableGroups[region]) {
+                    availableGroups[region] = [];
+                  }
+                  if (!availableGroups[region].includes(city.name)) {
+                    availableGroups[region].push(city.name);
+                  }
+                });
+
+                const groupEntries = Object.entries(availableGroups);
+                if (groupEntries.length === 0) {
+                  return (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">📍</span>
+                        <h3 className="font-bold text-slate-800 text-sm tracking-wide">Currently Available Locations</h3>
+                      </div>
+                      <p className="text-slate-400 text-xs font-semibold">Currently setting up operations. Request coverage to expand in your city!</p>
+                    </div>
+                  );
+                }
+
+                return groupEntries.map(([stateName, districtList]) => (
+                  <div key={stateName} className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">📍</span>
+                      <h3 className="font-bold text-slate-800 text-sm tracking-wide">Currently Available in {stateName}</h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {districtList.sort().map((city) => (
+                        <div 
+                          key={city} 
+                          className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center gap-2 hover:bg-slate-100 transition-colors"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary"></div>
+                          <span className="font-bold text-slate-700 text-xs">{city}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">{c.name}</h4>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{c.region || 'Jharkhand'}</p>
+                ));
+              })()}
+
+              {/* Dynamic Coming Soon Locations */}
+              {(() => {
+                const comingSoonCities = cities.filter(c => c.status === 'Coming Soon');
+                if (comingSoonCities.length === 0) return null;
+
+                // Group by region to render neatly
+                const comingSoonGroups = {};
+                comingSoonCities.forEach(city => {
+                  const region = city.region || 'Upcoming States';
+                  if (!comingSoonGroups[region]) {
+                    comingSoonGroups[region] = [];
+                  }
+                  if (!comingSoonGroups[region].includes(city.name)) {
+                    comingSoonGroups[region].push(city.name);
+                  }
+                });
+
+                return (
+                  <div className="space-y-4 pt-8 border-t border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🌍</span>
+                      <h3 className="font-bold text-slate-800 text-sm tracking-wide">Coming Soon Locations</h3>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {Object.entries(comingSoonGroups).map(([stateName, districtList]) => 
+                        districtList.sort().map(city => (
+                          <div 
+                            key={city} 
+                            className="p-3 py-2 rounded-xl bg-blue-50/20 border border-blue-100/50 flex items-center gap-2"
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+                            <span className="font-bold text-slate-600 text-xs">{city} ({stateName})</span>
+                          </div>
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })()}
             </div>
           </div>
+
+          {/* Bring Fixiva to Your City Section */}
+          <div className="bg-slate-50 rounded-[2rem] border border-slate-200/60 p-8 sm:p-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-5 space-y-4">
+              <h3 className="text-2xl font-black text-slate-900">Bring Fixiva to Your City</h3>
+              <p className="text-slate-500 text-xs sm:text-sm font-medium leading-relaxed font-semibold">
+                Can't find your city? Tell us where you need Fixiva. Every request helps us decide where to expand next, and you'll be among the first to know when our services launch in your area.
+              </p>
+            </div>
+
+            <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
+              {isSuccess ? (
+                <div className="text-center space-y-4 py-4">
+                  <div className="text-4xl">🎉</div>
+                  <h4 className="text-lg font-extrabold text-slate-950">Thank you!</h4>
+                  <p className="text-slate-500 text-xs sm:text-sm font-semibold max-w-md mx-auto leading-relaxed">
+                    Your city has been added to our expansion wishlist. Our team reviews every request carefully, and we'll notify you as soon as Fixiva launches in your area.
+                  </p>
+                  <button 
+                    onClick={() => setIsSuccess(false)}
+                    className="btn-secondary text-xs px-4 py-2 rounded-xl mt-2 cursor-pointer"
+                  >
+                    Submit another request
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleRequestSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Select Location</label>
+                    <HierarchicalLocationSelector
+                      selectedState={reqState}
+                      selectedDistrict={reqCity}
+                      onChange={(district, state) => {
+                        setReqCity(district);
+                        setReqState(state);
+                      }}
+                      statePlaceholder="Select State"
+                      districtPlaceholder="Select District/City"
+                      layout="row"
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Email Address</label>
+                    <input 
+                      type="email" 
+                      required
+                      placeholder="e.g. you@example.com"
+                      value={reqEmail}
+                      onChange={(e) => setReqEmail(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-primary/50"
+                    />
+                  </div>
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="w-full btn-primary font-bold text-xs py-3 rounded-xl shadow-md disabled:opacity-50 cursor-pointer"
+                  >
+                    {isSubmitting ? 'Submitting request...' : 'Request My City'}
+                  </button>
+                </form>
+              )}
+            </div>
+          </div>
+
+          {/* Premium Statistics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { emoji: '🏠', title: 'Expanding Across India', desc: 'Active growth focus' },
+              { emoji: '👨‍🔧', title: 'Verified Professionals', desc: 'Strict identity check' },
+              { emoji: '📍', title: 'Multiple Cities Covered', desc: 'Growing footprint' },
+              { emoji: '⚡', title: 'New Cities Added Regularly', desc: 'Based on demand' }
+            ].map((stat, idx) => (
+              <div 
+                key={idx} 
+                className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 flex flex-col items-center text-center space-y-2 hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.05)] transition-shadow"
+              >
+                <span className="text-2xl">{stat.emoji}</span>
+                <h4 className="font-extrabold text-slate-800 text-xs">{stat.title}</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stat.desc}</p>
+              </div>
+            ))}
+          </div>
+
         </div>
       </section>
 

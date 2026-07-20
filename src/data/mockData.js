@@ -119,29 +119,14 @@ export const INDIA_CITIES = [
 export const INITIAL_CITIES = INDIA_CITIES;
 
 export const getCityOptions = (dbCities = []) => {
-  const merged = new Map();
-
-  INDIA_CITIES.forEach((city) => {
-    merged.set((city.name || '').trim().toLowerCase(), {
-      id: city.id,
-      name: city.name,
-      region: city.region || 'India'
-    });
-  });
-
-  (dbCities || []).forEach((city) => {
-    const key = (city?.name || '').trim().toLowerCase();
-    if (!key) return;
-
-    const existing = merged.get(key);
-    merged.set(key, {
-      id: city?.id ?? existing?.id,
-      name: city?.name || existing?.name,
-      region: city?.region || existing?.region || 'India'
-    });
-  });
-
-  return Array.from(merged.values()).sort((a, b) => a.name.localeCompare(b.name));
+  return (dbCities || []).map(city => ({
+    id: city.id,
+    name: city.name,
+    region: city.region || 'India',
+    state_id: city.state_id,
+    status: city.status || 'Coming Soon',
+    display_order: city.display_order || 0
+  })).sort((a, b) => (a.display_order - b.display_order) || a.name.localeCompare(b.name));
 };
 
 // Initial states for the application

@@ -5,10 +5,11 @@ import {
   BarChart3, Users, Briefcase, FileText,
   MessageCircle, CheckCircle, Clock,
   ShieldCheck, IndianRupee,
-  LogOut, TrendingUp, Sparkles, Zap
+  LogOut, TrendingUp, Sparkles, Zap, MapPin, Trash2
 } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
+import LocationManagementPanel from '../../components/LocationManagementPanel';
 
 const AdminDashboard = () => {
   const {
@@ -19,6 +20,8 @@ const AdminDashboard = () => {
     updateContractorStatus, updateBookingStatus, updateTicketStatus,
     refreshData, logout, showToast,
     createService, updateService, deleteService, updateUserRole,
+    coverageRequests, updateCoverageRequestStatus, deleteCoverageRequest,
+    confirm
   } = useApp();
 
   const navigate = useNavigate();
@@ -33,6 +36,10 @@ const AdminDashboard = () => {
   // City creation
   const [newCityName, setNewCityName] = useState('');
   const [newCityRegion, setNewCityRegion] = useState('');
+
+  // Coverage Requests active tab states
+  const [covSearch, setCovSearch] = useState('');
+  const [covFilter, setCovFilter] = useState('All'); // All, Pending, Planned, Available
 
   useEffect(() => {
     const fetchData = async () => {
@@ -192,6 +199,22 @@ const AdminDashboard = () => {
               <MessageCircle size={16} /> Resolve Tickets
             </button>
             <button 
+              onClick={() => navigate(`${location.pathname}?tab=coverage`)}
+              className={`flex items-center gap-2.5 p-3 rounded-xl ${
+                activeTab === 'coverage' ? 'btn-primary shadow-md' : 'btn-secondary'
+              }`}
+            >
+              <MapPin size={16} /> Coverage Requests
+            </button>
+            <button 
+              onClick={() => navigate(`${location.pathname}?tab=locations`)}
+              className={`flex items-center gap-2.5 p-3 rounded-xl ${
+                activeTab === 'locations' ? 'btn-primary shadow-md' : 'btn-secondary'
+              }`}
+            >
+              <MapPin size={16} /> Location Management
+            </button>
+            <button 
               onClick={() => navigate(`${location.pathname}?tab=revenue`)}
               className={`flex items-center gap-2.5 p-3 rounded-xl ${
                 activeTab === 'revenue' ? 'btn-primary shadow-md' : 'btn-secondary'
@@ -213,6 +236,19 @@ const AdminDashboard = () => {
         <main className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[550px]">
           <AnimatePresence mode="wait">
             
+            {activeTab === 'locations' && (
+              <motion.div 
+                key="locations"
+                className="space-y-8"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15 }}
+              >
+                <LocationManagementPanel />
+              </motion.div>
+            )}
+
             {activeTab === 'overview' && (
               <motion.div 
                 key="overview"
@@ -754,6 +790,245 @@ const AdminDashboard = () => {
                 </div>
               </motion.div>
             )}
+
+            {activeTab === 'coverage' && (() => {
+              const requestsThisMonth = (coverageRequests || []).filter(r => {
+                if (!r.created_at) return false;
+                const date = new Date(r.created_at);
+                const now = new Date();
+                return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+              }).length;
+
+              const cityCounts = {};
+              (coverageRequests || []).forEach(r => {
+                const key = String(r.city || '').trim();
+                if (!key) return;
+                cityCounts[key] = (cityCounts[key] || 0) + 1;
+              });
+              const topCities = Object.entries(cityCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+              const stateCounts = {};
+              (coverageRequests || []).forEach(r => {
+                const key = String(r.state || '').trim();
+                if (!key) return;
+                stateCounts[key] = (stateCounts[key] || 0) + 1;
+              });
+              const topStates = Object.entries(stateCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5);
+
+              const recentLocations = [...(coverageRequests || [])]
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+                .slice(0, 5);
+
+              const filteredRequests = (coverageRequests || []).filter(r => {
+                const matchesFilter = covFilter === 'All' || r.status === covFilter;
+                const searchLower = covSearch.toLowerCase();
+                const matchesSearch = 
+                  String(r.city || '').toLowerCase().includes(searchLower) ||
+                  String(r.state || '').toLowerCase().includes(searchLower) ||
+                  String(r.email || '').toLowerCase().includes(searchLower);
+                return matchesFilter && matchesSearch;
+              });
+
+              return (
+                <motion.div 
+                  key="coverage"
+                  className="space-y-8"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  <h2 className="text-xl font-black text-slate-900 tracking-tight border-b pb-4">Coverage & Expansion Requests</h2>
+
+                  {/* Analytics Panel */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* KPI Cards */}
+                    <div className="bg-slate-50 p-6 border border-slate-100 rounded-2xl flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-slate-400 font-bold">Total Coverage Requests</span>
+                        <h3 className="text-3xl font-black text-slate-900 mt-1">{coverageRequests?.length || 0}</h3>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-4 font-semibold">Accumulated wishlist requests across India</p>
+                    </div>
+                    
+                    <div className="bg-slate-50 p-6 border border-slate-100 rounded-2xl flex flex-col justify-between">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-slate-400 font-bold">Requests This Month</span>
+                        <h3 className="text-3xl font-black text-slate-900 mt-1">{requestsThisMonth}</h3>
+                      </div>
+                      <p className="text-slate-500 text-xs mt-4 font-semibold">Active interest during current billing period</p>
+                    </div>
+                  </div>
+
+                  {/* Insight Lists */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="bg-slate-50 p-5 border border-slate-100 rounded-2xl space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Most Requested Cities</h3>
+                      <div className="space-y-2">
+                        {topCities.length === 0 ? (
+                          <p className="text-xs text-slate-500 font-semibold">No data available</p>
+                        ) : (
+                          topCities.map(([city, count]) => (
+                            <div key={city} className="flex justify-between items-center text-xs p-1">
+                              <span className="font-bold text-slate-700">{city}</span>
+                              <span className="px-2 py-0.5 bg-slate-200/80 rounded-full font-bold text-slate-600">{count} {count === 1 ? 'req' : 'reqs'}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-5 border border-slate-100 rounded-2xl space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Most Requested States</h3>
+                      <div className="space-y-2">
+                        {topStates.length === 0 ? (
+                          <p className="text-xs text-slate-500 font-semibold">No data available</p>
+                        ) : (
+                          topStates.map(([state, count]) => (
+                            <div key={state} className="flex justify-between items-center text-xs p-1">
+                              <span className="font-bold text-slate-700">{state}</span>
+                              <span className="px-2 py-0.5 bg-slate-200/80 rounded-full font-bold text-slate-600">{count} {count === 1 ? 'req' : 'reqs'}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-slate-50 p-5 border border-slate-100 rounded-2xl space-y-4">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Recently Requested Locations</h3>
+                      <div className="space-y-2">
+                        {recentLocations.length === 0 ? (
+                          <p className="text-xs text-slate-500 font-semibold">No data available</p>
+                        ) : (
+                          recentLocations.map((r) => (
+                            <div key={r.id} className="text-xs p-1 flex flex-col border-b border-slate-200/40 last:border-0 pb-1">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-slate-800">{r.city}, {r.state}</span>
+                                <span className="text-[10px] text-slate-400 font-semibold">{r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}</span>
+                              </div>
+                              <span className="text-[10px] text-slate-500 font-medium truncate mt-0.5">{r.email}</span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Filters and List */}
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                      {/* Search Input */}
+                      <div className="w-full sm:w-72">
+                        <input 
+                          type="text" 
+                          placeholder="Search by City, State or Email..." 
+                          value={covSearch}
+                          onChange={(e) => setCovSearch(e.target.value)}
+                          className="w-full h-10 px-4 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-primary/50"
+                        />
+                      </div>
+                      {/* Status Filters */}
+                      <div className="flex gap-1.5 overflow-x-auto w-full sm:w-auto pb-1">
+                        {['All', 'Pending', 'Planned', 'Available'].map((st) => (
+                          <button
+                            key={st}
+                            onClick={() => setCovFilter(st)}
+                            className={`px-3 py-1.5 rounded-lg font-bold text-[10px] uppercase tracking-wide transition-colors cursor-pointer ${
+                              covFilter === st 
+                                ? 'bg-slate-900 text-white' 
+                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
+                          >
+                            {st}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Requests Table */}
+                    <div className="border border-slate-100 rounded-2xl overflow-hidden shadow-sm">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="bg-slate-50 border-b border-slate-100 text-slate-500 font-black uppercase tracking-wider text-[9px]">
+                            <th className="p-4">City</th>
+                            <th className="p-4">State</th>
+                            <th className="p-4">Email</th>
+                            <th className="p-4">Request Date</th>
+                            <th className="p-4">Status</th>
+                            <th className="p-4 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredRequests.length === 0 ? (
+                            <tr>
+                              <td colSpan="6" className="p-8 text-center text-slate-400 font-semibold bg-white">
+                                No coverage requests matching current filters.
+                              </td>
+                            </tr>
+                          ) : (
+                            filteredRequests.map((r) => (
+                              <tr key={r.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50 bg-white">
+                                <td className="p-4 font-bold text-slate-800">{r.city}</td>
+                                <td className="p-4 text-slate-600 font-semibold">{r.state}</td>
+                                <td className="p-4 text-slate-600 font-medium">{r.email}</td>
+                                <td className="p-4 text-slate-400 font-semibold">
+                                  {r.created_at ? new Date(r.created_at).toLocaleString('en-IN') : '-'}
+                                </td>
+                                <td className="p-4">
+                                  <span className={`px-2.5 py-1 rounded-full font-black text-[9px] uppercase tracking-wider ${
+                                    r.status === 'Available' 
+                                      ? 'bg-green-50 text-green-700' 
+                                      : r.status === 'Planned' 
+                                      ? 'bg-blue-50 text-blue-700' 
+                                      : 'bg-amber-50 text-amber-700'
+                                  }`}>
+                                    {r.status}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
+                                  {r.status === 'Pending' && (
+                                    <button
+                                      onClick={() => updateCoverageRequestStatus(r.id, 'Planned')}
+                                      className="bg-blue-50 hover:bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold text-[10px] transition-colors cursor-pointer"
+                                    >
+                                      Mark Planned
+                                    </button>
+                                  )}
+                                  {r.status !== 'Available' && (
+                                    <button
+                                      onClick={() => updateCoverageRequestStatus(r.id, 'Available')}
+                                      className="bg-green-50 hover:bg-green-100 text-green-700 px-2 py-1 rounded font-bold text-[10px] transition-colors cursor-pointer"
+                                    >
+                                      Mark Available
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={async () => {
+                                      const ok = await confirm('Are you sure you want to delete this coverage request?');
+                                      if (ok) {
+                                        await deleteCoverageRequest(r.id);
+                                      }
+                                    }}
+                                    className="bg-red-50 hover:bg-red-100 text-red-700 p-1.5 rounded transition-colors cursor-pointer inline-flex items-center"
+                                    title="Delete Request"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                </motion.div>
+              );
+            })()}
 
           </AnimatePresence>
         </main>

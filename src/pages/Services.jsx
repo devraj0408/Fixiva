@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon, Search, ShieldCheck,
-  ArrowRight, MapPin, Star, Filter, RotateCcw
+  ArrowRight, Star, Filter, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { INDIA_CITIES } from '../data/mockData';
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const IconMap = {
   zap: Zap,
@@ -31,20 +31,22 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = INDIA_CITIES;
+
 
 const Services = () => {
-  const { services, cities } = useApp();
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  const { services, cities, cityControl, submitCoverageRequest, showToast, user } = useApp();
   const location = useLocation();
+  const [submittedCoverages, setSubmittedCoverages] = useState([]);
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   
   const initialSearch = queryParams.get('search') || '';
   const initialCity = queryParams.get('city') || '';
+  const initialState = queryParams.get('state') || '';
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCity, setSelectedCity] = useState(initialCity);
+  const [selectedState, setSelectedState] = useState(initialState);
   const [activeCategory, setActiveCategory] = useState('all');
   const [maxPrice, setMaxPrice] = useState(3000);
 
@@ -52,7 +54,49 @@ const Services = () => {
   useEffect(() => {
     setSearchTerm(queryParams.get('search') || '');
     setSelectedCity(queryParams.get('city') || '');
+    setSelectedState(queryParams.get('state') || '');
   }, [location.search, queryParams]);
+
+  const matchedCity = cities.find(c => (c.name || '').trim().toLowerCase() === (selectedCity || '').trim().toLowerCase());
+  
+  const isServiceAvailable = (serviceId) => {
+    if (!selectedCity) return true;
+    return !!(
+      matchedCity && (
+        cityControl && cityControl[matchedCity.id]
+          ? cityControl[matchedCity.id][serviceId] === true
+          : [1, 2, 3, 4, 5].includes(matchedCity.id)
+      )
+    );
+  };
+
+  const handleCardRequestCoverage = async (e, serviceName, serviceId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const email = user?.email;
+    if (!email) {
+      const userEmail = prompt("Please enter your email to request coverage:");
+      if (!userEmail || !userEmail.includes('@')) {
+        showToast("Please enter a valid email address.", 'error');
+        return;
+      }
+      const res = await submitCoverageRequest(selectedCity, selectedState || matchedCity?.region || '', userEmail);
+      if (res.success || res.error === 'duplicate') {
+        setSubmittedCoverages(prev => [...prev, serviceId]);
+        showToast("Coverage request submitted successfully!", 'success');
+      } else {
+        showToast("Failed to request coverage.", 'error');
+      }
+    } else {
+      const res = await submitCoverageRequest(selectedCity, selectedState || matchedCity?.region || '', email);
+      if (res.success || res.error === 'duplicate') {
+        setSubmittedCoverages(prev => [...prev, serviceId]);
+        showToast("Coverage request submitted successfully!", 'success');
+      } else {
+        showToast("Failed to request coverage.", 'error');
+      }
+    }
+  };
 
   // Unique categories list
   const categories = ['all', ...new Set(services.map(s => s.category || 'General').filter(Boolean))];
@@ -76,6 +120,7 @@ const Services = () => {
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedCity('');
+    setSelectedState('');
     setActiveCategory('all');
     setMaxPrice(3000);
   };
@@ -134,17 +179,19 @@ const Services = () => {
               {/* City Selection dropdown */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Location</label>
-                <div className="relative">
-                  <MapPin size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                  <select
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none transition-all"
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                  >
-                    <option value="">All Operating Cities</option>
-                    {displayCities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedCity}
+                  onChange={(district, state) => {
+                    setSelectedCity(district);
+                    setSelectedState(state);
+                  }}
+                  statePlaceholder="All States"
+                  districtPlaceholder="All Districts"
+                  showAllOption={true}
+                  layout="col"
+                  className="w-full"
+                />
               </div>
 
               {/* Price Range Slider */}
@@ -209,49 +256,100 @@ const Services = () => {
                     
                     return (
                       <div key={service.id} className="h-full flex">
-                        <Link 
-                          to={`/book/${service.id}${selectedCity ? `?city=${encodeURIComponent(selectedCity)}` : ''}`} 
-                          className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
-                        >
-                          <div>
-                            {/* Card Top Icon & Starting tariff */}
-                            <div className="flex justify-between items-start gap-4 mb-6">
-                              <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                                <Icon size={22} />
+                        {isServiceAvailable(service.id) ? (
+                          <Link 
+                            to={`/book/${service.id}${selectedCity ? `?city=${encodeURIComponent(selectedCity)}&state=${encodeURIComponent(selectedState || '')}` : ''}`} 
+                            className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
+                          >
+                            <div className="flex flex-col justify-between h-full w-full">
+                              <div>
+                                {/* Card Top Icon & Starting tariff */}
+                                <div className="flex justify-between items-start gap-4 mb-6">
+                                  <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                                    <Icon size={22} />
+                                  </div>
+                                  <div className="text-right space-y-0.5">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
+                                    <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
+                                      ₹{startingPrice}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Card Content Info */}
+                                <div className="space-y-2">
+                                  <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
+                                    {service.name}
+                                  </h3>
+                                  <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                                    {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
+                                  </p>
+                                  
+                                  {/* Average review rating badge */}
+                                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
+                                    <Star size={12} fill="currentColor" />
+                                    <span>4.9 (Verified reviews)</span>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-right space-y-0.5">
-                                <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
-                                <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
-                                  ₹{startingPrice}
-                                </span>
+
+                              {/* Card Footer action button */}
+                              <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
+                                <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
+                                  <ArrowRight size={14} />
+                                </div>
                               </div>
                             </div>
+                          </Link>
+                        ) : (
+                          <div className="bg-slate-50/40 rounded-2xl border border-slate-150 p-6 flex flex-col justify-between h-full w-full opacity-95">
+                            <div className="flex flex-col justify-between h-full w-full">
+                              <div>
+                                {/* Card Top Icon & Starting tariff */}
+                                <div className="flex justify-between items-start gap-4 mb-6">
+                                  <div className="h-12 w-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                                    <Icon size={22} />
+                                  </div>
+                                  <div className="text-right space-y-0.5">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
+                                    <span className="text-lg font-black text-slate-400 block">
+                                      ₹{startingPrice}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            {/* Card Content Info */}
-                            <div className="space-y-2">
-                              <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
-                                {service.name}
-                              </h3>
-                              <p className="text-slate-500 text-xs leading-relaxed font-semibold">
-                                {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
-                              </p>
-                              
-                              {/* Average review rating badge */}
-                              <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
-                                <Star size={12} fill="currentColor" />
-                                <span>4.9 (Verified reviews)</span>
+                                {/* Card Content Info */}
+                                <div className="space-y-2">
+                                  <h3 className="font-extrabold text-slate-500 text-base leading-tight">
+                                    {service.name}
+                                  </h3>
+                                  <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                                    {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
+                                  </p>
+                                  
+                                  {/* Availability block with request button */}
+                                  <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-2 mt-2">
+                                    <p className="text-[10px] text-amber-800 font-semibold leading-relaxed">
+                                      🚀 Fixiva is expanding rapidly. We aren't available in this district yet, but you can request coverage and we'll notify you as soon as we launch here.
+                                    </p>
+                                    {submittedCoverages.includes(service.id) ? (
+                                      <span className="text-[10px] text-green-700 font-bold block">🎉 Request Registered!</span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleCardRequestCoverage(e, service.name, service.id)}
+                                        className="w-full text-center bg-white hover:bg-slate-50 border border-slate-200 rounded-lg py-1.5 text-[10px] font-extrabold text-slate-700 transition-colors cursor-pointer"
+                                      >
+                                        Request Coverage
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
-
-                          {/* Card Footer action button */}
-                          <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
-                            <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
-                              <ArrowRight size={14} />
-                            </div>
-                          </div>
-                        </Link>
+                        )}
                       </div>
                     );
                   })}

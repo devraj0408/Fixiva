@@ -3,31 +3,20 @@ import { Fragment, useState, useEffect } from 'react';
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  MapPin, Calendar, CheckSquare, ArrowRight,
+  Calendar, CheckSquare, ArrowRight,
   Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
-import { INDIA_CITIES, getCityOptions } from '../data/mockData';
-
-const DEFAULT_CITIES = INDIA_CITIES;
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const BookingFlow = () => {
   const { serviceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { services, addBooking, user, isAuthenticated, showToast } = useApp();
-  const [cities, setCities] = useState(DEFAULT_CITIES);
-
-  useEffect(() => {
-    const fetchCities = async () => {
-      const { data, error } = await supabase.from('cities').select('*');
-      if (!error) {
-        setCities(getCityOptions(data || []));
-      }
-    };
-    fetchCities();
-  }, []);
+  const { services, addBooking, user, isAuthenticated, showToast, cityControl, submitCoverageRequest, cities = [] } = useApp();
+  const [coverageEmail, setCoverageEmail] = useState('');
+  const [isSubmittingCoverage, setIsSubmittingCoverage] = useState(false);
+  const [isCoverageSubmitted, setIsCoverageSubmitted] = useState(false);
 
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -39,6 +28,7 @@ const BookingFlow = () => {
   // Pre-fill user data if logged in
   const [formData, setFormData] = useState({
     city: '',
+    state: '',
     service: serviceId || '',
     address: '',
     name: '',
@@ -57,8 +47,13 @@ const BookingFlow = () => {
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const cityFromUrl = queryParams.get('city');
-    if (cityFromUrl) {
-      setFormData(prev => ({ ...prev, city: cityFromUrl }));
+    const stateFromUrl = queryParams.get('state');
+    if (cityFromUrl || stateFromUrl) {
+      setFormData(prev => ({ 
+        ...prev, 
+        city: cityFromUrl || '', 
+        state: stateFromUrl || '' 
+      }));
     }
   }, [location.search]);
 
@@ -79,6 +74,18 @@ const BookingFlow = () => {
   const basePrice = selectedService?.base_price || selectedService?.inspection_fee || 0;
   const platformFee = selectedService?.platform_fee || 0;
   const totalAmount = basePrice + platformFee;
+
+  const matchedCity = cities.find(c => (c.name || '').trim().toLowerCase() === (formData.city || '').trim().toLowerCase());
+  const isDistrictComingSoon = matchedCity && matchedCity.status === 'Coming Soon';
+  const isDistrictLive = matchedCity && matchedCity.status === 'Live';
+
+  const isAvailable = !formData.city || !formData.service || (
+    isDistrictLive && (
+      cityControl && cityControl[matchedCity.id]
+        ? cityControl[matchedCity.id][formData.service] === true
+        : [1, 2, 3, 4, 5].includes(matchedCity.id)
+    )
+  );
 
   const handleUseCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -109,6 +116,31 @@ const BookingFlow = () => {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
+  };
+
+  const handleRequestCoverage = async () => {
+    const email = user?.email || coverageEmail;
+    if (!email || !email.includes('@')) {
+      showToast("Please provide a valid email address.", 'error');
+      return;
+    }
+    setIsSubmittingCoverage(true);
+    try {
+      const res = await submitCoverageRequest(formData.city, formData.state, email);
+      if (res.success) {
+        setIsCoverageSubmitted(true);
+        showToast("Coverage request submitted successfully!", 'success');
+      } else if (res.error === 'duplicate') {
+        setIsCoverageSubmitted(true);
+        showToast("You have already requested coverage for this district.", 'info');
+      } else {
+        showToast("Failed to request coverage. Please try again.", 'error');
+      }
+    } catch {
+      showToast("Error requesting coverage.", 'error');
+    } finally {
+      setIsSubmittingCoverage(false);
+    }
   };
 
   const validateStep = (s) => {
@@ -155,7 +187,7 @@ const BookingFlow = () => {
       setTimeout(async () => {
         try {
           const combinedAddress = `${formData.address}${formData.notes ? ` (Notes: ${formData.notes})` : ''}${formData.timeSlot ? ` (Slot: ${formData.timeSlot})` : ''}`;
-          const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+          const displayCities = cities || [];
           const selectedCityRecord = displayCities.find((city) => (city.name || '').toLowerCase() === (formData.city || '').trim().toLowerCase());
           const payload = {
             id: generatedId,
@@ -199,8 +231,7 @@ const BookingFlow = () => {
     }
   };
 
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
-  const allCities = displayCities.map(c => c.name).sort();
+
 
   if (success) {
     return (
@@ -312,17 +343,18 @@ const BookingFlow = () => {
                   {/* Select City */}
                   <div className="space-y-2">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Convenience City</label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <select
-                        className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none transition-all"
-                        value={formData.city}
-                        onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                      >
-                        <option value="">Select Target City</option>
-                        {allCities.map(city => <option key={city} value={city}>{city}</option>)}
-                      </select>
-                    </div>
+                    <HierarchicalLocationSelector
+                      selectedState={formData.state}
+                      selectedDistrict={formData.city}
+                      onChange={(district, state) => {
+                        setFormData(prev => ({ ...prev, city: district, state: state }));
+                        setIsCoverageSubmitted(false);
+                      }}
+                      statePlaceholder="Select Target State"
+                      districtPlaceholder="Select Target City"
+                      layout="row"
+                      className="w-full"
+                    />
                     {errors.city && <p className="text-danger text-xs font-bold">{errors.city}</p>}
                   </div>
 
@@ -384,10 +416,45 @@ const BookingFlow = () => {
                     {errors.service && <p className="text-danger text-xs font-bold">{errors.service}</p>}
                   </div>
 
-                  <div className="pt-6">
+                  <div className="pt-6 space-y-4">
+                    {!isAvailable && (
+                      <div className="p-5 bg-amber-50/50 border border-amber-200/80 rounded-2xl space-y-4">
+                        <p className="text-xs text-amber-800 font-semibold leading-relaxed">
+                          {isDistrictComingSoon 
+                            ? "🚀 Fixiva is launching soon in this district."
+                            : "🚀 Fixiva is expanding rapidly. We aren't available in this district yet, but you can request coverage and we'll notify you as soon as we launch here."
+                          }
+                        </p>
+                        
+                        {isCoverageSubmitted ? (
+                          <p className="text-xs text-green-700 font-bold">🎉 Thank you! Your coverage request has been registered.</p>
+                        ) : (
+                          <div className="flex flex-col sm:flex-row gap-2">
+                            {!user && (
+                              <input
+                                type="email"
+                                required
+                                placeholder="Enter your email"
+                                className="px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-bold bg-white text-slate-800 outline-none flex-1 focus:border-amber-300"
+                                value={coverageEmail}
+                                onChange={(e) => setCoverageEmail(e.target.value)}
+                              />
+                            )}
+                            <button
+                              type="button"
+                              onClick={handleRequestCoverage}
+                              disabled={isSubmittingCoverage}
+                              className="btn-primary text-xs py-2.5 px-4 rounded-xl shadow-sm shrink-0 whitespace-nowrap"
+                            >
+                              {isSubmittingCoverage ? 'Submitting...' : 'Request Coverage'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <button 
                       onClick={nextStep}
-                      disabled={!formData.city || !formData.service}
+                      disabled={!formData.city || !formData.service || !isAvailable}
                       className="w-full btn-primary text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5"
                     >
                       Continue to Details <ArrowRight size={16} />

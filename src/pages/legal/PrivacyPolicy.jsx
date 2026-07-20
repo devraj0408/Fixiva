@@ -47,7 +47,7 @@ const PrivacyPolicy = () => {
           <h2 className="text-xl font-bold mb-3 text-gray-900">Contact Us</h2>
           <p>If you have any questions or concerns regarding this Privacy Policy, please reach out to us:</p>
           <ul className="mt-2 font-medium">
-            <li>Email: <a href="mailto:sinhadev739@gmail.com" className="text-royal-blue">sinhadev739@gmail.com</a></li>
+            <li>Email: <a href="mailto:fixiva869@gmail.com" className="text-royal-blue">fixiva869@gmail.com</a></li>
             <li>Location: Deoghar, Jharkhand, India</li>
           </ul>
         </section>

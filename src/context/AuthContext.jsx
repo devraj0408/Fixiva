@@ -79,6 +79,8 @@ export const AuthProvider = ({ children }) => {
   const [tickets, setTickets] = useState([]);
   const [services, setServices] = useState([]);
   const [cities, setCities] = useState([]);
+  const [states, setStates] = useState([]);
+  const [coverageRequests, setCoverageRequests] = useState([]);
   const [cityControl, setCityControl] = useState({});
   const [serviceSupportsCategory, setServiceSupportsCategory] = useState(true);
   const { showToast } = useToast();
@@ -103,7 +105,7 @@ export const AuthProvider = ({ children }) => {
       return data || [];
     };
 
-    const [bk, wk, ct, pr, rv, tk, sv, cs, cList] = await Promise.all([
+    const [bk, wk, ct, pr, rv, tk, sv, cs, cList, sList, cov] = await Promise.all([
       fetchWithFallback('bookings'),
       fetchWithFallback('workers'),
       fetchWithFallback('contractors'),
@@ -113,6 +115,8 @@ export const AuthProvider = ({ children }) => {
       fetchWithFallback('services', 'id,name,description,category,base_price,platform_fee,active'),
       fetchWithFallback('city_services', 'city_id,service_id,enabled'),
       fetchWithFallback('cities'),
+      fetchWithFallback('states'),
+      fetchWithFallback('coverage_requests'),
     ]);
 
     setBookings(bk || []);
@@ -122,6 +126,8 @@ export const AuthProvider = ({ children }) => {
     setTickets(tk || []);
     setServices(sv || []);
     setCities(getCityOptions(cList || []));
+    setStates((sList || []).sort((a, b) => (a.display_order - b.display_order) || a.name.localeCompare(b.name)));
+    setCoverageRequests(cov || []);
 
     // Process reviews to match frontend expectations
     const processedReviews = (rv || []).map(r => {
@@ -176,7 +182,7 @@ export const AuthProvider = ({ children }) => {
   // ---------------------------------------------------------------------
   useEffect(() => {
     const verifyDatabaseSchema = async () => {
-      const requiredTables = ['services', 'cities', 'city_services', 'profiles'];
+      const requiredTables = ['services', 'cities', 'city_services', 'profiles', 'states'];
 
       for (const table of requiredTables) {
         const selectCols = table === 'city_services' ? 'city_id,service_id' : 'id';
@@ -269,6 +275,20 @@ export const AuthProvider = ({ children }) => {
 
     if (!email) {
       return { success: false, error: new Error('No account was found for that mobile number.') };
+    }
+
+    if (purpose === 'sign-in') {
+      const { data: profile, error: profileErr } = await supabase.from('profiles').select('id, role').eq('email', email).maybeSingle();
+      if (!profile || profileErr) {
+        return { success: false, error: new Error('User Not Found: No profile exists for this email address. Please register first.') };
+      }
+    }
+
+    if (purpose === 'sign-up') {
+      const { data: profile } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
+      if (profile) {
+        return { success: false, error: new Error('This email address is already registered. Please login instead.') };
+      }
     }
 
     const { error } = await supabase.auth.signInWithOtp({
@@ -860,22 +880,152 @@ export const AuthProvider = ({ children }) => {
       };
       const { data, error } = await supabase.from('reviews').insert(payload).select();
       if (!error && data) {
-        const b = bookings.find(bk => bk.id === review.bookingId);
-        const newRvFormatted = {
-          ...data[0],
-          userName: b?.customer_name || user?.name || 'Customer',
-          serviceType: data[0].service_type || b?.service_name || 'Home Service'
-        };
-        setReviews((prev) => [...prev, newRvFormatted]);
+        setReviews((prev) => [
+          {
+            ...data[0],
+            userName: user?.name || 'Customer',
+            serviceType: payload.service_type || 'Home Service'
+          },
+          ...prev
+        ]);
       }
       return { data, error };
     },
     setReviews,
+    
+    submitCoverageRequest: async (city, state, email) => {
+      if (!supabase) {
+        return { success: false, error: new Error('Supabase is not configured.') };
+      }
+
+      const normCity = String(city || '').trim().toLowerCase();
+      const normEmail = String(email || '').trim().toLowerCase();
+
+      // Check duplicate against existing local state to avoid slow queries
+      const isDuplicate = coverageRequests.some(
+        (r) => String(r.city || '').trim().toLowerCase() === normCity && String(r.email || '').trim().toLowerCase() === normEmail
+      );
+
+      if (isDuplicate) {
+        return { success: false, error: 'duplicate' };
+      }
+
+      const payload = {
+        city: String(city || '').trim(),
+        state: String(state || '').trim(),
+        email: normEmail,
+        status: 'Pending'
+      };
+
+      const { data, error } = await supabase.from('coverage_requests').insert(payload).select();
+      if (error) {
+        console.error('Error inserting coverage request:', error);
+        return { success: false, error };
+      }
+
+      // Trigger Resend email notification
+      try {
+        const resendApiKey = import.meta?.env?.VITE_RESEND_API_KEY || '';
+        if (resendApiKey) {
+          const time = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Fixiva <onboarding@fixiva.app>',
+              to: ['fixiva869@gmail.com'],
+              subject: 'New Coverage Request - Fixiva',
+              text: `City: ${payload.city}\nState: ${payload.state}\nEmail: ${payload.email}\nSubmission Time: ${time}`,
+            }),
+          });
+        }
+      } catch (e) {
+        console.error('Failed to send coverage request email:', e);
+      }
+
+      if (data) {
+        setCoverageRequests((prev) => [data[0], ...prev]);
+      }
+
+      return { success: true, data };
+    },
+
+    updateCoverageRequestStatus: async (id, status) => {
+      const { error } = await supabase.from('coverage_requests').update({ status }).eq('id', id);
+      if (!error) {
+        setCoverageRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
+        showToast(`Request marked as ${status}.`, 'success');
+      } else {
+        console.error("Failed to update status", error);
+        showToast("Failed to update request status.", 'error');
+      }
+      return { error };
+    },
+
+    deleteCoverageRequest: async (id) => {
+      const { error } = await supabase.from('coverage_requests').delete().eq('id', id);
+      if (!error) {
+        setCoverageRequests((prev) => prev.filter((r) => r.id !== id));
+        showToast("Coverage request deleted.", 'success');
+      } else {
+        console.error("Failed to delete coverage request", error);
+        showToast("Failed to delete request.", 'error');
+      }
+      return { error };
+    },
     tickets,
     addTicket,
     updateTicketStatus,
     services,
     cities,
+    states,
+    addState: async (name) => {
+      const { data, error } = await supabase.from('states').insert({ name, status: 'Live', display_order: 0 }).select();
+      if (!error) await fetchMarketplaceData();
+      return { data, error };
+    },
+    updateState: async (id, updates) => {
+      const { data, error } = await supabase.from('states').update(updates).eq('id', id).select();
+      if (!error) await fetchMarketplaceData();
+      return { data, error };
+    },
+    deleteState: async (id) => {
+      const { error } = await supabase.from('states').delete().eq('id', id);
+      if (!error) await fetchMarketplaceData();
+      return { error };
+    },
+    addDistrict: async (stateId, stateName, name, status = 'Coming Soon') => {
+      const { data, error } = await supabase.from('cities').insert({ 
+        name, 
+        region: stateName, 
+        state_id: stateId, 
+        status, 
+        display_order: 0 
+      }).select();
+      if (!error) await fetchMarketplaceData();
+      return { data, error };
+    },
+    updateDistrict: async (id, updates) => {
+      const updatesCopy = { ...updates };
+      if (updates.state_id) {
+        // Find state name
+        const matchedState = states.find(s => s.id === updates.state_id);
+        if (matchedState) {
+          updatesCopy.region = matchedState.name;
+        }
+      }
+      const { data, error } = await supabase.from('cities').update(updatesCopy).eq('id', id).select();
+      if (!error) await fetchMarketplaceData();
+      return { data, error };
+    },
+    deleteDistrict: async (id) => {
+      const { error } = await supabase.from('cities').delete().eq('id', id);
+      if (!error) await fetchMarketplaceData();
+      return { error };
+    },
     updateServicePrice,
     createService,
     updateService,
@@ -883,6 +1033,7 @@ export const AuthProvider = ({ children }) => {
     updateUserRole,
     cityControl,
     toggleServiceInCity,
+    coverageRequests,
     refreshData: fetchMarketplaceData
   };
 

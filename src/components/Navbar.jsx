@@ -35,39 +35,56 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-center gap-3 group">
-              <svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="Fixiva logo" className="shrink-0">
-                <defs>
-                  <linearGradient id="fxGrad" x1="0" x2="1" y1="0" y2="1">
-                    <stop offset="0%" stopColor="#2563EB" />
-                    <stop offset="100%" stopColor="#1D4ED8" />
-                  </linearGradient>
-                  <filter id="logoShadow" x="-25%" y="-25%" width="150%" height="150%" filterUnits="userSpaceOnUse">
-                    <feDropShadow dx="0" dy="3" stdDeviation="3" floodColor="#0F172A" floodOpacity="0.18" />
-                  </filter>
-                  {/* Multicolor gradient for the FIXIVA wordmark (Google-like) */}
-                  <linearGradient id="fxTextGrad" x1="0" x2="1" y1="0" y2="0">
-                    <stop offset="0%" stopColor="#4285F4" />
-                    <stop offset="20%" stopColor="#DB4437" />
-                    <stop offset="40%" stopColor="#F4B400" />
-                    <stop offset="60%" stopColor="#4285F4" />
-                    <stop offset="80%" stopColor="#0F9D58" />
-                    <stop offset="100%" stopColor="#DB4437" />
-                  </linearGradient>
-                </defs>
+            <Link to="/" className="flex items-center group select-none">
+              <svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="Fixiva logo" className="shrink-0 transition-transform duration-300 group-hover:scale-[1.02]">
+                {/* Icon Mark Background */}
+                <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
+                
+                {/* Screwdriver Chimney */}
+                <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
+                <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
 
-                {/* Mark */}
-                <g transform="translate(-1 0)" filter="url(#logoShadow)">
-                  {/* Outer white ring */}
-                  <rect x="0" y="0" width="44" height="44" rx="11" fill="#FFFFFF" stroke="#F1F5F9" strokeWidth="1" />
-                  {/* Blue inner square */}
-                  <rect x="4" y="3" width="36" height="36" rx="9" fill="#2563EB" />
-                  {/* Crisp white F using text for better rendering */}
-                  <text x="22" y="23.5" textAnchor="middle" fontFamily="Poppins, Inter, system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="18" fill="#FFFFFF" dominantBaseline="central">F</text>
+                {/* Amber Shield-Roof */}
+                <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
+
+                {/* Blue House-Shield Body */}
+                <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
+
+                {/* Connected Service Windows */}
+                <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
+                <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
+                <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
+                <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
+
+                {/* White Door */}
+                <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
+
+                {/* Success Green Door Checkmark */}
+                <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+
+                {/* Foundation Beam */}
+                <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
+
+                {/* Wordmark (Premium Soft Geometric Design) */}
+                <g id="wordmark" fill="none" strokeWidth="3.3" strokeLinecap="round" strokeLinejoin="round">
+                  {/* F - Deep Blue */}
+                  <path id="letter-f" d="M60 13.5 H53.6 V26.5 M53.6 19.5 H58.5" stroke="#2563EB" />
+                  
+                  {/* I-1 - Dark Charcoal */}
+                  <path id="letter-i-1" d="M65.5 13.5 V26.5" stroke="#111827" />
+                  
+                  {/* X - Dark Charcoal */}
+                  <path id="letter-x" d="M71.5 13.5 L79.5 26.5 M79.5 13.5 L71.5 26.5" stroke="#111827" />
+                  
+                  {/* I-2 - Emerald */}
+                  <path id="letter-i-2" d="M85.5 13.5 V26.5" stroke="#10B981" />
+                  
+                  {/* V - Amber */}
+                  <path id="letter-v" d="M91.5 13.5 L96.5 26.5 L101.5 13.5" stroke="#F59E0B" />
+                  
+                  {/* A - Dark Charcoal */}
+                  <path id="letter-a" d="M107.5 26.5 L112.5 13.5 L117.5 26.5 M110.1 21 H114.9" stroke="#111827" />
                 </g>
-
-                {/* Wordmark */}
-                <text x="52" y="26" fontFamily="Poppins, Inter, system-ui, -apple-system, sans-serif" fontWeight="800" fontSize="18" fill="url(#fxTextGrad)">FIXIVA</text>
               </svg>
             </Link>
           </div>

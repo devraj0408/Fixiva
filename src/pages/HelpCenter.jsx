@@ -196,7 +196,7 @@ const HelpCenter = () => {
               <div className="border-t border-slate-100 pt-6 space-y-3 text-slate-500 font-semibold text-xs">
                 <div className="flex items-center gap-2">
                   <Mail size={16} className="text-primary shrink-0" />
-                  <a href="mailto:sinhadev739@gmail.com" className="hover:text-primary transition-all text-xs break-all">sinhadev739@gmail.com</a>
+                  <a href="mailto:fixiva869@gmail.com" className="hover:text-primary transition-all text-xs break-all">fixiva869@gmail.com</a>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin size={16} className="text-primary shrink-0" />
