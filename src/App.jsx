@@ -67,7 +67,16 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
   const location = useLocation();
 
-  if (loading) return <LoadingSkeleton />;
+  console.log("[Route Guard Debug] Pathname:", location.pathname);
+  console.log("[Route Guard Debug] User state:", user);
+  console.log("[Route Guard Debug] IsAuthenticated:", isAuthenticated);
+  console.log("[Route Guard Debug] Loading state:", loading);
+  console.log("[Route Guard Debug] Allowed Roles:", allowedRoles);
+
+  if (loading || (isAuthenticated && !user)) {
+    console.log("[Route Guard Debug] Showing LoadingSkeleton...");
+    return <LoadingSkeleton />;
+  }
   
   if (!isAuthenticated) {
     if (location.pathname.startsWith('/fixiva-admin') || location.pathname === '/dashboard/admin') {

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
+import { supabase } from '../../lib/supabaseClient';
 
 const Login = ({ adminMode = false }) => {
   const navigate = useNavigate();
@@ -150,6 +151,17 @@ const Login = ({ adminMode = false }) => {
     }
 
     showToast('Login Successful', 'success');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      console.log("[Login Debug] Session:", session);
+      console.log("[Login Debug] User ID:", profile?.id || session?.user?.id);
+      console.log("[Login Debug] Profile:", profile);
+      console.log("[Login Debug] Role:", profile?.role);
+      console.log("[Login Debug] Redirect URL:", profile?.role === 'admin' ? '/fixiva-admin/dashboard' : '/dashboard');
+    } catch (logErr) {
+      console.error("[Login Debug] Log error:", logErr);
+    }
 
     try {
       if (profile?.role === 'admin') {
