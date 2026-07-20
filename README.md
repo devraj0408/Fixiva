@@ -113,7 +113,7 @@ npm run build
 ## Admin login flow
 1. Open the admin login page:
    ```text
-   http://localhost:5173/fixora-admin
+   http://localhost:5173/fixiva-admin
    ```
 2. Enter an email included in `VITE_ADMIN_EMAILS`
 3. Receive the OTP and verify
@@ -145,7 +145,7 @@ Use the local Vite dev server and verify the admin experience directly:
    ```
 3. Open the admin login page:
    ```text
-   http://localhost:5173/fixora-admin
+   http://localhost:5173/fixiva-admin
    ```
 4. Sign in with an email listed in `VITE_ADMIN_EMAILS` and verify the OTP.
 5. Confirm admin access at:

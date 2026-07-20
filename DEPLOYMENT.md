@@ -44,13 +44,13 @@ Once your domain is connected to the hosting provider:
 
 - point the domain to the static site deployment
 - confirm that the provider serves the `dist` build output
-- verify that routes like `/dashboard/admin` and `/fixora-admin` resolve correctly
+- verify that routes like `/dashboard/admin` and `/fixiva-admin` resolve correctly
 
 ## 6. Post-deploy checks
 After deployment, verify:
 
 - the homepage loads
 - login works
-- admin login route `/fixora-admin` works
+- admin login route `/fixiva-admin` works
 - protected admin route `/dashboard/admin` works
 - service creation and dashboard flows render without a blank page

@@ -70,8 +70,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (loading) return <LoadingSkeleton />;
   
   if (!isAuthenticated) {
-    if (location.pathname.startsWith('/fixora-admin') || location.pathname === '/dashboard/admin') {
-      return <Navigate to="/fixora-admin" replace />;
+    if (location.pathname.startsWith('/fixiva-admin') || location.pathname === '/dashboard/admin') {
+      return <Navigate to="/fixiva-admin" replace />;
     }
     return <Navigate to="/login" replace />;
   }
@@ -81,7 +81,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
   if (allowedRoles && !normalizedAllowed.includes(userRole)) {
     if (userRole === 'admin') {
-      return <Navigate to="/fixora-admin" replace />;
+      return <Navigate to="/fixiva-admin" replace />;
     }
     if (userRole === 'worker') {
       return <Navigate to="/worker-dashboard" replace />;
@@ -109,7 +109,7 @@ function App() {
                 <Route path="/services" element={<Services />} />
                 <Route path="/book/:serviceId?" element={<BookingFlow />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/fixora-admin" element={<Login adminMode />} />
+                <Route path="/fixiva-admin" element={<Login adminMode />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -117,7 +117,7 @@ function App() {
                 <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/fixora-admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/fixiva-admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
                 <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />

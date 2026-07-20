@@ -33,7 +33,7 @@ const Login = ({ adminMode = false }) => {
         return;
       }
       if (user.role === 'admin') {
-        navigate('/fixora-admin/dashboard');
+        navigate('/fixiva-admin/dashboard');
       } else if (user.role === 'worker') {
         navigate('/worker-dashboard');
       } else if (user.role === 'contractor') {
@@ -153,7 +153,7 @@ const Login = ({ adminMode = false }) => {
 
     try {
       if (profile?.role === 'admin') {
-        navigate('/fixora-admin/dashboard');
+        navigate('/fixiva-admin/dashboard');
       } else if (profile?.role === 'worker') {
         navigate('/worker-dashboard');
       } else if (profile?.role === 'contractor') {

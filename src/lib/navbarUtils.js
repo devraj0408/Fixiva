@@ -17,7 +17,7 @@ export const getDashboardPath = (user = null) => {
     return '/login';
   }
   if (role === 'admin') {
-    return '/fixora-admin/dashboard';
+    return '/fixiva-admin/dashboard';
   }
   if (role === 'worker') {
     return '/worker-dashboard';
