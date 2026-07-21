@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, Settings, Briefcase, FileText, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getDashboardPath } from '../lib/navbarUtils';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -26,7 +27,7 @@ const Navbar = () => {
   };
 
   const normalizedUser = user || {};
-  const dashboardPath = normalizedUser.role ? `/dashboard/${normalizedUser.role}` : '/login';
+  const dashboardPath = getDashboardPath(normalizedUser);
 
   const isActive = (path) => location.pathname === path;
 

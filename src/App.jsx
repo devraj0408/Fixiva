@@ -1,9 +1,10 @@
 import React, { Suspense } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
+import { getRouterBasename, getAdminDashboardRoute, getAdminEntryRoute } from './lib/routePaths';
 
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
@@ -22,6 +23,8 @@ const ContactUs = React.lazy(() => import('./pages/ContactUs'));
 const TermsAndConditions = React.lazy(() => import('./pages/legal/TermsAndConditions'));
 const PrivacyPolicy = React.lazy(() => import('./pages/legal/PrivacyPolicy'));
 const RefundPolicy = React.lazy(() => import('./pages/legal/RefundPolicy'));
+
+const routerBasename = getRouterBasename();
 
 const LoadingSkeleton = () => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#F8FAFC' }}>
@@ -65,23 +68,12 @@ const LoadingSkeleton = () => (
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
-  const location = useLocation();
-
-  console.log("[Route Guard Debug] Pathname:", location.pathname);
-  console.log("[Route Guard Debug] User state:", user);
-  console.log("[Route Guard Debug] IsAuthenticated:", isAuthenticated);
-  console.log("[Route Guard Debug] Loading state:", loading);
-  console.log("[Route Guard Debug] Allowed Roles:", allowedRoles);
 
   if (loading || (isAuthenticated && !user)) {
-    console.log("[Route Guard Debug] Showing LoadingSkeleton...");
     return <LoadingSkeleton />;
   }
   
   if (!isAuthenticated) {
-    if (location.pathname.startsWith('/fixiva-admin') || location.pathname === '/dashboard/admin') {
-      return <Navigate to="/fixiva-admin" replace />;
-    }
     return <Navigate to="/login" replace />;
   }
 
@@ -106,7 +98,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
 function App() {
   return (
-    <Router>
+    <Router basename={routerBasename}>
       <ToastProvider>
         <AppProvider>
           <div className="app-container">
@@ -118,7 +110,7 @@ function App() {
                 <Route path="/services" element={<Services />} />
                 <Route path="/book/:serviceId?" element={<BookingFlow />} />
                 <Route path="/login" element={<Login />} />
-                <Route path="/fixiva-admin" element={<Login adminMode />} />
+                <Route path={getAdminEntryRoute()} element={<Navigate to="/login" replace />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 <Route path="/reset-password" element={<ResetPassword />} />
@@ -126,7 +118,7 @@ function App() {
                 <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/fixiva-admin/dashboard" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path={getAdminDashboardRoute()} element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
                 <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
                 <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
                 <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />

@@ -1,6 +1,6 @@
 // src/context/AuthContext.jsx
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useState, useContext, useEffect, useRef } from 'react';
+import { createContext, useState, useContext, useEffect, useRef, useCallback } from 'react';
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
@@ -31,8 +31,7 @@ const getConfiguredAdminList = () => {
   const envValue = typeof import.meta !== 'undefined' && import.meta.env
     ? (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
     : '';
-  const configuredValue = envValue || 'fixiva869@gmail.com,sinhadev739@gmail.com';
-  return getConfiguredAdminEmails(configuredValue);
+  return getConfiguredAdminEmails(envValue);
 };
 
 const getStoredDevAdminSession = () => {
@@ -52,16 +51,33 @@ const setStoredDevAdminSession = (value) => {
   }
   window.localStorage.setItem('fixiva:dev-admin-session', JSON.stringify(value));
 };
-const getEffectiveRole = (profile) => {
+const getEffectiveRole = (profile, fallbackEmail = '') => {
   const configuredAdminList = getConfiguredAdminList();
-  const email = normalizeEmail(profile?.email);
+  const email = normalizeEmail(profile?.email || fallbackEmail);
   const rawRole = String(profile?.role || '').trim().toLowerCase();
-  if (rawRole === 'admin' || rawRole === 'administrator' || (configuredAdminList.includes(email) && email)) {
+  const isConfiguredAdmin = Boolean(email && configuredAdminList.includes(email));
+  if (rawRole === 'admin' || rawRole === 'administrator' || isConfiguredAdmin) {
     return 'admin';
   }
   if (rawRole === 'worker') return 'worker';
   if (rawRole === 'contractor') return 'contractor';
   return 'customer';
+};
+
+const buildFallbackAdminProfile = (userId, email) => ({
+  id: userId,
+  email: normalizeEmail(email),
+  role: 'admin',
+  name: normalizeEmail(email).split('@')[0] || 'Administrator',
+  phone: '',
+  city: '',
+  account_status: 'active',
+  email_verified: true,
+});
+
+const isConfiguredAdminEmail = (email) => {
+  if (!email) return false;
+  return isAdminEmail(email, getConfiguredAdminList().join(','));
 };
 
 export const AuthProvider = ({ children }) => {
@@ -108,14 +124,48 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Fetch all profiles (RLS will filter automatically based on role)
-  const fetchMarketplaceData = async () => {
+  const fetchMarketplaceData = useCallback(async () => {
+    const optionalTables = ['cities', 'city_services', 'states', 'coverage_requests'];
     const fetchWithFallback = async (table, columns = '*') => {
+      if (!supabase) {
+        return [];
+      }
       const { data, error } = await supabase.from(table).select(columns);
       if (error) {
-        console.warn(`Could not fetch ${table}: ${error.message}`);
+        const message = `Could not fetch ${table}: ${error.message}`;
+        if (optionalTables.includes(table)) {
+          console.info(message);
+        } else {
+          console.warn(message);
+        }
         return [];
       }
       return data || [];
+    };
+
+    const fetchServices = async () => {
+      if (!supabase) {
+        return [];
+      }
+
+      const { data, error } = await supabase.from('services').select('id,name,description,category,base_price,platform_fee,active');
+      if (!error) {
+        return data || [];
+      }
+
+      const message = String(error.message || '').toLowerCase();
+      if (message.includes('category') || message.includes('column')) {
+        console.info('Services table query failed due to missing category column; retrying without category.');
+        const { data: fallbackData, error: fallbackError } = await supabase.from('services').select('id,name,description,base_price,platform_fee,active');
+        if (!fallbackError) {
+          return (fallbackData || []).map((item) => ({ ...item, category: '' }));
+        }
+        console.warn(`Could not fetch services without category: ${fallbackError.message}`);
+        return [];
+      }
+
+      console.warn(`Could not fetch services: ${error.message}`);
+      return [];
     };
 
     const [bk, wk, ct, pr, rv, tk, sv, cs, cList, sList, cov] = await Promise.all([
@@ -125,19 +175,29 @@ export const AuthProvider = ({ children }) => {
       fetchWithFallback('profiles'),
       fetchWithFallback('reviews'),
       fetchWithFallback('support_tickets'),
-      fetchWithFallback('services', 'id,name,description,category,base_price,platform_fee,active'),
+      fetchServices(),
       fetchWithFallback('city_services', 'city_id,service_id,enabled'),
       fetchWithFallback('cities'),
       fetchWithFallback('states'),
       fetchWithFallback('coverage_requests'),
     ]);
 
+    const fallbackServices = [
+      { id: 'plumbing', name: 'Plumbing', description: 'Home plumbing support', category: 'Home Services', base_price: 499, platform_fee: 99, active: true },
+      { id: 'electrical', name: 'Electrical', description: 'Electrical repairs and inspections', category: 'Home Services', base_price: 599, platform_fee: 129, active: true },
+      { id: 'cleaning', name: 'Cleaning', description: 'Deep cleaning and maintenance', category: 'Home Services', base_price: 399, platform_fee: 79, active: true },
+    ];
+
+    const fallbackProfiles = (pr || []).length > 0 ? pr : [];
+    const fallbackWorkers = (wk || []).length > 0 ? wk : [];
+    const fallbackContractors = (ct || []).length > 0 ? ct : [];
+
     setBookings(bk || []);
-    setWorkers(wk || []);
-    setContractors(ct || []);
-    setProfiles(pr || []);
+    setWorkers(fallbackWorkers);
+    setContractors(fallbackContractors);
+    setProfiles(fallbackProfiles);
     setTickets(tk || []);
-    setServices(sv || []);
+    setServices((sv || []).length > 0 ? sv : fallbackServices);
     setCities(getCityOptions(cList || []));
     setStates((sList || []).sort((a, b) => (a.display_order - b.display_order) || a.name.localeCompare(b.name)));
     setCoverageRequests(cov || []);
@@ -160,10 +220,10 @@ export const AuthProvider = ({ children }) => {
       cityMap[city_id][service_id] = enabled;
     });
     setCityControl(cityMap);
-  };
+  }, []);
 
 
-  const fetchUserProfile = async (userId, isRetry = false) => {
+  const fetchUserProfile = useCallback(async function fetchUserProfile(userId, fallbackEmail = '', isRetry = false) {
     if (!supabase || !userId) {
       setUser(null);
       return null;
@@ -180,41 +240,108 @@ export const AuthProvider = ({ children }) => {
         if (error) {
           console.error(`Failed to fetch profile: ${error.message}`);
         }
-        
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          const sessionEmail = session?.user?.email;
-          if (sessionEmail && isAdminEmail(sessionEmail, getConfiguredAdminList().join(','))) {
-            console.log("Auto-creating missing admin profile for:", sessionEmail);
-            const adminPayload = {
-              id: userId,
-              email: sessionEmail,
-              role: 'admin',
-              name: sessionEmail.split('@')[0] || 'Administrator',
-              phone: '',
-              city: ''
-            };
-            const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
-            if (!insertError) {
-              return await fetchUserProfile(userId, true);
-            } else {
-              console.error("Failed to auto-create admin profile during fetch:", insertError.message);
+
+        const configuredAdminList = getConfiguredAdminList();
+        const normalizedFallbackEmail = normalizeEmail(fallbackEmail);
+        const sessionData = await supabase.auth.getSession();
+        const sessionEmail = normalizeEmail(sessionData?.data?.session?.user?.email);
+        const lookupEmail = normalizedFallbackEmail || sessionEmail;
+        const isAdminCandidate = Boolean(lookupEmail && configuredAdminList.includes(lookupEmail));
+
+        if (!profile && lookupEmail) {
+          const { data: emailProfile, error: emailLookupError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('email', lookupEmail)
+            .maybeSingle();
+
+          if (emailLookupError) {
+            console.error(`Failed to fetch profile by email lookup: ${emailLookupError.message}`);
+          } else if (emailProfile) {
+            console.warn(`Using profile by email fallback for ${lookupEmail} because id-based profile lookup failed.`);
+            if (emailProfile.id !== userId) {
+              console.warn(`Admin profile email exists with mismatched id (${emailProfile.id} != ${userId}); using fallback admin identity.`);
+              const role = getEffectiveRole(emailProfile, lookupEmail);
+              const userData = {
+                id: userId,
+                email: lookupEmail,
+                role,
+                name: emailProfile.name || lookupEmail.split('@')[0] || 'Administrator'
+              };
+              setUser(userData);
+              return userData;
             }
+            const role = getEffectiveRole(emailProfile, lookupEmail);
+            const userData = { ...emailProfile, role };
+            setUser(userData);
+            return userData;
           }
-        } catch (sessionErr) {
-          console.error("Failed to get session email for auto-create:", sessionErr);
+        }
+
+        if (isAdminCandidate) {
+          const adminEmail = lookupEmail;
+          console.log('Admin candidate detected, ensuring admin profile exists for:', adminEmail);
+          const adminPayload = buildFallbackAdminProfile(userId, adminEmail);
+          const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
+          if (!insertError) {
+            return await fetchUserProfile(userId, adminEmail, true);
+          }
+          if (insertError.message?.toLowerCase().includes('duplicate')) {
+            console.warn('Admin profile already exists by email/ID while auto-creating; resolving existing admin profile.');
+            const { data: existingIdProfile, error: idFetchError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+            if (idFetchError) {
+              console.error('Failed to fetch existing profile by id after duplicate insert:', idFetchError.message);
+            }
+            if (existingIdProfile) {
+              const role = getEffectiveRole(existingIdProfile, adminEmail);
+              const userData = { ...existingIdProfile, role };
+              if (role === 'admin' && existingIdProfile.role !== 'admin') {
+                await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).catch(() => null);
+              }
+              setUser(userData);
+              return userData;
+            }
+            const { data: emailProfile, error: emailFetchError } = await supabase.from('profiles').select('*').eq('email', adminEmail).maybeSingle();
+            if (emailFetchError) {
+              console.error('Failed to fetch existing profile by email after duplicate insert:', emailFetchError.message);
+            }
+            if (emailProfile) {
+              const role = getEffectiveRole(emailProfile, adminEmail);
+              const userData = {
+                id: userId,
+                email: adminEmail,
+                role,
+                name: emailProfile.name || adminEmail.split('@')[0] || 'Administrator',
+              };
+              setUser(userData);
+              return userData;
+            }
+            const userData = {
+              id: userId,
+              email: adminEmail,
+              role: 'admin',
+              name: adminEmail.split('@')[0] || 'Administrator',
+            };
+            setUser(userData);
+            return userData;
+          }
+          console.error('Failed to auto-create admin profile during fetch:', insertError?.message || 'Unknown error');
+          const isRls = insertError?.message?.toLowerCase().includes('row level security') || insertError?.code === '42501';
+          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + (insertError?.message || 'Unable to create admin profile.'));
+          setLoading(false);
+          return { success: false, error: errObj };
         }
 
         if (!isRetry) {
-          console.warn("Profile fetch failed or empty; retrying once in 1s...");
+          console.warn('Profile fetch failed or empty; retrying once in 1s...');
           await new Promise(resolve => setTimeout(resolve, 1000));
-          return await fetchUserProfile(userId, true);
+          return await fetchUserProfile(userId, fallbackEmail, true);
         }
         setUser(null);
         return null;
       }
 
-      const role = getEffectiveRole(profile);
+      const role = getEffectiveRole(profile, profile?.email || '');
       if (role === 'admin' && profile.role !== 'admin') {
         await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).catch(() => null);
         profile.role = 'admin';
@@ -236,32 +363,49 @@ export const AuthProvider = ({ children }) => {
       if (!isRetry) {
         console.warn("Exception in fetchUserProfile; retrying once in 1s...");
         await new Promise(resolve => setTimeout(resolve, 1000));
-        return await fetchUserProfile(userId, true);
+        return await fetchUserProfile(userId, fallbackEmail, true);
       }
       setUser(null);
       return null;
     }
-  };
+  }, []);
 
   // ---------------------------------------------------------------------
   // Initialization: load session and fetch initial data from Supabase
   // ---------------------------------------------------------------------
   useEffect(() => {
     const verifyDatabaseSchema = async () => {
-      const requiredTables = ['services', 'cities', 'city_services', 'profiles', 'states'];
+      if (!supabase) {
+        return false;
+      }
+
+      const requiredTables = ['services', 'profiles'];
+      const optionalTables = [
+        { table: 'cities', selectCols: 'id' },
+        { table: 'city_services', selectCols: 'city_id,service_id' },
+        { table: 'states', selectCols: 'id' },
+        { table: 'coverage_requests', selectCols: 'id' },
+      ];
 
       for (const table of requiredTables) {
         const selectCols = table === 'city_services' ? 'city_id,service_id' : 'id';
         const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
         if (error) {
-          console.warn(`Database table verification failed for ${table}: ${error.message}`, error);
+          console.warn(`Database table verification failed for required table ${table}: ${error.message}`, error);
           return false;
+        }
+      }
+
+      for (const { table, selectCols } of optionalTables) {
+        const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
+        if (error) {
+          console.info(`Optional Supabase table missing or inaccessible: ${table}. Some UI features may be limited. ${error.message}`);
         }
       }
 
       const { error: categoryError } = await supabase.from('services').select('category').limit(1);
       if (categoryError) {
-        console.warn(`Supabase services table is missing category column: ${categoryError.message}`);
+        console.info(`Supabase services table is missing category column: ${categoryError.message}`);
         setServiceSupportsCategory(false);
       } else {
         setServiceSupportsCategory(true);
@@ -290,7 +434,7 @@ export const AuthProvider = ({ children }) => {
         if (devAdminSession?.email) {
           setUser({ id: devAdminSession.id || devAdminSession.email, email: devAdminSession.email, role: 'admin', name: devAdminSession.name || 'Local Dev Admin' });
         } else if (session?.user) {
-          await fetchUserProfile(session.user.id);
+          await fetchUserProfile(session.user.id, session.user.email);
         } else {
           setUser(null);
         }
@@ -322,7 +466,7 @@ export const AuthProvider = ({ children }) => {
         }
         setLoading(true);
         try {
-          await fetchUserProfile(session.user.id);
+          await fetchUserProfile(session.user.id, session.user.email);
           await fetchMarketplaceData();
         } catch (err) {
           console.error("Auth state change processing error:", err);
@@ -336,7 +480,7 @@ export const AuthProvider = ({ children }) => {
     return () => {
       if (subscription) subscription.unsubscribe();
     };
-  }, [showToast, devAdminSession?.id, devAdminSession?.email, devAdminSession?.name]);
+  }, [showToast, devAdminSession?.id, devAdminSession?.email, devAdminSession?.name, fetchUserProfile, fetchMarketplaceData]);
 
   // ---------------------------------------------------------------------
   // Auth helpers
@@ -347,18 +491,19 @@ export const AuthProvider = ({ children }) => {
     }
 
     const normalized = String(identifier || '').trim();
-    const devBypass = shouldAllowDevAdminBypass({
+    const isDevAdminBypassCandidate = shouldAllowDevAdminBypass({
       identifier: normalized,
       hostname: typeof window !== 'undefined' ? window.location.hostname : '',
       isDevMode: import.meta.env.DEV,
       configuredValue: import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '',
     });
 
-    if (devBypass && purpose === 'sign-in') {
-      return { success: true, email: normalized, devBypass: true };
-    }
     if (!normalized) {
       return { success: false, error: new Error('Please enter your email or mobile number.') };
+    }
+
+    if (isDevAdminBypassCandidate && purpose === 'sign-in') {
+      console.warn(`Dev admin login candidate ${normalized} will receive a real OTP email instead of bypassing.`);
     }
 
     void metadata;
@@ -369,10 +514,11 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('No account was found for that mobile number.') };
     }
 
+    const isAdminUser = isConfiguredAdminEmail(email);
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: true,
+        shouldCreateUser: isAdminUser,
       },
     });
 
@@ -392,22 +538,8 @@ export const AuthProvider = ({ children }) => {
       configuredValue: import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '',
     });
 
-    if (devBypass && purpose === 'sign-in' && String(otpCode || '').trim()) {
-      const adminEmail = normalized;
-      const fallbackProfile = {
-        id: crypto.randomUUID(),
-        email: adminEmail,
-        role: 'admin',
-        name: 'Local Dev Admin',
-        phone: '',
-        city: '',
-      };
-      const sessionPayload = { id: fallbackProfile.id, email: adminEmail, name: fallbackProfile.name };
-      setDevAdminSession(sessionPayload);
-      setStoredDevAdminSession(sessionPayload);
-      await fetchMarketplaceData();
-      setUser({ ...fallbackProfile, role: 'admin' });
-      return { success: true, user: { id: fallbackProfile.id, email: adminEmail }, profile: fallbackProfile };
+    if (devBypass && purpose === 'sign-in') {
+      console.warn(`Dev admin login candidate ${normalized} must still verify OTP; bypass disabled for security.`);
     }
 
     if (!supabase) {
@@ -519,21 +651,87 @@ export const AuthProvider = ({ children }) => {
       }
 
       const isConfiguredAdmin = isAdminEmail(email, getConfiguredAdminList().join(','));
+      if (!existingProfile && isConfiguredAdmin) {
+        const { data: emailProfile, error: emailLookupError } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
+        if (emailLookupError) {
+          const isRls = emailLookupError.message?.toLowerCase().includes('row level security') || emailLookupError.code === '42501';
+          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + emailLookupError.message);
+          setLoading(false);
+          return { success: false, error: errObj };
+        }
+        if (emailProfile) {
+          console.warn(`Found admin profile by email ${normalizeEmail(email)} during verifyOtp fallback.`);
+          const existingProfileRole = getEffectiveRole(emailProfile, email);
+          const userData = { ...emailProfile, role: existingProfileRole };
+          if (existingProfileRole !== emailProfile.role) {
+            await supabase.from('profiles').update({ role: existingProfileRole }).eq('id', emailProfile.id).catch(() => null);
+          }
+          setLoading(false);
+          setUser(userData);
+          return { success: true, user: data?.user, profile: userData };
+        }
+      }
 
       if (isConfiguredAdmin) {
         if (!existingProfile) {
-          const adminPayload = {
-            id: authUserId,
-            email,
-            role: 'admin',
-            name: email.split('@')[0] || 'Administrator',
-            phone: '',
-            city: '',
-            account_status: 'active',
-            email_verified: true
-          };
+          const adminPayload = buildFallbackAdminProfile(authUserId, email);
           const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
           if (insertError) {
+            if (insertError.message?.toLowerCase().includes('duplicate')) {
+              console.warn("Admin profile insert duplicate detected; resolving existing admin profile.");
+              const { data: existingIdProfile, error: idFetchError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
+              if (idFetchError) {
+                console.error('Failed to fetch existing profile by id after duplicate admin insert:', idFetchError.message);
+              }
+              if (existingIdProfile) {
+                const role = getEffectiveRole(existingIdProfile, email);
+                const userData = { ...existingIdProfile, role };
+                if (role === 'admin' && existingIdProfile.role !== 'admin') {
+                  await supabase.from('profiles').update({ role: 'admin' }).eq('id', authUserId).catch(() => null);
+                }
+                setUser(userData);
+                await fetchMarketplaceData();
+                setLoading(false);
+                return { success: true, user: data?.user, profile: userData };
+              }
+
+              const { data: emailProfile, error: emailFetchError } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
+              if (emailFetchError) {
+                console.error('Failed to fetch existing profile by email after duplicate admin insert:', emailFetchError.message);
+              }
+              if (emailProfile) {
+                const role = getEffectiveRole(emailProfile, email);
+                const userData = {
+                  id: authUserId,
+                  email: normalizeEmail(email),
+                  role,
+                  name: emailProfile.name || normalizeEmail(email).split('@')[0] || 'Administrator',
+                  phone: emailProfile.phone || '',
+                  city: emailProfile.city || '',
+                  account_status: emailProfile.account_status || 'active',
+                  email_verified: emailProfile.email_verified ?? true,
+                };
+                setUser(userData);
+                await fetchMarketplaceData();
+                setLoading(false);
+                return { success: true, user: data?.user, profile: userData };
+              }
+
+              const fallbackProfile = {
+                id: authUserId,
+                email: normalizeEmail(email),
+                role: 'admin',
+                name: normalizeEmail(email).split('@')[0] || 'Administrator',
+                phone: '',
+                city: '',
+                account_status: 'active',
+                email_verified: true,
+              };
+              setUser(fallbackProfile);
+              await fetchMarketplaceData();
+              setLoading(false);
+              return { success: true, user: data?.user, profile: fallbackProfile };
+            }
             console.error("Failed to auto-create admin profile:", insertError.message);
             const isRls = insertError.message?.toLowerCase().includes('row level security') || insertError.code === '42501';
             const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + insertError.message);
@@ -551,7 +749,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      const profileRow = await fetchUserProfile(authUserId);
+      const profileRow = await fetchUserProfile(authUserId, email);
       await fetchMarketplaceData();
 
       if (!profileRow) {

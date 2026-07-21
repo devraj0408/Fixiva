@@ -14,14 +14,13 @@ const SearchableDropdown = ({
   id,
   variant = 'boxed', // 'boxed' | 'borderless'
   isStateDropdown = false,
-  totalStatesFromAPI = 0,
-  totalStatesAfterFiltering = 0,
   usePortal = true
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const containerRef = useRef(null);
+  const panelRef = useRef(null);
   const searchInputRef = useRef(null);
   const triggerRef = useRef(null);
   const optionsListRef = useRef(null);
@@ -56,16 +55,14 @@ const SearchableDropdown = ({
     };
   }, [isOpen, isStateDropdown, usePortal]);
 
-  if (isStateDropdown) {
-    console.log("Total states received from API:", totalStatesFromAPI);
-    console.log("Total states after filtering:", totalStatesAfterFiltering);
-    console.log("Total states rendered:", filteredOptions.length);
-  }
-
   // Close dropdown on click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (containerRef.current && !containerRef.current.contains(event.target)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target) &&
+        !(panelRef.current && panelRef.current.contains(event.target))
+      ) {
         setIsOpen(false);
       }
     };
@@ -200,6 +197,7 @@ const SearchableDropdown = ({
           <AnimatePresence>
             {isOpen && (
               <motion.div
+                ref={panelRef}
                 initial={{ opacity: 0, y: 8, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}

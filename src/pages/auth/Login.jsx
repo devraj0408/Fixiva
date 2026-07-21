@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { getConfiguredAdminList, isAdminEmail } from '../../lib/adminAccess';
+import { getAdminDashboardRoute } from '../../lib/routePaths';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
-import { supabase } from '../../lib/supabaseClient';
 
-const Login = ({ adminMode = false }) => {
+const Login = () => {
   const navigate = useNavigate();
-  const { requestOtp, verifyOtp, logout, user, isAuthenticated, showToast } = useAuth();
+  const { requestOtp, verifyOtp, user, isAuthenticated, showToast } = useAuth();
   const [loading, setLoading] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
@@ -21,29 +22,24 @@ const Login = ({ adminMode = false }) => {
   const resendDisabled = countdown > 0;
   const [attempts, setAttempts] = useState(0);
 
-  const title = adminMode ? 'Admin Access' : 'Welcome Back';
-  const subtitle = adminMode
-    ? 'Enter your administrator email to receive a secure OTP.'
-    : 'Enter your email to receive a secure OTP.';
+  const title = 'Welcome Back';
+  const subtitle = 'Enter your email to receive a secure OTP.';
 
   // Redirect automatically if already logged in
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (adminMode && user.role !== 'admin') {
-        navigate('/');
-        return;
-      }
-      if (user.role === 'admin') {
-        navigate('/fixiva-admin/dashboard');
-      } else if (user.role === 'worker') {
+      const role = String(user.role || '').trim().toLowerCase();
+      if (role === 'admin') {
+        navigate(getAdminDashboardRoute());
+      } else if (role === 'worker') {
         navigate('/worker-dashboard');
-      } else if (user.role === 'contractor') {
+      } else if (role === 'contractor') {
         navigate('/contractor-dashboard');
       } else {
         navigate('/dashboard');
       }
     }
-  }, [isAuthenticated, user, navigate, adminMode]);
+  }, [isAuthenticated, user, navigate]);
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -61,7 +57,8 @@ const Login = ({ adminMode = false }) => {
     setErrors({});
     setMessage('');
     
-    if (!identifier.trim()) {
+    const normalizedIdentifier = identifier.trim();
+    if (!normalizedIdentifier) {
       setErrors({ identifier: 'Enter your email address.' });
       return;
     }
@@ -143,32 +140,19 @@ const Login = ({ adminMode = false }) => {
       return;
     }
 
-    if (adminMode && profile?.role !== 'admin') {
-      await logout();
-      showToast('Access Denied', 'error');
-      setErrors({ otp: 'Role mismatch: Access Denied. Non-admin account.' });
-      return;
-    }
-
     showToast('Login Successful', 'success');
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      console.log("[Login Debug] Session:", session);
-      console.log("[Login Debug] User ID:", profile?.id || session?.user?.id);
-      console.log("[Login Debug] Profile:", profile);
-      console.log("[Login Debug] Role:", profile?.role);
-      console.log("[Login Debug] Redirect URL:", profile?.role === 'admin' ? '/fixiva-admin/dashboard' : '/dashboard');
-    } catch (logErr) {
-      console.error("[Login Debug] Log error:", logErr);
-    }
+      const role = String(profile?.role || '').trim().toLowerCase();
+      const configuredAdmins = getConfiguredAdminList();
+      const emailToCheck = profile?.email || identifier;
+      const isConfiguredAdminEmail = isAdminEmail(emailToCheck, configuredAdmins.join(','));
 
-    try {
-      if (profile?.role === 'admin') {
-        navigate('/fixiva-admin/dashboard');
-      } else if (profile?.role === 'worker') {
+      if (role === 'admin' || isConfiguredAdminEmail) {
+        navigate(getAdminDashboardRoute());
+      } else if (role === 'worker') {
         navigate('/worker-dashboard');
-      } else if (profile?.role === 'contractor') {
+      } else if (role === 'contractor') {
         navigate('/contractor-dashboard');
       } else {
         navigate('/dashboard');

@@ -9,6 +9,8 @@ export const normalizeNavbarUser = (user = null) => {
   };
 };
 
+import { getAdminDashboardRoute } from './routePaths.js';
+
 export const getDashboardPath = (user = null) => {
   const normalizedUser = normalizeNavbarUser(user);
   const role = String(normalizedUser.role || '').trim().toLowerCase();
@@ -17,7 +19,7 @@ export const getDashboardPath = (user = null) => {
     return '/login';
   }
   if (role === 'admin') {
-    return '/fixiva-admin/dashboard';
+    return getAdminDashboardRoute();
   }
   if (role === 'worker') {
     return '/worker-dashboard';

@@ -2,17 +2,22 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const basePath = process.env.VITE_BASE_PATH || '/';
+
 // https://vite.dev/config/
 export default defineConfig({
+  base: basePath,
   plugins: [
     react(),
     tailwindcss(),
   ],
   server: {
-    // bind explicitly to IPv4 localhost to avoid some Windows configs
-    // where localhost resolves to IPv6 (::1) and the browser prefers IPv4.
-    host: '127.0.0.1',
+    host: '0.0.0.0',
     port: 5173,
+  },
+  preview: {
+    host: '0.0.0.0',
+    port: 4173,
   },
   build: {
     rollupOptions: {
