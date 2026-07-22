@@ -101,7 +101,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children;
 };
 
-function App() {
+function AppShell() {
   const { isAuthenticated, user } = useAuth();
   const onAdminSubdomain = isAdminSubdomain();
 
@@ -117,52 +117,58 @@ function App() {
 
   return (
     <Router basename={routerBasename}>
-      <ToastProvider>
-        <AppProvider>
-          <div className="app-container">
-          {/* Hide navbar/footer on admin subdomain to reduce layout overhead */}
-          {!onAdminSubdomain && <Navbar />}
-          <main className="content">
-            <Suspense fallback={<LoadingSkeleton />}>
-              <Routes>
-                {/* On admin subdomain, show admin dashboard at root */}
-                {onAdminSubdomain && <Route path="/" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
-                {onAdminSubdomain && <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
-                {onAdminSubdomain && <Route path="/login" element={<Login />} />}
-                
-                {/* Regular customer routes */}
-                {!onAdminSubdomain && <Route path="/" element={<Home />} />}
-                <Route path="/services" element={<Services />} />
-                <Route path="/book/:serviceId?" element={<BookingFlow />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/fixiva-admin/*" element={<LegacyAdminRedirect />} />
-                <Route path={getAdminEntryRoute()} element={<Navigate to="/login" replace />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
-                <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-                <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
-                <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path={getAdminDashboardRoute()} element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-                <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-                <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
-                <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
-                <Route path="/help" element={<HelpCenter />} />
-                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/contact" element={<ContactUs />} />
-                <Route path="/terms" element={<TermsAndConditions />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/refund" element={<RefundPolicy />} />
-                <Route path="/cancellation" element={<RefundPolicy />} />
-              </Routes>
-            </Suspense>
-          </main>
-          {!onAdminSubdomain && <Footer />}
-        </div>
-        </AppProvider>
-      </ToastProvider>
+      <div className="app-container">
+        {/* Hide navbar/footer on admin subdomain to reduce layout overhead */}
+        {!onAdminSubdomain && <Navbar />}
+        <main className="content">
+          <Suspense fallback={<LoadingSkeleton />}>
+            <Routes>
+              {/* On admin subdomain, show admin dashboard at root */}
+              {onAdminSubdomain && <Route path="/" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
+              {onAdminSubdomain && <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
+              {onAdminSubdomain && <Route path="/login" element={<Login />} />}
+
+              {/* Regular customer routes */}
+              {!onAdminSubdomain && <Route path="/" element={<Home />} />}
+              <Route path="/services" element={<Services />} />
+              <Route path="/book/:serviceId?" element={<BookingFlow />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/fixiva-admin/*" element={<LegacyAdminRedirect />} />
+              <Route path={getAdminEntryRoute()} element={<Navigate to="/login" replace />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+              <Route path={getAdminDashboardRoute()} element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+              <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+              <Route path="/help" element={<HelpCenter />} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/contact" element={<ContactUs />} />
+              <Route path="/terms" element={<TermsAndConditions />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/refund" element={<RefundPolicy />} />
+              <Route path="/cancellation" element={<RefundPolicy />} />
+            </Routes>
+          </Suspense>
+        </main>
+        {!onAdminSubdomain && <Footer />}
+      </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <ToastProvider>
+      <AppProvider>
+        <AppShell />
+      </AppProvider>
+    </ToastProvider>
   );
 }
 

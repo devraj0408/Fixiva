@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AuthContext';
 
 const BookingManagementPanel = () => {
-  const { bookings, workers, updateBookingStatus, showToast } = useApp();
+  const { bookings, updateBookingStatus, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
 

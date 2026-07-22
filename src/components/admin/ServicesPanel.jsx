@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AuthContext';
 
 const ServicesPanel = () => {
-  const { services, updateService, deleteService, createService, showToast } = useApp();
+  const { services, deleteService, createService, showToast } = useApp();
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ name: '', category: '', description: '', base_price: '', platform_fee: '' });
 

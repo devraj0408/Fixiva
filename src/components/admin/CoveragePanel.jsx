@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useApp } from '../../context/AuthContext';
 
 const CoveragePanel = () => {
-  const { coverageRequests, updateCoverageRequestStatus, deleteCoverageRequest } = useApp();
+  const { coverageRequests, updateCoverageRequestStatus } = useApp();
   const [search, setSearch] = useState('');
 
   const filteredRequests = useMemo(() => {
