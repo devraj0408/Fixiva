@@ -1,17 +1,38 @@
-﻿import { useMemo } from 'react';
+import React, { useMemo, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Briefcase, CheckCircle, Clock, FileText, MessageCircle, ShieldCheck, Users } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import AdminShell from '../../components/admin/AdminShell';
-import DashboardOverview from '../../components/admin/DashboardOverview';
-import BookingManagementPanel from '../../components/admin/BookingManagementPanel';
-import UserManagementPanel from '../../components/admin/UserManagementPanel';
-import VerificationPanel from '../../components/admin/VerificationPanel';
-import ServicesPanel from '../../components/admin/ServicesPanel';
-import CoveragePanel from '../../components/admin/CoveragePanel';
-import TicketsPanel from '../../components/admin/TicketsPanel';
-import RevenuePanel from '../../components/admin/RevenuePanel';
-import SettingsPanel from '../../components/admin/SettingsPanel';
+
+const DashboardOverview = React.lazy(() => import('../../components/admin/DashboardOverview'));
+const BookingManagementPanel = React.lazy(() => import('../../components/admin/BookingManagementPanel'));
+const UserManagementPanel = React.lazy(() => import('../../components/admin/UserManagementPanel'));
+const VerificationPanel = React.lazy(() => import('../../components/admin/VerificationPanel'));
+const ServicesPanel = React.lazy(() => import('../../components/admin/ServicesPanel'));
+const CategoriesPanel = React.lazy(() => import('../../components/admin/CategoriesPanel'));
+const AreasPanel = React.lazy(() => import('../../components/admin/AreasPanel'));
+const CoveragePanel = React.lazy(() => import('../../components/admin/CoveragePanel'));
+const PricingPanel = React.lazy(() => import('../../components/admin/PricingPanel'));
+const BannersPanel = React.lazy(() => import('../../components/admin/BannersPanel'));
+const CouponsPanel = React.lazy(() => import('../../components/admin/CouponsPanel'));
+const OffersPanel = React.lazy(() => import('../../components/admin/OffersPanel'));
+const NotificationsPanel = React.lazy(() => import('../../components/admin/NotificationsPanel'));
+const FaqsPanel = React.lazy(() => import('../../components/admin/FaqsPanel'));
+const WorkersPanel = React.lazy(() => import('../../components/admin/WorkersPanel'));
+const ContractorsPanel = React.lazy(() => import('../../components/admin/ContractorsPanel'));
+const ReviewsPanel = React.lazy(() => import('../../components/admin/ReviewsPanel'));
+const PaymentsPanel = React.lazy(() => import('../../components/admin/PaymentsPanel'));
+const RevenuePanel = React.lazy(() => import('../../components/admin/RevenuePanel'));
+const TicketsPanel = React.lazy(() => import('../../components/admin/TicketsPanel'));
+const ReportsPanel = React.lazy(() => import('../../components/admin/ReportsPanel'));
+const SettingsPanel = React.lazy(() => import('../../components/admin/SettingsPanel'));
+
+const PanelLoader = () => (
+  <div className="flex h-64 flex-col items-center justify-center gap-3">
+    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-primary"></div>
+    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Loading Module...</p>
+  </div>
+);
 
 const AdminDashboard = () => {
   const {
@@ -67,16 +88,42 @@ const AdminDashboard = () => {
         return <BookingManagementPanel />;
       case 'users':
         return <UserManagementPanel />;
+      case 'workers':
+        return <WorkersPanel />;
+      case 'contractors':
+        return <ContractorsPanel />;
       case 'verification':
         return <VerificationPanel />;
       case 'services':
         return <ServicesPanel />;
+      case 'categories':
+        return <CategoriesPanel />;
+      case 'areas':
+        return <AreasPanel />;
       case 'coverage':
         return <CoveragePanel />;
-      case 'tickets':
-        return <TicketsPanel />;
+      case 'pricing':
+        return <PricingPanel />;
+      case 'banners':
+        return <BannersPanel />;
+      case 'coupons':
+        return <CouponsPanel />;
+      case 'offers':
+        return <OffersPanel />;
+      case 'notifications':
+        return <NotificationsPanel />;
+      case 'faqs':
+        return <FaqsPanel />;
+      case 'reviews':
+        return <ReviewsPanel />;
+      case 'payments':
+        return <PaymentsPanel />;
       case 'revenue':
         return <RevenuePanel />;
+      case 'tickets':
+        return <TicketsPanel />;
+      case 'reports':
+        return <ReportsPanel />;
       case 'settings':
         return <SettingsPanel />;
       case 'overview':
@@ -87,7 +134,9 @@ const AdminDashboard = () => {
 
   return (
     <AdminShell user={user} activeTab={activeTab} onTabChange={handleTabChange} onLogout={logout}>
-      {renderContent()}
+      <Suspense fallback={<PanelLoader />}>
+        {renderContent()}
+      </Suspense>
     </AdminShell>
   );
 };

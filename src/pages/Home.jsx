@@ -7,6 +7,7 @@ import {
   Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { useCms } from '../context/CmsContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const IconMap = {
@@ -31,8 +32,14 @@ const IconMap = {
 };
 
 const Home = () => {
-  const { services, reviews, cities = [], showToast, submitCoverageRequest } = useApp();
+  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
+  const { banners, offers, reviews: cmsReviews, categories } = useCms();
   const navigate = useNavigate();
+
+  const activeBanners = (banners || []).filter((b) => b.active !== false);
+  const activeOffers = (offers || []).filter((o) => o.active !== false);
+  const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
+
   
   // Search & City selectors inside the Hero
   const [selectedCity, setSelectedCity] = useState('');

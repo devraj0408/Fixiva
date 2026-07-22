@@ -1,11 +1,12 @@
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
+import { CmsProvider } from './context/CmsContext';
 import { ToastProvider } from './context/ToastContext';
-import { getRouterBasename, getAdminDashboardRoute, getAdminEntryRoute } from './lib/routePaths';
-import { isAdminSubdomain, getCustomerDomainUrl, getAdminDomainUrl } from './lib/domainUtils';
+import { getRouterBasename } from './lib/routePaths';
+
 
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
@@ -52,26 +53,10 @@ const LoadingSkeleton = () => (
   </div>
 );
 
-const LegacyAdminRedirect = () => {
-  useEffect(() => {
-    window.location.replace(getAdminDomainUrl());
-  }, []);
-
-  return <LoadingSkeleton />;
-};
-
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
-  const onAdminSubdomain = isAdminSubdomain();
   const userRole = String(user?.role || '').trim().toLowerCase();
   const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
-  const shouldRedirectToCustomer = onAdminSubdomain && allowedRoles && !normalizedAllowed.includes(userRole) && userRole !== 'admin';
-
-  useEffect(() => {
-    if (shouldRedirectToCustomer) {
-      window.location.replace(getCustomerDomainUrl());
-    }
-  }, [shouldRedirectToCustomer]);
 
   if (loading || (isAuthenticated && !user)) {
     return <LoadingSkeleton />;
@@ -82,12 +67,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !normalizedAllowed.includes(userRole)) {
-    if (onAdminSubdomain && userRole !== 'admin') {
-      return <LoadingSkeleton />;
-    }
-
     if (userRole === 'admin') {
-      return <Navigate to={getAdminDashboardRoute()} replace />;
+      return <Navigate to="/dashboard/admin" replace />;
     }
     if (userRole === 'worker') {
       return <Navigate to="/worker-dashboard" replace />;
@@ -102,39 +83,17 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 function AppShell() {
-  const { isAuthenticated, user } = useAuth();
-  const onAdminSubdomain = isAdminSubdomain();
-
-  // Redirect non-admins from admin subdomain
-  useEffect(() => {
-    if (onAdminSubdomain && isAuthenticated && user) {
-      const userRole = String(user?.role || '').trim().toLowerCase();
-      if (userRole !== 'admin') {
-        window.location.replace(getCustomerDomainUrl());
-      }
-    }
-  }, [isAuthenticated, user, onAdminSubdomain]);
-
   return (
     <Router basename={routerBasename}>
       <div className="app-container">
-        {/* Hide navbar/footer on admin subdomain to reduce layout overhead */}
-        {!onAdminSubdomain && <Navbar />}
+        <Navbar />
         <main className="content">
           <Suspense fallback={<LoadingSkeleton />}>
             <Routes>
-              {/* On admin subdomain, show admin dashboard at root */}
-              {onAdminSubdomain && <Route path="/" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
-              {onAdminSubdomain && <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
-              {onAdminSubdomain && <Route path="/login" element={<Login />} />}
-
-              {/* Regular customer routes */}
-              {!onAdminSubdomain && <Route path="/" element={<Home />} />}
+              <Route path="/" element={<Home />} />
               <Route path="/services" element={<Services />} />
               <Route path="/book/:serviceId?" element={<BookingFlow />} />
               <Route path="/login" element={<Login />} />
-              <Route path="/fixiva-admin/*" element={<LegacyAdminRedirect />} />
-              <Route path={getAdminEntryRoute()} element={<Navigate to="/login" replace />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
@@ -142,10 +101,10 @@ function AppShell() {
               <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-              <Route path={getAdminDashboardRoute()} element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
               <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
               <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
               <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+              <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
               <Route path="/help" element={<HelpCenter />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
               <Route path="/contact" element={<ContactUs />} />
@@ -156,7 +115,7 @@ function AppShell() {
             </Routes>
           </Suspense>
         </main>
-        {!onAdminSubdomain && <Footer />}
+        <Footer />
       </div>
     </Router>
   );
@@ -166,10 +125,14 @@ function App() {
   return (
     <ToastProvider>
       <AppProvider>
-        <AppShell />
+        <CmsProvider>
+          <AppShell />
+        </CmsProvider>
       </AppProvider>
     </ToastProvider>
   );
 }
 
 export default App;
+
+

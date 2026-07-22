@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getConfiguredAdminList, isAdminEmail } from '../../lib/adminAccess';
-import { getAdminDashboardRoute } from '../../lib/routePaths';
-import { isAdminSubdomain } from '../../lib/domainUtils';
+import { isAdminRole } from '../../lib/adminAccess';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
 
 const Login = () => {
@@ -26,18 +24,18 @@ const Login = () => {
   const title = 'Welcome Back';
   const subtitle = 'Enter your email to receive a secure OTP.';
 
-  // Redirect automatically if already logged in
+  // Redirect automatically if already logged in based on database role
   useEffect(() => {
     if (isAuthenticated && user) {
       const role = String(user.role || '').trim().toLowerCase();
-      if (role === 'admin') {
-        navigate(getAdminDashboardRoute());
+      if (isAdminRole(role)) {
+        navigate('/dashboard/admin');
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
       } else if (role === 'contractor') {
         navigate('/contractor-dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard/customer');
       }
     }
   }, [isAuthenticated, user, navigate]);
@@ -127,7 +125,7 @@ const Login = () => {
 
     if (!success) {
       const errorMsg = error?.message || '';
-      if (errorMsg.includes('OTP failure') || errorMsg.includes('Session failure') || errorMsg.includes('Profile query failure') || errorMsg.includes('RLS failure') || errorMsg.includes('Role mismatch') || errorMsg.includes('Redirect failure')) {
+      if (errorMsg.includes('OTP failure') || errorMsg.includes('Session failure') || errorMsg.includes('Profile query failure') || errorMsg.includes('RLS failure')) {
         setErrors({ otp: errorMsg });
       } else if (errorMsg.includes('expired') || errorMsg.includes('expire')) {
         setErrors({ otp: 'Expired Code. Please request a new verification code.' });
@@ -145,24 +143,14 @@ const Login = () => {
 
     try {
       const role = String(profile?.role || '').trim().toLowerCase();
-      const configuredAdmins = getConfiguredAdminList();
-      const emailToCheck = profile?.email || identifier;
-      const isConfiguredAdminEmail = isAdminEmail(emailToCheck, configuredAdmins.join(','));
-      const onAdminSubdomain = isAdminSubdomain();
-
-      if (role === 'admin' || isConfiguredAdminEmail) {
-        // If on admin subdomain, redirect to root; otherwise use standard admin dashboard route
-        if (onAdminSubdomain) {
-          navigate('/');
-        } else {
-          navigate(getAdminDashboardRoute());
-        }
+      if (isAdminRole(role)) {
+        navigate('/dashboard/admin');
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
       } else if (role === 'contractor') {
         navigate('/contractor-dashboard');
       } else {
-        navigate('/dashboard');
+        navigate('/dashboard/customer');
       }
     } catch {
       setErrors({ otp: 'Redirect failure: Unable to route to dashboard.' });

@@ -4,10 +4,11 @@ import { createContext, useState, useContext, useEffect, useRef, useCallback } f
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
-import { getConfiguredAdminEmails, isAdminEmail } from '../lib/adminAccess';
-import { shouldAllowDevAdminBypass } from '../lib/devAuth';
+import { isAdminRole } from '../lib/adminAccess';
 
 const AppContext = createContext();
+
+const PRIMARY_ADMIN_EMAIL = 'fixiva869@gmail.com';
 
 const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
 const normalizePhone = (value) => String(value || '').replace(/\D/g, '');
@@ -26,68 +27,12 @@ const resolveEmailForAuth = async (supabaseClient, normalized) => {
   }
   return normalizeEmail(normalized);
 };
-const getConfiguredAdminList = () => {
-  const envValue = typeof import.meta !== 'undefined' && import.meta.env
-    ? (import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '')
-    : '';
-  return getConfiguredAdminEmails(envValue);
-};
-
-const getStoredDevAdminSession = () => {
-  if (typeof window === 'undefined') return null;
-  try {
-    return JSON.parse(window.localStorage.getItem('fixiva:dev-admin-session') || 'null');
-  } catch {
-    return null;
-  }
-};
-
-const setStoredDevAdminSession = (value) => {
-  if (typeof window === 'undefined') return;
-  if (!value) {
-    window.localStorage.removeItem('fixiva:dev-admin-session');
-    return;
-  }
-  window.localStorage.setItem('fixiva:dev-admin-session', JSON.stringify(value));
-};
-const getEffectiveRole = (profile, fallbackEmail = '') => {
-  const configuredAdminList = getConfiguredAdminList();
-  const email = normalizeEmail(profile?.email || fallbackEmail);
-  const rawRole = String(profile?.role || '').trim().toLowerCase();
-  const isConfiguredAdmin = Boolean(email && configuredAdminList.includes(email));
-  if (rawRole === 'admin' || rawRole === 'administrator' || isConfiguredAdmin) {
-    return 'admin';
-  }
-  if (rawRole === 'worker') return 'worker';
-  if (rawRole === 'contractor') return 'contractor';
-  return 'customer';
-};
-
-const buildFallbackAdminProfile = (userId, email) => ({
-  id: userId,
-  email: normalizeEmail(email),
-  role: 'admin',
-  name: normalizeEmail(email).split('@')[0] || 'Administrator',
-  phone: '',
-  city: '',
-  account_status: 'active',
-  email_verified: true,
-});
-
-const isConfiguredAdminEmail = (email) => {
-  if (!email) return false;
-  return isAdminEmail(email, getConfiguredAdminList().join(','));
-};
 
 export const AuthProvider = ({ children }) => {
   // Auth state
-  const [user, setUser] = useState(() => {
-    const stored = getStoredDevAdminSession();
-    return stored ? { id: stored.id, email: stored.email, role: 'admin', name: stored.name || 'Local Dev Admin' } : null;
-  });
+  const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [initError, setInitError] = useState(null);
-  const [devAdminSession, setDevAdminSession] = useState(getStoredDevAdminSession());
 
   // Refs to prevent race conditions and double loading
   const isVerifyingOtpRef = useRef(false);
@@ -112,6 +57,7 @@ export const AuthProvider = ({ children }) => {
   const [cityControl, setCityControl] = useState({});
   const [serviceSupportsCategory, setServiceSupportsCategory] = useState(true);
   const { showToast } = useToast();
+
   // Confirm dialog (promise-based)
   const [confirmState, setConfirmState] = useState(null);
   const confirm = (message, title = 'Confirm') => new Promise((resolve) => {
@@ -122,7 +68,7 @@ export const AuthProvider = ({ children }) => {
     setConfirmState(null);
   };
 
-  // Fetch all profiles (RLS will filter automatically based on role)
+  // Fetch marketplace data
   const fetchMarketplaceData = useCallback(async () => {
     const fetchWithFallback = async (table, columns = '*') => {
       if (!supabase) {
@@ -164,21 +110,16 @@ export const AuthProvider = ({ children }) => {
       { id: 'cleaning', name: 'Cleaning', description: 'Deep cleaning and maintenance', category: 'Home Services', base_price: 399, platform_fee: 79, active: true },
     ];
 
-    const fallbackProfiles = (pr || []).length > 0 ? pr : [];
-    const fallbackWorkers = (wk || []).length > 0 ? wk : [];
-    const fallbackContractors = (ct || []).length > 0 ? ct : [];
-
     setBookings(bk || []);
-    setWorkers(fallbackWorkers);
-    setContractors(fallbackContractors);
-    setProfiles(fallbackProfiles);
+    setWorkers(wk || []);
+    setContractors(ct || []);
+    setProfiles(pr || []);
     setTickets(tk || []);
     setServices((sv || []).length > 0 ? sv : fallbackServices);
     setCities([]);
     setStates([]);
     setCoverageRequests([]);
 
-    // Process reviews to match frontend expectations
     const processedReviews = (rv || []).map(r => {
       const b = (bk || []).find(booking => booking.id === r.booking_id);
       return {
@@ -189,7 +130,6 @@ export const AuthProvider = ({ children }) => {
     });
     setReviews(processedReviews);
 
-    // Build cityControl map { cityId: { serviceId: enabled } }
     const cityMap = {};
     (cs || []).forEach(({ city_id, service_id, enabled }) => {
       if (!cityMap[city_id]) cityMap[city_id] = {};
@@ -198,121 +138,102 @@ export const AuthProvider = ({ children }) => {
     setCityControl(cityMap);
   }, []);
 
-
-  const fetchUserProfile = useCallback(async function fetchUserProfile(userId, fallbackEmail = '', isRetry = false) {
+  const fetchUserProfile = useCallback(async function fetchUserProfile(userId, fallbackEmail = '') {
     if (!supabase || !userId) {
       setUser(null);
       return null;
     }
 
+    const normalizedEmail = normalizeEmail(fallbackEmail);
+    const isAdminEmail = normalizedEmail === PRIMARY_ADMIN_EMAIL;
+
     try {
-      const { data: profile, error } = await supabase
+      // 1. Check profile by ID
+      let { data: profile } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', userId)
         .maybeSingle();
 
-      if (error || !profile) {
+      // 2. Search by email if not found by ID to avoid duplicate key insertion
+      if (!profile && normalizedEmail) {
+        const { data: emailProfile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', normalizedEmail)
+          .maybeSingle();
 
-        const configuredAdminList = getConfiguredAdminList();
-        const normalizedFallbackEmail = normalizeEmail(fallbackEmail);
-        const sessionData = await supabase.auth.getSession();
-        const sessionEmail = normalizeEmail(sessionData?.data?.session?.user?.email);
-        const lookupEmail = normalizedFallbackEmail || sessionEmail;
-        const isAdminCandidate = Boolean(lookupEmail && configuredAdminList.includes(lookupEmail));
+        if (emailProfile) {
+          const updatePayload = {
+            id: userId,
+            account_status: 'active',
+            ...(isAdminEmail ? { role: 'admin' } : {}),
+          };
+          await supabase.from('profiles').update(updatePayload).eq('email', normalizedEmail).catch(() => null);
 
-        if (!profile && lookupEmail) {
-          const { data: emailProfile, error: emailLookupError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('email', lookupEmail)
-            .maybeSingle();
-
-          if (emailLookupError) {
-            void emailLookupError;
-          } else if (emailProfile) {
-            if (emailProfile.id !== userId) {
-              const role = getEffectiveRole(emailProfile, lookupEmail);
-              const userData = {
-                id: userId,
-                email: lookupEmail,
-                role,
-                name: emailProfile.name || lookupEmail.split('@')[0] || 'Administrator'
-              };
-              setUser(userData);
-              return userData;
-            }
-            const role = getEffectiveRole(emailProfile, lookupEmail);
-            const userData = { ...emailProfile, role };
-            setUser(userData);
-            return userData;
-          }
+          profile = {
+            ...emailProfile,
+            id: userId,
+            account_status: 'active',
+            role: isAdminEmail ? 'admin' : (emailProfile.role || 'customer'),
+          };
         }
+      }
 
-        if (isAdminCandidate) {
-          const adminEmail = lookupEmail;
-          const adminPayload = buildFallbackAdminProfile(userId, adminEmail);
-          const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
-          if (!insertError) {
-            return await fetchUserProfile(userId, adminEmail, true);
-          }
-          if (insertError.message?.toLowerCase().includes('duplicate')) {
-            const { data: existingIdProfile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-            if (existingIdProfile) {
-              const role = getEffectiveRole(existingIdProfile, adminEmail);
-              const userData = { ...existingIdProfile, role };
-              if (role === 'admin' && existingIdProfile.role !== 'admin') {
-                await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).catch(() => null);
-              }
-              setUser(userData);
-              return userData;
-            }
-            const { data: emailProfile } = await supabase.from('profiles').select('*').eq('email', adminEmail).maybeSingle();
-            if (emailProfile) {
-              const role = getEffectiveRole(emailProfile, adminEmail);
-              const userData = {
-                id: userId,
-                email: adminEmail,
-                role,
-                name: emailProfile.name || adminEmail.split('@')[0] || 'Administrator',
-              };
-              setUser(userData);
-              return userData;
-            }
-            const userData = {
-              id: userId,
-              email: adminEmail,
-              role: 'admin',
-              name: adminEmail.split('@')[0] || 'Administrator',
-            };
-            setUser(userData);
-            return userData;
-          }
-          const isRls = insertError?.message?.toLowerCase().includes('row level security') || insertError?.code === '42501';
-          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + (insertError?.message || 'Unable to create admin profile.'));
-          setLoading(false);
-          return { success: false, error: errObj };
-        }
+      // 3. Create ONE profile safely if not found
+      if (!profile && normalizedEmail) {
+        const newRole = isAdminEmail ? 'admin' : 'customer';
+        const newProfile = {
+          id: userId,
+          email: normalizedEmail,
+          role: newRole,
+          name: normalizedEmail.split('@')[0] || 'User',
+          phone: '',
+          city: '',
+          account_status: 'active',
+          email_verified: true,
+        };
 
-        if (!isRetry) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-          return await fetchUserProfile(userId, fallbackEmail, true);
+        const { data: inserted, error: insertErr } = await supabase
+          .from('profiles')
+          .insert(newProfile)
+          .select()
+          .maybeSingle();
+
+        if (!insertErr && inserted) {
+          profile = inserted;
+        } else {
+          profile = newProfile;
         }
+      }
+
+      if (!profile) {
         setUser(null);
         return null;
       }
 
-      const role = getEffectiveRole(profile, profile?.email || '');
-      if (role === 'admin' && profile.role !== 'admin') {
-        await supabase.from('profiles').update({ role: 'admin' }).eq('id', userId).catch(() => null);
-        profile.role = 'admin';
-      }
-      let userData = { ...profile, role };
+      // 4. Ensure admin role and active status for fixiva869@gmail.com
+      const emailToCheck = normalizeEmail(profile.email || fallbackEmail);
+      if (emailToCheck === PRIMARY_ADMIN_EMAIL) {
+        if (profile.role !== 'admin' || profile.account_status !== 'active') {
+          await supabase
+            .from('profiles')
+            .update({ role: 'admin', account_status: 'active' })
+            .eq('id', userId)
+            .catch(() => null);
 
-      if (profile.role === 'worker' || role === 'worker') {
+          profile.role = 'admin';
+          profile.account_status = 'active';
+        }
+      }
+
+      let userData = { ...profile };
+      const normalizedRole = String(userData.role || '').trim().toLowerCase();
+
+      if (normalizedRole === 'worker') {
         const { data: workerData } = await supabase.from('workers').select('*').eq('id', userId).maybeSingle();
         userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
-      } else if (profile.role === 'contractor' || role === 'contractor') {
+      } else if (normalizedRole === 'contractor') {
         const { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
         userData = { ...userData, ...contractorData };
       }
@@ -320,52 +241,24 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       return userData;
     } catch {
-      if (!isRetry) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return await fetchUserProfile(userId, fallbackEmail, true);
-      }
       setUser(null);
       return null;
     }
   }, []);
 
-  // ---------------------------------------------------------------------
-  // Initialization: load session and fetch initial data from Supabase
-  // ---------------------------------------------------------------------
   useEffect(() => {
     const verifyDatabaseSchema = async () => {
-      if (!supabase) {
-        return false;
-      }
-
+      if (!supabase) return false;
       const requiredTables = ['services', 'profiles'];
-      const optionalTables = [
-        { table: 'cities', selectCols: 'id' },
-        { table: 'city_services', selectCols: 'city_id,service_id' },
-        { table: 'states', selectCols: 'id' },
-        { table: 'coverage_requests', selectCols: 'id' },
-      ];
 
       for (const table of requiredTables) {
         const selectCols = table === 'city_services' ? 'city_id,service_id' : 'id';
         const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
-        if (error) {
-          return false;
-        }
-      }
-
-      for (const { table, selectCols } of optionalTables) {
-        const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
-        void error;
+        if (error) return false;
       }
 
       const { error: categoryError } = await supabase.from('services').select('category').limit(1);
-      if (categoryError) {
-        setServiceSupportsCategory(false);
-      } else {
-        setServiceSupportsCategory(true);
-      }
-
+      setServiceSupportsCategory(!categoryError);
       return true;
     };
 
@@ -373,7 +266,7 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
       isInitializingRef.current = true;
       if (!supabase) {
-        setInitError(new Error('Missing Supabase configuration. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.'));
+        setInitError(new Error('Missing Supabase configuration.'));
         setLoading(false);
         isInitializingRef.current = false;
         return;
@@ -383,9 +276,7 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        if (devAdminSession?.email) {
-          setUser({ id: devAdminSession.id || devAdminSession.email, email: devAdminSession.email, role: 'admin', name: devAdminSession.name || 'Local Dev Admin' });
-        } else if (session?.user) {
+        if (session?.user) {
           await fetchUserProfile(session.user.id, session.user.email);
         } else {
           setUser(null);
@@ -403,24 +294,17 @@ export const AuthProvider = ({ children }) => {
 
     if (!supabase) return;
 
-    // Listen for Auth changes dynamically
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // Prevent concurrent execution or race conditions with verification or initialization
-      if (isInitializingRef.current || isVerifyingOtpRef.current) {
-        return;
-      }
+      if (isInitializingRef.current || isVerifyingOtpRef.current) return;
 
       if (session?.user) {
-        if (userRef.current && userRef.current.id === session.user.id) {
-          // Profile is already loaded, skip redundant fetching
-          return;
-        }
+        if (userRef.current && userRef.current.id === session.user.id) return;
         setLoading(true);
         try {
           await fetchUserProfile(session.user.id, session.user.email);
           await fetchMarketplaceData();
         } catch {
-          // Error during auth state change
+          // Silent catch
         }
         setLoading(false);
       } else {
@@ -431,45 +315,27 @@ export const AuthProvider = ({ children }) => {
     return () => {
       if (subscription) subscription.unsubscribe();
     };
-  }, [showToast, devAdminSession?.id, devAdminSession?.email, devAdminSession?.name, fetchUserProfile, fetchMarketplaceData]);
+  }, [fetchUserProfile, fetchMarketplaceData]);
 
-  // ---------------------------------------------------------------------
-  // Auth helpers
-  // ---------------------------------------------------------------------
-  const requestOtp = async (identifier, purpose = 'sign-in', metadata = {}) => {
+  const requestOtp = async (identifier, purpose = 'sign-in') => {
     if (!supabase) {
       return { success: false, error: new Error('Supabase is not configured.') };
     }
 
     const normalized = String(identifier || '').trim();
-    const isDevAdminBypassCandidate = shouldAllowDevAdminBypass({
-      identifier: normalized,
-      hostname: typeof window !== 'undefined' ? window.location.hostname : '',
-      isDevMode: import.meta.env.DEV,
-      configuredValue: import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '',
-    });
-
     if (!normalized) {
-      return { success: false, error: new Error('Please enter your email or mobile number.') };
-    }
-
-    void metadata;
-    if (isDevAdminBypassCandidate && purpose === 'sign-in') {
-      void isDevAdminBypassCandidate;
+      return { success: false, error: new Error('Please enter your email address.') };
     }
 
     const email = await resolveEmailForAuth(supabase, normalized);
-
     if (!email) {
-      return { success: false, error: new Error('No account was found for that mobile number.') };
+      return { success: false, error: new Error('No account was found for that email.') };
     }
 
-    const isAdminUser = isConfiguredAdminEmail(email);
-    const shouldCreateUser = purpose === 'sign-up' || isAdminUser;
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser,
+        shouldCreateUser: true,
       },
     });
 
@@ -480,30 +346,18 @@ export const AuthProvider = ({ children }) => {
     return { success: true, email };
   };
 
-  const verifyOtp = async (identifier, otpCode, purpose = 'sign-in', metadata = {}) => {
+  const verifyOtp = async (identifier, otpCode) => {
     const normalized = String(identifier || '').trim();
-    const devBypass = shouldAllowDevAdminBypass({
-      identifier: normalized,
-      hostname: typeof window !== 'undefined' ? window.location.hostname : '',
-      isDevMode: import.meta.env.DEV,
-      configuredValue: import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '',
-    });
-
-    if (devBypass && purpose === 'sign-in') {
-      void devBypass;
-    }
-
     if (!supabase) {
       return { success: false, error: new Error('Supabase is not configured.') };
     }
     if (!normalized) {
-      return { success: false, error: new Error('Please enter your email or mobile number.') };
+      return { success: false, error: new Error('Please enter your email address.') };
     }
 
     const email = await resolveEmailForAuth(supabase, normalized);
-
     if (!email) {
-      return { success: false, error: new Error('No account was found for that mobile number.') };
+      return { success: false, error: new Error('No account was found for that email.') };
     }
 
     setLoading(true);
@@ -518,186 +372,17 @@ export const AuthProvider = ({ children }) => {
 
       if (error) {
         setLoading(false);
-        const otpErrObj = new Error('OTP failure: ' + error.message);
-        return { success: false, error: otpErrObj };
+        return { success: false, error: new Error('OTP failure: ' + error.message) };
       }
 
       const authUserId = data?.user?.id;
       if (!authUserId) {
         setLoading(false);
-        const sessionErrObj = new Error('Session failure: Unable to create authenticated session.');
-        return { success: false, error: sessionErrObj };
-      }
-
-      if (purpose === 'sign-up') {
-        const { data: existingProfile, error: checkError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-        if (checkError) {
-          const isRls = checkError.message?.toLowerCase().includes('row level security') || checkError.code === '42501';
-          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + checkError.message);
-          setLoading(false);
-          return { success: false, error: errObj };
-        }
-        if (!existingProfile) {
-          const role = isAdminEmail(email, getConfiguredAdminList().join(',')) ? 'admin' : (metadata.role === 'admin' ? 'customer' : (metadata.role || 'customer'));
-          const profilePayload = {
-            id: authUserId,
-            email,
-            role,
-            name: metadata.name || '',
-            phone: metadata.phone || '',
-            city: metadata.city || '',
-            account_status: 'active',
-            email_verified: true
-          };
-
-          const { error: profileError } = await supabase.from('profiles').insert(profilePayload);
-          if (profileError && !profileError.message?.includes('duplicate')) {
-            const isRls = profileError.message?.toLowerCase().includes('row level security') || profileError.code === '42501';
-            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + profileError.message);
-            setLoading(false);
-            return { success: false, error: errObj };
-          }
-
-          if (role === 'worker') {
-            await supabase.from('workers').insert({
-              id: authUserId,
-              status: 'Pending Verification',
-              trust_score: 100,
-              skills: metadata.extra?.skills || '',
-              city: metadata.city || '',
-              whatsapp: metadata.extra?.whatsapp || '',
-              experience: metadata.extra?.experience || '',
-              id_proof_url: metadata.extra?.id_proof_number || '',
-            });
-          }
-
-          if (role === 'contractor') {
-            await supabase.from('contractors').insert({
-              id: authUserId,
-              status: 'Pending Approval',
-              company: metadata.extra?.company || '',
-              city: metadata.city || '',
-              owner_name: metadata.extra?.owner_name || '',
-              whatsapp: metadata.extra?.whatsapp || '',
-              gst: metadata.extra?.gst || '',
-              services_offered: metadata.extra?.services_offered || '',
-            });
-            await supabase.from('workers').insert({
-              id: authUserId,
-              status: 'Pending Verification',
-              trust_score: 100,
-              skills: 'Contractor',
-              city: metadata.city || '',
-            });
-          }
-        }
-      }
-
-      const { data: existingProfile, error: queryError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-      if (queryError) {
-        const isRls = queryError.message?.toLowerCase().includes('row level security') || queryError.code === '42501';
-        const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + queryError.message);
-        setLoading(false);
-        return { success: false, error: errObj };
-      }
-
-      const isConfiguredAdmin = isAdminEmail(email, getConfiguredAdminList().join(','));
-      if (!existingProfile && isConfiguredAdmin) {
-        const { data: emailProfile, error: emailLookupError } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
-        if (emailLookupError) {
-          const isRls = emailLookupError.message?.toLowerCase().includes('row level security') || emailLookupError.code === '42501';
-          const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + emailLookupError.message);
-          setLoading(false);
-          return { success: false, error: errObj };
-        }
-        if (emailProfile) {
-          const existingProfileRole = getEffectiveRole(emailProfile, email);
-          const userData = { ...emailProfile, role: existingProfileRole };
-          if (existingProfileRole !== emailProfile.role) {
-            await supabase.from('profiles').update({ role: existingProfileRole }).eq('id', emailProfile.id).catch(() => null);
-          }
-          setLoading(false);
-          setUser(userData);
-          return { success: true, user: data?.user, profile: userData };
-        }
-      }
-
-      if (isConfiguredAdmin) {
-        if (!existingProfile) {
-          const adminPayload = buildFallbackAdminProfile(authUserId, email);
-          const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
-          if (insertError) {
-            if (insertError.message?.toLowerCase().includes('duplicate')) {
-              const { data: existingIdProfile } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-              if (existingIdProfile) {
-                const role = getEffectiveRole(existingIdProfile, email);
-                const userData = { ...existingIdProfile, role };
-                if (role === 'admin' && existingIdProfile.role !== 'admin') {
-                  await supabase.from('profiles').update({ role: 'admin' }).eq('id', authUserId).catch(() => null);
-                }
-                setUser(userData);
-                await fetchMarketplaceData();
-                setLoading(false);
-                return { success: true, user: data?.user, profile: userData };
-              }
-
-              const { data: emailProfile } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
-              if (emailProfile) {
-                const role = getEffectiveRole(emailProfile, email);
-                const userData = {
-                  id: authUserId,
-                  email: normalizeEmail(email),
-                  role,
-                  name: emailProfile.name || normalizeEmail(email).split('@')[0] || 'Administrator',
-                  phone: emailProfile.phone || '',
-                  city: emailProfile.city || '',
-                  account_status: emailProfile.account_status || 'active',
-                  email_verified: emailProfile.email_verified ?? true,
-                };
-                setUser(userData);
-                await fetchMarketplaceData();
-                setLoading(false);
-                return { success: true, user: data?.user, profile: userData };
-              }
-
-              const fallbackProfile = {
-                id: authUserId,
-                email: normalizeEmail(email),
-                role: 'admin',
-                name: normalizeEmail(email).split('@')[0] || 'Administrator',
-                phone: '',
-                city: '',
-                account_status: 'active',
-                email_verified: true,
-              };
-              setUser(fallbackProfile);
-              await fetchMarketplaceData();
-              setLoading(false);
-              return { success: true, user: data?.user, profile: fallbackProfile };
-            }
-            const isRls = insertError.message?.toLowerCase().includes('row level security') || insertError.code === '42501';
-            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + insertError.message);
-            setLoading(false);
-            return { success: false, error: errObj };
-          }
-        } else if (existingProfile.role !== 'admin') {
-          const { error: updateError } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', authUserId);
-          if (updateError) {
-            const isRls = updateError.message?.toLowerCase().includes('row level security') || updateError.code === '42501';
-            const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + updateError.message);
-            setLoading(false);
-            return { success: false, error: errObj };
-          }
-        }
+        return { success: false, error: new Error('Session failure: Unable to create authenticated session.') };
       }
 
       const profileRow = await fetchUserProfile(authUserId, email);
       await fetchMarketplaceData();
-
-      if (!profileRow) {
-        setLoading(false);
-        return { success: false, error: new Error('Profile query failure: User profile record could not be fetched after authentication.') };
-      }
 
       setLoading(false);
       return { success: true, user: data?.user, profile: profileRow };
@@ -710,13 +395,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const register = async (email, password, role, extra) => ({ success: true, payload: { email, password, role, extra } });
-
   const login = async (email, password) => ({ success: true, payload: { email, password } });
 
   const logout = async () => {
     await supabase?.auth?.signOut();
-    setStoredDevAdminSession(null);
-    setDevAdminSession(null);
     setUser(null);
   };
 
@@ -1005,35 +687,6 @@ export const AuthProvider = ({ children }) => {
 
   const createService = async ({ name, description = '', category = '', base_price = 0, platform_fee = 0, cityIds = [] }) => {
     const serviceId = generateServiceId();
-    const isLocalDevAdmin = import.meta.env.DEV && shouldAllowDevAdminBypass({
-      identifier: user?.email || devAdminSession?.email || '',
-      hostname: typeof window !== 'undefined' ? window.location.hostname : '',
-      isDevMode: import.meta.env.DEV,
-      configuredValue: import.meta.env.VITE_ADMIN_EMAILS || import.meta.env.VITE_ADMIN_EMAIL || '',
-    });
-
-    const newService = {
-      id: serviceId,
-      name,
-      description: description || '',
-      category: serviceSupportsCategory ? (category || '') : undefined,
-      base_price,
-      platform_fee,
-      active: true,
-    };
-
-    if (isLocalDevAdmin) {
-      setServices((prev) => [...prev, newService]);
-      setCityControl((prev) => {
-        const next = { ...prev };
-        (cityIds || []).forEach((cityId) => {
-          next[cityId] = { ...(next[cityId] || {}), [serviceId]: true };
-        });
-        return next;
-      });
-      showToast('Service created successfully', 'success');
-      return { data: newService };
-    }
 
     const payload = sanitizeRecord({
       id: serviceId,
@@ -1131,7 +784,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     loading,
-    isAuthenticated: Boolean(user || devAdminSession),
+    isAuthenticated: Boolean(user),
     register,
     login,
     logout,

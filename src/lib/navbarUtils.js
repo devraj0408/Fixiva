@@ -9,8 +9,6 @@ export const normalizeNavbarUser = (user = null) => {
   };
 };
 
-import { getAdminDashboardRoute } from './routePaths.js';
-
 export const getDashboardPath = (user = null) => {
   const normalizedUser = normalizeNavbarUser(user);
   const role = String(normalizedUser.role || '').trim().toLowerCase();
@@ -19,7 +17,7 @@ export const getDashboardPath = (user = null) => {
     return '/login';
   }
   if (role === 'admin') {
-    return getAdminDashboardRoute();
+    return '/dashboard/admin';
   }
   if (role === 'worker') {
     return '/worker-dashboard';
@@ -27,5 +25,6 @@ export const getDashboardPath = (user = null) => {
   if (role === 'contractor') {
     return '/contractor-dashboard';
   }
-  return `/dashboard/${role}`;
+  return '/dashboard/customer';
 };
+

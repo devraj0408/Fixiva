@@ -7,13 +7,16 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 
+import { useCms } from '../context/CmsContext';
+
 const HelpCenter = () => {
   const { user, addTicket, showToast } = useApp();
+  const { faqs: cmsFaqs } = useCms();
   const [activeFaq, setActiveFaq] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const faqs = [
+  const fallbackFaqs = [
     { 
       q: "How does the pricing work?", 
       a: "Every service has a Base Price or Inspection Fee. In addition, we charge a fixed Fixiva Convenience Fee to handle booking and professional verification. No hidden charges." 
@@ -31,6 +34,11 @@ const HelpCenter = () => {
       a: "Fixiva currently operates on a 'Cash on Service' model. You pay the professional directly only after the job is completed to your satisfaction." 
     }
   ];
+
+  const faqs = (cmsFaqs || []).length > 0
+    ? cmsFaqs.map((f) => ({ q: f.question, a: f.answer }))
+    : fallbackFaqs;
+
 
   const handleSubmit = (e) => {
     e.preventDefault();

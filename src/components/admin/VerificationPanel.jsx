@@ -1,83 +1,79 @@
-import { useMemo, useState } from 'react';
-import { useApp } from '../../context/AuthContext';
+import { useState } from 'react';
+import { useCms } from '../../context/CmsContext';
+import { ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 
 const VerificationPanel = () => {
-  const { workers, contractors, updateWorkerStatus, updateContractorStatus } = useApp();
+  const { workers, updateWorkerVerification, filterItems, paginateItems } = useCms();
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
 
-  const pendingWorkers = useMemo(() => {
-    return (workers || []).filter((worker) => worker.status === 'Pending Verification' && !worker.isContractor);
-  }, [workers]);
-
-  const pendingContractors = useMemo(() => {
-    return (contractors || []).filter((contractor) => contractor.status === 'Pending Approval');
-  }, [contractors]);
-
-  const filteredWorkers = useMemo(() => {
-    return pendingWorkers.filter((worker) => `${worker.name || ''} ${worker.email || ''}`.toLowerCase().includes(search.toLowerCase()));
-  }, [pendingWorkers, search]);
-
-  const filteredContractors = useMemo(() => {
-    return pendingContractors.filter((contractor) => `${contractor.name || ''} ${contractor.company || ''}`.toLowerCase().includes(search.toLowerCase()));
-  }, [pendingContractors, search]);
+  const pendingWorkers = workers.filter((w) => w.status === 'Pending Verification' || w.status === 'Pending');
+  const filtered = filterItems(pendingWorkers, search, ['name', 'email', 'phone', 'skills', 'city']);
+  const paginated = paginateItems(filtered, page, 6);
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
         <div>
-          <h2 className="text-xl font-black text-slate-900">Verification Center</h2>
-          <p className="text-sm text-slate-500">Approve workers and contractors with a simple review workflow.</p>
+          <h2 className="text-xl font-black text-slate-900">Worker Verification Desk</h2>
+          <p className="text-sm text-slate-500">Review worker application credentials, ID proofs, and grant verification badges.</p>
         </div>
       </div>
 
       <input
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search by name or company"
-        className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"
+        onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+        placeholder="Search pending verification applications by name, email, or skills..."
+        className="h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-medium"
       />
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Workers</h3>
-          <div className="mt-4 space-y-3">
-            {filteredWorkers.length === 0 ? (
-              <p className="text-sm text-slate-500">No pending worker verification.</p>
-            ) : (
-              filteredWorkers.map((worker) => (
-                <div key={worker.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="font-semibold text-slate-800">{worker.name || 'Worker'}</p>
-                  <p className="mt-1 text-xs text-slate-500">{worker.email || '-'} • {worker.skills || '-'}</p>
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => updateWorkerStatus(worker.id, 'Verified')} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white">Approve</button>
-                    <button onClick={() => updateWorkerStatus(worker.id, 'Rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Reject</button>
-                  </div>
-                </div>
-              ))
-            )}
+      <div className="space-y-4">
+        {paginated.data.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 p-8 text-center text-sm text-slate-500">
+            No pending worker verification requests at the moment. All service professionals verified!
           </div>
-        </div>
+        ) : (
+          paginated.data.map((worker) => (
+            <div key={worker.id} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-slate-900 text-base">{worker.name}</span>
+                  <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-bold text-amber-700">
+                    Pending Review
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 font-medium">{worker.email} • {worker.phone} • {worker.city || 'Ranchi'}</p>
+                <p className="text-xs text-slate-700 font-bold mt-1">Skills: {worker.skills || 'Home Repairs'}</p>
+              </div>
 
-        <div className="rounded-2xl border border-slate-200 p-4">
-          <h3 className="text-sm font-black uppercase tracking-[0.2em] text-slate-500">Contractors</h3>
-          <div className="mt-4 space-y-3">
-            {filteredContractors.length === 0 ? (
-              <p className="text-sm text-slate-500">No pending contractor approval.</p>
-            ) : (
-              filteredContractors.map((contractor) => (
-                <div key={contractor.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="font-semibold text-slate-800">{contractor.company || 'Contractor'}</p>
-                  <p className="mt-1 text-xs text-slate-500">{contractor.name || '-'} • {contractor.phone || '-'}</p>
-                  <div className="mt-3 flex gap-2">
-                    <button onClick={() => updateContractorStatus(contractor.id, 'Approved')} className="rounded-lg bg-primary px-3 py-2 text-xs font-bold text-white">Approve</button>
-                    <button onClick={() => updateContractorStatus(contractor.id, 'Rejected')} className="rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700">Reject</button>
-                  </div>
-                </div>
-              ))
-            )}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => updateWorkerVerification(worker.id, 'Verified', 100)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition-all"
+                >
+                  <CheckCircle2 size={16} /> Approve & Verify
+                </button>
+                <button
+                  onClick={() => updateWorkerVerification(worker.id, 'Suspended', 0)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-50 px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-100 transition-all"
+                >
+                  <XCircle size={16} /> Reject Application
+                </button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {paginated.totalPages > 1 && (
+        <div className="flex items-center justify-between pt-2">
+          <span className="text-xs text-slate-500 font-semibold">Page {paginated.currentPage} of {paginated.totalPages} ({paginated.total} pending)</span>
+          <div className="flex gap-2">
+            <button disabled={page <= 1} onClick={() => setPage((p) => p - 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-50">Previous</button>
+            <button disabled={page >= paginated.totalPages} onClick={() => setPage((p) => p + 1)} className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-bold disabled:opacity-50">Next</button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

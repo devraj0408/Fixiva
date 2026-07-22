@@ -205,7 +205,7 @@ RETURNS boolean AS $$
 BEGIN
   RETURN EXISTS (
     SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role = 'admin'
+    WHERE id = auth.uid() AND role IN ('admin', 'super_admin')
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
