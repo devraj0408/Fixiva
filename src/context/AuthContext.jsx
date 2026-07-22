@@ -465,10 +465,11 @@ export const AuthProvider = ({ children }) => {
     }
 
     const isAdminUser = isConfiguredAdminEmail(email);
+    const shouldCreateUser = purpose === 'sign-up' || isAdminUser;
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: isAdminUser,
+        shouldCreateUser,
       },
     });
 
