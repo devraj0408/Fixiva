@@ -5,7 +5,7 @@ const supabaseUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE
 const supabaseAnonKey = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase client not initialized: missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY.');
+  // Supabase client is created lazily only when public env vars are present.
 }
 
 export const supabase = supabaseUrl && supabaseAnonKey

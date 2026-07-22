@@ -1,10 +1,11 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { getRouterBasename, getAdminDashboardRoute, getAdminEntryRoute } from './lib/routePaths';
+import { isAdminSubdomain, getCustomerDomainUrl, getAdminDomainUrl } from './lib/domainUtils';
 
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
@@ -30,32 +31,17 @@ const LoadingSkeleton = () => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#F8FAFC' }}>
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 40 40" style={{ boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', borderRadius: '10px' }} className="animate-pulse">
-        {/* Icon Mark Background */}
         <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
-        
-        {/* Screwdriver Chimney */}
         <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
         <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
-
-        {/* Amber Shield-Roof */}
         <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
-
-        {/* Blue House-Shield Body */}
         <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
-
-        {/* Connected Service Windows */}
         <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
         <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
         <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
         <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
-
-        {/* White Door */}
         <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
-
-        {/* Success Green Door Checkmark */}
         <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-        {/* Foundation Beam */}
         <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
       </svg>
     </div>
@@ -66,23 +52,42 @@ const LoadingSkeleton = () => (
   </div>
 );
 
+const LegacyAdminRedirect = () => {
+  useEffect(() => {
+    window.location.replace(getAdminDomainUrl());
+  }, []);
+
+  return <LoadingSkeleton />;
+};
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
+  const onAdminSubdomain = isAdminSubdomain();
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
+  const shouldRedirectToCustomer = onAdminSubdomain && allowedRoles && !normalizedAllowed.includes(userRole) && userRole !== 'admin';
+
+  useEffect(() => {
+    if (shouldRedirectToCustomer) {
+      window.location.replace(getCustomerDomainUrl());
+    }
+  }, [shouldRedirectToCustomer]);
 
   if (loading || (isAuthenticated && !user)) {
     return <LoadingSkeleton />;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  const userRole = String(user?.role || '').trim().toLowerCase();
-  const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
-
   if (allowedRoles && !normalizedAllowed.includes(userRole)) {
+    if (onAdminSubdomain && userRole !== 'admin') {
+      return <LoadingSkeleton />;
+    }
+
     if (userRole === 'admin') {
-      return <Navigate to="/fixiva-admin" replace />;
+      return <Navigate to={getAdminDashboardRoute()} replace />;
     }
     if (userRole === 'worker') {
       return <Navigate to="/worker-dashboard" replace />;
@@ -97,19 +102,40 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 };
 
 function App() {
+  const { isAuthenticated, user } = useAuth();
+  const onAdminSubdomain = isAdminSubdomain();
+
+  // Redirect non-admins from admin subdomain
+  useEffect(() => {
+    if (onAdminSubdomain && isAuthenticated && user) {
+      const userRole = String(user?.role || '').trim().toLowerCase();
+      if (userRole !== 'admin') {
+        window.location.replace(getCustomerDomainUrl());
+      }
+    }
+  }, [isAuthenticated, user, onAdminSubdomain]);
+
   return (
     <Router basename={routerBasename}>
       <ToastProvider>
         <AppProvider>
           <div className="app-container">
-          <Navbar />
+          {/* Hide navbar/footer on admin subdomain to reduce layout overhead */}
+          {!onAdminSubdomain && <Navbar />}
           <main className="content">
             <Suspense fallback={<LoadingSkeleton />}>
               <Routes>
-                <Route path="/" element={<Home />} />
+                {/* On admin subdomain, show admin dashboard at root */}
+                {onAdminSubdomain && <Route path="/" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
+                {onAdminSubdomain && <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />}
+                {onAdminSubdomain && <Route path="/login" element={<Login />} />}
+                
+                {/* Regular customer routes */}
+                {!onAdminSubdomain && <Route path="/" element={<Home />} />}
                 <Route path="/services" element={<Services />} />
                 <Route path="/book/:serviceId?" element={<BookingFlow />} />
                 <Route path="/login" element={<Login />} />
+                <Route path="/fixiva-admin/*" element={<LegacyAdminRedirect />} />
                 <Route path={getAdminEntryRoute()} element={<Navigate to="/login" replace />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -132,7 +158,7 @@ function App() {
               </Routes>
             </Suspense>
           </main>
-          <Footer />
+          {!onAdminSubdomain && <Footer />}
         </div>
         </AppProvider>
       </ToastProvider>

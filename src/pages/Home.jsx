@@ -71,8 +71,7 @@ const Home = () => {
       } else {
         showToast("Something went wrong. Please try again.", 'error');
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
       showToast("Failed to submit request.", 'error');
     } finally {
       setIsSubmitting(false);

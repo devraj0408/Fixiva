@@ -27,8 +27,8 @@ const ContractorDashboard = () => {
     if (parts[1]) {
       try {
         teamList = JSON.parse(parts[1]);
-      } catch (e) {
-        console.error('Failed to parse team JSON:', e);
+      } catch {
+        // Failed to parse team JSON
       }
     }
     return { services, teamList };

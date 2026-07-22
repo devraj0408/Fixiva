@@ -241,8 +241,7 @@ const LocationManagementPanel = () => {
       link.click();
       document.body.removeChild(link);
       showToast("Locations exported successfully.", 'success');
-    } catch (err) {
-      console.error(err);
+    } catch {
       showToast("Failed to export location data.", 'error');
     }
   };
@@ -302,8 +301,7 @@ const LocationManagementPanel = () => {
           importCount++;
         }
         showToast(`Successfully imported ${importCount} states/districts!`, 'success');
-      } catch (err) {
-        console.error(err);
+      } catch {
         showToast("Error parsing or loading CSV data.", 'error');
       }
     };

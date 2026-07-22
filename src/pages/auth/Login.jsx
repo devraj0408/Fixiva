@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { getConfiguredAdminList, isAdminEmail } from '../../lib/adminAccess';
 import { getAdminDashboardRoute } from '../../lib/routePaths';
+import { isAdminSubdomain } from '../../lib/domainUtils';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
 
 const Login = () => {
@@ -147,9 +148,15 @@ const Login = () => {
       const configuredAdmins = getConfiguredAdminList();
       const emailToCheck = profile?.email || identifier;
       const isConfiguredAdminEmail = isAdminEmail(emailToCheck, configuredAdmins.join(','));
+      const onAdminSubdomain = isAdminSubdomain();
 
       if (role === 'admin' || isConfiguredAdminEmail) {
-        navigate(getAdminDashboardRoute());
+        // If on admin subdomain, redirect to root; otherwise use standard admin dashboard route
+        if (onAdminSubdomain) {
+          navigate('/');
+        } else {
+          navigate(getAdminDashboardRoute());
+        }
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
       } else if (role === 'contractor') {
@@ -157,8 +164,7 @@ const Login = () => {
       } else {
         navigate('/dashboard');
       }
-    } catch (redirectErr) {
-      console.error("Navigation redirect error:", redirectErr);
+    } catch {
       setErrors({ otp: 'Redirect failure: Unable to route to dashboard.' });
     }
   };

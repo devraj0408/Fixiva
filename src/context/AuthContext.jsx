@@ -4,7 +4,6 @@ import { createContext, useState, useContext, useEffect, useRef, useCallback } f
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
-import { getCityOptions } from '../data/mockData';
 import { getConfiguredAdminEmails, isAdminEmail } from '../lib/adminAccess';
 import { shouldAllowDevAdminBypass } from '../lib/devAuth';
 
@@ -125,19 +124,12 @@ export const AuthProvider = ({ children }) => {
 
   // Fetch all profiles (RLS will filter automatically based on role)
   const fetchMarketplaceData = useCallback(async () => {
-    const optionalTables = ['cities', 'city_services', 'states', 'coverage_requests'];
     const fetchWithFallback = async (table, columns = '*') => {
       if (!supabase) {
         return [];
       }
       const { data, error } = await supabase.from(table).select(columns);
       if (error) {
-        const message = `Could not fetch ${table}: ${error.message}`;
-        if (optionalTables.includes(table)) {
-          console.info(message);
-        } else {
-          console.warn(message);
-        }
         return [];
       }
       return data || [];
@@ -148,27 +140,14 @@ export const AuthProvider = ({ children }) => {
         return [];
       }
 
-      const { data, error } = await supabase.from('services').select('id,name,description,category,base_price,platform_fee,active');
+      const { data, error } = await supabase.from('services').select('id,name,description,base_price,platform_fee,active');
       if (!error) {
-        return data || [];
+        return (data || []).map((item) => ({ ...item, category: item.category || '' }));
       }
-
-      const message = String(error.message || '').toLowerCase();
-      if (message.includes('category') || message.includes('column')) {
-        console.info('Services table query failed due to missing category column; retrying without category.');
-        const { data: fallbackData, error: fallbackError } = await supabase.from('services').select('id,name,description,base_price,platform_fee,active');
-        if (!fallbackError) {
-          return (fallbackData || []).map((item) => ({ ...item, category: '' }));
-        }
-        console.warn(`Could not fetch services without category: ${fallbackError.message}`);
-        return [];
-      }
-
-      console.warn(`Could not fetch services: ${error.message}`);
       return [];
     };
 
-    const [bk, wk, ct, pr, rv, tk, sv, cs, cList, sList, cov] = await Promise.all([
+    const [bk, wk, ct, pr, rv, tk, sv, cs] = await Promise.all([
       fetchWithFallback('bookings'),
       fetchWithFallback('workers'),
       fetchWithFallback('contractors'),
@@ -177,9 +156,6 @@ export const AuthProvider = ({ children }) => {
       fetchWithFallback('support_tickets'),
       fetchServices(),
       fetchWithFallback('city_services', 'city_id,service_id,enabled'),
-      fetchWithFallback('cities'),
-      fetchWithFallback('states'),
-      fetchWithFallback('coverage_requests'),
     ]);
 
     const fallbackServices = [
@@ -198,9 +174,9 @@ export const AuthProvider = ({ children }) => {
     setProfiles(fallbackProfiles);
     setTickets(tk || []);
     setServices((sv || []).length > 0 ? sv : fallbackServices);
-    setCities(getCityOptions(cList || []));
-    setStates((sList || []).sort((a, b) => (a.display_order - b.display_order) || a.name.localeCompare(b.name)));
-    setCoverageRequests(cov || []);
+    setCities([]);
+    setStates([]);
+    setCoverageRequests([]);
 
     // Process reviews to match frontend expectations
     const processedReviews = (rv || []).map(r => {
@@ -237,9 +213,6 @@ export const AuthProvider = ({ children }) => {
         .maybeSingle();
 
       if (error || !profile) {
-        if (error) {
-          console.error(`Failed to fetch profile: ${error.message}`);
-        }
 
         const configuredAdminList = getConfiguredAdminList();
         const normalizedFallbackEmail = normalizeEmail(fallbackEmail);
@@ -256,11 +229,9 @@ export const AuthProvider = ({ children }) => {
             .maybeSingle();
 
           if (emailLookupError) {
-            console.error(`Failed to fetch profile by email lookup: ${emailLookupError.message}`);
+            void emailLookupError;
           } else if (emailProfile) {
-            console.warn(`Using profile by email fallback for ${lookupEmail} because id-based profile lookup failed.`);
             if (emailProfile.id !== userId) {
-              console.warn(`Admin profile email exists with mismatched id (${emailProfile.id} != ${userId}); using fallback admin identity.`);
               const role = getEffectiveRole(emailProfile, lookupEmail);
               const userData = {
                 id: userId,
@@ -280,18 +251,13 @@ export const AuthProvider = ({ children }) => {
 
         if (isAdminCandidate) {
           const adminEmail = lookupEmail;
-          console.log('Admin candidate detected, ensuring admin profile exists for:', adminEmail);
           const adminPayload = buildFallbackAdminProfile(userId, adminEmail);
           const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
           if (!insertError) {
             return await fetchUserProfile(userId, adminEmail, true);
           }
           if (insertError.message?.toLowerCase().includes('duplicate')) {
-            console.warn('Admin profile already exists by email/ID while auto-creating; resolving existing admin profile.');
-            const { data: existingIdProfile, error: idFetchError } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-            if (idFetchError) {
-              console.error('Failed to fetch existing profile by id after duplicate insert:', idFetchError.message);
-            }
+            const { data: existingIdProfile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
             if (existingIdProfile) {
               const role = getEffectiveRole(existingIdProfile, adminEmail);
               const userData = { ...existingIdProfile, role };
@@ -301,10 +267,7 @@ export const AuthProvider = ({ children }) => {
               setUser(userData);
               return userData;
             }
-            const { data: emailProfile, error: emailFetchError } = await supabase.from('profiles').select('*').eq('email', adminEmail).maybeSingle();
-            if (emailFetchError) {
-              console.error('Failed to fetch existing profile by email after duplicate insert:', emailFetchError.message);
-            }
+            const { data: emailProfile } = await supabase.from('profiles').select('*').eq('email', adminEmail).maybeSingle();
             if (emailProfile) {
               const role = getEffectiveRole(emailProfile, adminEmail);
               const userData = {
@@ -325,7 +288,6 @@ export const AuthProvider = ({ children }) => {
             setUser(userData);
             return userData;
           }
-          console.error('Failed to auto-create admin profile during fetch:', insertError?.message || 'Unknown error');
           const isRls = insertError?.message?.toLowerCase().includes('row level security') || insertError?.code === '42501';
           const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + (insertError?.message || 'Unable to create admin profile.'));
           setLoading(false);
@@ -333,7 +295,6 @@ export const AuthProvider = ({ children }) => {
         }
 
         if (!isRetry) {
-          console.warn('Profile fetch failed or empty; retrying once in 1s...');
           await new Promise(resolve => setTimeout(resolve, 1000));
           return await fetchUserProfile(userId, fallbackEmail, true);
         }
@@ -358,10 +319,8 @@ export const AuthProvider = ({ children }) => {
 
       setUser(userData);
       return userData;
-    } catch (e) {
-      console.error(`Exception in fetchUserProfile:`, e);
+    } catch {
       if (!isRetry) {
-        console.warn("Exception in fetchUserProfile; retrying once in 1s...");
         await new Promise(resolve => setTimeout(resolve, 1000));
         return await fetchUserProfile(userId, fallbackEmail, true);
       }
@@ -391,21 +350,17 @@ export const AuthProvider = ({ children }) => {
         const selectCols = table === 'city_services' ? 'city_id,service_id' : 'id';
         const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
         if (error) {
-          console.warn(`Database table verification failed for required table ${table}: ${error.message}`, error);
           return false;
         }
       }
 
       for (const { table, selectCols } of optionalTables) {
         const { error } = await supabase.from(table).select(selectCols).limit(1).maybeSingle();
-        if (error) {
-          console.info(`Optional Supabase table missing or inaccessible: ${table}. Some UI features may be limited. ${error.message}`);
-        }
+        void error;
       }
 
       const { error: categoryError } = await supabase.from('services').select('category').limit(1);
       if (categoryError) {
-        console.info(`Supabase services table is missing category column: ${categoryError.message}`);
         setServiceSupportsCategory(false);
       } else {
         setServiceSupportsCategory(true);
@@ -424,10 +379,7 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      const ok = await verifyDatabaseSchema();
-      if (!ok) {
-        console.warn('Supabase schema verification failed; continuing startup for partial frontend support.');
-      }
+      await verifyDatabaseSchema();
 
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -438,8 +390,7 @@ export const AuthProvider = ({ children }) => {
         } else {
           setUser(null);
         }
-      } catch (err) {
-        console.error("Session restoration error during init:", err);
+      } catch {
         setUser(null);
       }
 
@@ -468,8 +419,8 @@ export const AuthProvider = ({ children }) => {
         try {
           await fetchUserProfile(session.user.id, session.user.email);
           await fetchMarketplaceData();
-        } catch (err) {
-          console.error("Auth state change processing error:", err);
+        } catch {
+          // Error during auth state change
         }
         setLoading(false);
       } else {
@@ -502,11 +453,10 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email or mobile number.') };
     }
 
-    if (isDevAdminBypassCandidate && purpose === 'sign-in') {
-      console.warn(`Dev admin login candidate ${normalized} will receive a real OTP email instead of bypassing.`);
-    }
-
     void metadata;
+    if (isDevAdminBypassCandidate && purpose === 'sign-in') {
+      void isDevAdminBypassCandidate;
+    }
 
     const email = await resolveEmailForAuth(supabase, normalized);
 
@@ -539,7 +489,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     if (devBypass && purpose === 'sign-in') {
-      console.warn(`Dev admin login candidate ${normalized} must still verify OTP; bypass disabled for security.`);
+      void devBypass;
     }
 
     if (!supabase) {
@@ -660,7 +610,6 @@ export const AuthProvider = ({ children }) => {
           return { success: false, error: errObj };
         }
         if (emailProfile) {
-          console.warn(`Found admin profile by email ${normalizeEmail(email)} during verifyOtp fallback.`);
           const existingProfileRole = getEffectiveRole(emailProfile, email);
           const userData = { ...emailProfile, role: existingProfileRole };
           if (existingProfileRole !== emailProfile.role) {
@@ -678,11 +627,7 @@ export const AuthProvider = ({ children }) => {
           const { error: insertError } = await supabase.from('profiles').insert(adminPayload);
           if (insertError) {
             if (insertError.message?.toLowerCase().includes('duplicate')) {
-              console.warn("Admin profile insert duplicate detected; resolving existing admin profile.");
-              const { data: existingIdProfile, error: idFetchError } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
-              if (idFetchError) {
-                console.error('Failed to fetch existing profile by id after duplicate admin insert:', idFetchError.message);
-              }
+              const { data: existingIdProfile } = await supabase.from('profiles').select('*').eq('id', authUserId).maybeSingle();
               if (existingIdProfile) {
                 const role = getEffectiveRole(existingIdProfile, email);
                 const userData = { ...existingIdProfile, role };
@@ -695,10 +640,7 @@ export const AuthProvider = ({ children }) => {
                 return { success: true, user: data?.user, profile: userData };
               }
 
-              const { data: emailProfile, error: emailFetchError } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
-              if (emailFetchError) {
-                console.error('Failed to fetch existing profile by email after duplicate admin insert:', emailFetchError.message);
-              }
+              const { data: emailProfile } = await supabase.from('profiles').select('*').eq('email', normalizeEmail(email)).maybeSingle();
               if (emailProfile) {
                 const role = getEffectiveRole(emailProfile, email);
                 const userData = {
@@ -732,7 +674,6 @@ export const AuthProvider = ({ children }) => {
               setLoading(false);
               return { success: true, user: data?.user, profile: fallbackProfile };
             }
-            console.error("Failed to auto-create admin profile:", insertError.message);
             const isRls = insertError.message?.toLowerCase().includes('row level security') || insertError.code === '42501';
             const errObj = new Error((isRls ? 'RLS failure: ' : 'Profile query failure: ') + insertError.message);
             setLoading(false);
@@ -760,7 +701,6 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return { success: true, user: data?.user, profile: profileRow };
     } catch (err) {
-      console.error("Verification execution error:", err);
       setLoading(false);
       return { success: false, error: new Error('Session failure: ' + (err instanceof Error ? err.message : String(err))) };
     } finally {
@@ -913,7 +853,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
     } else {
-      console.error("Booking update failed", error);
+      // Failed to update booking
       showToast("Failed to update booking status: " + error.message, 'error');
     }
     return { error };
@@ -929,7 +869,7 @@ export const AuthProvider = ({ children }) => {
     if (!error) {
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, trust_score: newScore, status: newStatus } : w)));
     } else {
-      console.error("Worker trust update failed", error);
+      // Failed to update worker trust
     }
     return { error };
   };
@@ -951,7 +891,6 @@ export const AuthProvider = ({ children }) => {
         setContractors((prev) => prev.map((c) => (c.id === id ? { ...c, status: contractorStatus } : c)));
       }
     } else {
-      console.error("Worker status update failed", error);
       showToast("Failed to update worker status.", 'error');
     }
     return { error };
@@ -971,7 +910,6 @@ export const AuthProvider = ({ children }) => {
         await autoAssignPendingBookingToWorker({ id, status: workerStatus });
       }
     } else {
-      console.error("Contractor status update failed", error);
       showToast("Failed to update contractor status.", 'error');
     }
     return { error };
@@ -994,7 +932,6 @@ export const AuthProvider = ({ children }) => {
     if (!error) {
       setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
     } else {
-      console.error("Ticket update failed", error);
       showToast("Failed to update ticket status.", 'error');
     }
     return { error };
@@ -1027,7 +964,6 @@ export const AuthProvider = ({ children }) => {
       await fetchMarketplaceData();
       showToast('User role updated successfully.', 'success');
     } else {
-      console.error('User role update failed', error);
       showToast('Failed to update user role.', 'error');
     }
     return { error };
@@ -1039,7 +975,6 @@ export const AuthProvider = ({ children }) => {
       setServices((prev) => prev.map((s) => (s.id === id ? { ...s, base_price, platform_fee } : s)));
       showToast("Service pricing updated successfully!", 'success');
     } else {
-      console.error("Service pricing update failed", error);
       showToast("Failed to update service pricing.", 'error');
     }
     return { error };
@@ -1263,7 +1198,6 @@ export const AuthProvider = ({ children }) => {
 
       const { data, error } = await supabase.from('coverage_requests').insert(payload).select();
       if (error) {
-        console.error('Error inserting coverage request:', error);
         return { success: false, error };
       }
 
@@ -1286,8 +1220,8 @@ export const AuthProvider = ({ children }) => {
             }),
           });
         }
-      } catch (e) {
-        console.error('Failed to send coverage request email:', e);
+      } catch {
+        // Email notification failed
       }
 
       if (data) {
@@ -1303,7 +1237,6 @@ export const AuthProvider = ({ children }) => {
         setCoverageRequests((prev) => prev.map((r) => (r.id === id ? { ...r, status } : r)));
         showToast(`Request marked as ${status}.`, 'success');
       } else {
-        console.error("Failed to update status", error);
         showToast("Failed to update request status.", 'error');
       }
       return { error };
@@ -1315,7 +1248,6 @@ export const AuthProvider = ({ children }) => {
         setCoverageRequests((prev) => prev.filter((r) => r.id !== id));
         showToast("Coverage request deleted.", 'success');
       } else {
-        console.error("Failed to delete coverage request", error);
         showToast("Failed to delete request.", 'error');
       }
       return { error };

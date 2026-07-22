@@ -1,3 +1,5 @@
+import { isAdminSubdomain } from './domainUtils.js';
+
 const normalizeBaseUrl = (baseUrl = '/') => {
   const value = String(baseUrl || '/').trim();
   if (!value || value === '/') return '/';
@@ -11,12 +13,26 @@ export const getRouterBasename = () => {
   return normalizeBaseUrl(base);
 };
 
+/**
+ * Get admin dashboard route
+ * - On admin subdomain: /dashboard/admin (shows admin panel content)
+ * - On main domain: /fixiva-admin/dashboard (backward compatible)
+ */
 export const getAdminDashboardRoute = () => {
-  const base = getRouterBasename();
-  return base === '/' ? '/fixiva-admin/dashboard' : '/dashboard';
+  if (isAdminSubdomain()) {
+    return '/dashboard/admin';
+  }
+  return '/fixiva-admin/dashboard';
 };
 
+/**
+ * Get admin entry route
+ * - On admin subdomain: /login (redirects to login, then to dashboard)
+ * - On main domain: /fixiva-admin (backward compatible)
+ */
 export const getAdminEntryRoute = () => {
-  const base = getRouterBasename();
-  return base === '/' ? '/fixiva-admin' : '/';
+  if (isAdminSubdomain()) {
+    return '/login';
+  }
+  return '/fixiva-admin';
 };

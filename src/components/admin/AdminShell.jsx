@@ -1,6 +1,5 @@
-import { useMemo } from 'react';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, Briefcase, FileText, MapPin, MessageCircle, Settings, ShieldCheck, TrendingUp, Users, LogOut, IndianRupee } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { BarChart3, Briefcase, FileText, MapPin, MessageCircle, Settings, ShieldCheck, Users, LogOut, IndianRupee } from 'lucide-react';
 
 const navItems = [
   { id: 'overview', label: 'Dashboard', icon: BarChart3 },
@@ -18,7 +17,7 @@ const AdminShell = ({ user, activeTab, onTabChange, onLogout, children }) => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  const currentPath = useMemo(() => `${location.pathname}${location.search || ''}`, [location.pathname, location.search]);
+  void location;
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
