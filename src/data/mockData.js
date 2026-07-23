@@ -132,8 +132,8 @@ export const getCityOptions = (dbCities = []) => {
 // Initial states for the application
 export const INITIAL_STATE = {
   bookings: [],
-  workers: [], // Format: { id, name, email, role: 'worker', status: 'Pending Verification', trustScore: 100, skills: [], ... }
-  contractors: [], // Format: { id, name, email, role: 'contractor', status: 'Pending Approval', ... }
+  workers: [], // Format: { id, name, email, role: 'worker', status: 'Active', trustScore: 100, skills: [], ... }
+  contractors: [], // Format: { id, name, email, role: 'contractor', status: 'Active', ... }
   reviews: [],
   tickets: [],
   cityServiceControl: {}, // Format: { 'Ranchi': { 'electrician': true, ... } }

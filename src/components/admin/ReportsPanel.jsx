@@ -37,7 +37,7 @@ const ReportsPanel = () => {
         Skills: w.skills || '',
         City: w.city || 'Ranchi',
         TrustScore: w.trustScore ?? 100,
-        Status: w.status || 'Verified',
+        Status: w.status || 'Active',
       }));
     }
 

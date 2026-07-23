@@ -20,7 +20,7 @@ const ContractorsPanel = () => {
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
         <div>
           <h2 className="text-xl font-black text-slate-900">Contractor Partners Management</h2>
-          <p className="text-sm text-slate-500">Review company credentials, GST verification, and contractor approvals.</p>
+          <p className="text-sm text-slate-500">Review company credentials, GST details, and contractor accounts.</p>
         </div>
       </div>
 
@@ -37,8 +37,7 @@ const ContractorsPanel = () => {
           className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
         >
           <option value="All">All Statuses</option>
-          <option value="Approved">Approved</option>
-          <option value="Pending Approval">Pending Approval</option>
+          <option value="Active">Active</option>
           <option value="Suspended">Suspended</option>
         </select>
       </div>
@@ -67,18 +66,17 @@ const ContractorsPanel = () => {
                   <td className="px-4 py-3 font-semibold text-slate-700">{contractor.gst || 'Pending Submission'}</td>
                   <td className="px-4 py-3 text-slate-600">{contractor.city || 'Ranchi'}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${contractor.status === 'Approved' ? 'bg-emerald-50 text-emerald-700' : contractor.status === 'Suspended' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {contractor.status || 'Approved'}
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${contractor.status === 'Suspended' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {contractor.status || 'Active'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <select
-                      value={contractor.status || 'Approved'}
+                      value={contractor.status || 'Active'}
                       onChange={(e) => updateContractorStatus(contractor.id, e.target.value)}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold"
                     >
-                      <option value="Approved">Approved</option>
-                      <option value="Pending Approval">Pending</option>
+                      <option value="Active">Active</option>
                       <option value="Suspended">Suspended</option>
                     </select>
                   </td>

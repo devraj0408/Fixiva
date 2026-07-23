@@ -187,7 +187,6 @@ export const CmsProvider = ({ children }) => {
   const handleDeleteNotification = async (id) => { const res = await marketingService.deleteNotification(id, actor); if (res.success) { showToast('Notification deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
 
   const handleUpdateCustomerStatus = async (id, status) => { const res = await userService.updateCustomerStatus(id, status, actor); if (!res.error) { showToast('Customer status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateWorkerVerification = async (id, status, trustScore) => { const res = await userService.updateWorkerVerification(id, status, trustScore, actor); if (!res.error) { showToast('Worker verification updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleUpdateContractorStatus = async (id, status) => { const res = await userService.updateContractorStatus(id, status, actor); if (!res.error) { showToast('Contractor status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleFeatureReview = async (id, isFeatured) => { const res = await userService.featureReview(id, isFeatured, actor); if (!res.error) { showToast('Review status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleDeleteReview = async (id) => { const res = await userService.deleteReview(id, actor); if (res.success) { showToast('Review deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
@@ -251,7 +250,7 @@ export const CmsProvider = ({ children }) => {
     createFaq: handleCreateFaq, updateFaq: handleUpdateFaq, deleteFaq: handleDeleteFaq,
     createCoupon: handleCreateCoupon, updateCoupon: handleUpdateCoupon, deleteCoupon: handleDeleteCoupon,
     createBroadcastNotification: handleCreateBroadcastNotification, deleteNotification: handleDeleteNotification,
-    updateCustomerStatus: handleUpdateCustomerStatus, updateWorkerVerification: handleUpdateWorkerVerification,
+    updateCustomerStatus: handleUpdateCustomerStatus,
     updateContractorStatus: handleUpdateContractorStatus, featureReview: handleFeatureReview, deleteReview: handleDeleteReview,
 
     // Phase 3 CRUD

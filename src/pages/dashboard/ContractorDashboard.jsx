@@ -80,8 +80,6 @@ const ContractorDashboard = () => {
     }
   };
 
-  const isApproved = user?.status === 'Approved' || user?.status === 'Verified';
-
   // Leads & Projects
   const largeLeads = bookings.filter(b => b.status === 'New Request');
   const activeProjects = bookings.filter(b => b.worker_id === user?.id && b.status !== 'Completed');
@@ -225,9 +223,9 @@ const ContractorDashboard = () => {
             </div>
             <div className="pt-2">
               <span className={`inline-flex px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full ${
-                isApproved ? 'bg-green-50 text-success border border-green-100' : 'bg-amber-50 text-warning border border-amber-100'
+                user?.status === 'Suspended' ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'
               }`}>
-                {isApproved ? 'Approved' : user?.status || 'Pending Review'}
+                {user?.status || 'Active'}
               </span>
             </div>
           </div>
@@ -302,32 +300,7 @@ const ContractorDashboard = () => {
 
         {/* Main Work panel */}
         <main className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[500px]">
-          
-          {/* Under Review Block */}
-          {!isApproved ? (
-            <div className="py-16 text-center space-y-6 max-w-md mx-auto">
-              <div className="h-16 w-16 mx-auto rounded-full bg-amber-50 text-warning flex items-center justify-center animate-pulse">
-                <Hourglass size={32} />
-              </div>
-              <div className="space-y-2">
-                <h2 className="text-xl font-black text-slate-900">Application Under Review</h2>
-                <p className="text-xs text-slate-500 font-semibold leading-relaxed">
-                  Our operations desk is auditing your contractor registration metadata and GST records. We will contact you once approved.
-                </p>
-              </div>
-              <div className="grid grid-cols-2 gap-3 pt-4 border-t border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                <div className="p-3 bg-slate-50 rounded-xl flex flex-col items-center gap-1.5 border border-slate-100">
-                  <ShieldCheck size={16} className="text-primary" />
-                  <span>Document check</span>
-                </div>
-                <div className="p-3 bg-slate-50 rounded-xl flex flex-col items-center gap-1.5 border border-slate-100">
-                  <MapPin size={16} className="text-primary" />
-                  <span>Region audit</span>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
+          <AnimatePresence mode="wait">
               {activeTab === 'leads' && (
                 <motion.div 
                   key="leads"
@@ -692,9 +665,7 @@ const ContractorDashboard = () => {
                 </motion.div>
               )}
             </AnimatePresence>
-          )}
-
-        </main>
+          </main>
 
       </div>
 

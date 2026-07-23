@@ -7,7 +7,6 @@ import AdminShell from '../../components/admin/AdminShell';
 const DashboardOverview = React.lazy(() => import('../../components/admin/DashboardOverview'));
 const BookingManagementPanel = React.lazy(() => import('../../components/admin/BookingManagementPanel'));
 const UserManagementPanel = React.lazy(() => import('../../components/admin/UserManagementPanel'));
-const VerificationPanel = React.lazy(() => import('../../components/admin/VerificationPanel'));
 const ServicesPanel = React.lazy(() => import('../../components/admin/ServicesPanel'));
 const CategoriesPanel = React.lazy(() => import('../../components/admin/CategoriesPanel'));
 const AreasPanel = React.lazy(() => import('../../components/admin/AreasPanel'));
@@ -58,7 +57,6 @@ const AdminDashboard = () => {
     const contractorsCount = (contractors || []).length;
     const pendingBookings = (bookings || []).filter((booking) => booking.status === 'New Request').length;
     const completedBookings = (bookings || []).filter((booking) => booking.status === 'Completed').length;
-    const pendingWorkerVerification = (workers || []).filter((worker) => worker.status === 'Pending Verification' && !worker.isContractor).length;
 
     return [
       { label: 'Customers', value: customers, icon: Users, tone: 'bg-sky-100 text-sky-700' },
@@ -67,7 +65,6 @@ const AdminDashboard = () => {
       { label: 'Bookings', value: (bookings || []).length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
       { label: 'Active', value: pendingBookings, icon: Clock, tone: 'bg-blue-100 text-blue-700' },
       { label: 'Completed', value: completedBookings, icon: CheckCircle, tone: 'bg-emerald-100 text-emerald-700' },
-      { label: 'Pending Verification', value: pendingWorkerVerification, icon: ShieldCheck, tone: 'bg-orange-100 text-orange-700' },
       { label: 'Support', value: (tickets || []).length, icon: MessageCircle, tone: 'bg-violet-100 text-violet-700' },
     ];
   }, [bookings, contractors, profiles, tickets, workers]);
@@ -99,8 +96,6 @@ const AdminDashboard = () => {
         return <WorkersPanel />;
       case 'contractors':
         return <ContractorsPanel />;
-      case 'verification':
-        return <VerificationPanel />;
       case 'services':
         return <ServicesPanel />;
       case 'categories':

@@ -241,7 +241,7 @@ export const AuthProvider = ({ children }) => {
         if (!workerData) {
           const newWorker = {
             id: userId,
-            status: 'Pending Verification',
+            status: 'Active',
             trust_score: 100,
             skills: regExtra.skills || activeRegistrationData?.skills || '',
             city: profile.city || activeRegistrationData?.city || '',
@@ -261,7 +261,7 @@ export const AuthProvider = ({ children }) => {
         if (!contractorData) {
           const newContractor = {
             id: userId,
-            status: 'Pending Approval',
+            status: 'Active',
             company: regExtra.company || activeRegistrationData?.company || profile.name || 'Business Entity',
             owner_name: regExtra.owner_name || activeRegistrationData?.owner_name || profile.name || '',
             city: profile.city || activeRegistrationData?.city || '',
@@ -632,7 +632,7 @@ export const AuthProvider = ({ children }) => {
     const availableWorkers = workers.filter((worker) => {
       const workerCity = (worker.city || '').toLowerCase();
       const targetCity = (bookingCityName || '').toLowerCase();
-      return worker.status === 'Verified' && (!targetCity || workerCity === targetCity);
+      return worker.status !== 'Suspended' && (!targetCity || workerCity === targetCity);
     });
 
     if (availableWorkers.length === 0) {
@@ -671,7 +671,7 @@ export const AuthProvider = ({ children }) => {
 
   const autoAssignPendingBookingToWorker = async (workerData) => {
     const worker = workerData || workers.find((item) => item.id === workerData?.id);
-    if (!worker || worker.status !== 'Verified') {
+    if (!worker || worker.status === 'Suspended') {
       return { success: false, reason: 'worker-not-ready' };
     }
 
@@ -751,18 +751,6 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.from('workers').update({ status }).eq('id', id);
     if (!error) {
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
-
-      if (status === 'Verified') {
-        await autoAssignPendingBookingToWorker({ id, status });
-      }
-
-      // Also check if this worker is a contractor, and sync status
-      const isContractor = contractors.some(c => c.id === id);
-      if (isContractor) {
-        const contractorStatus = status === 'Verified' ? 'Approved' : status === 'Rejected' ? 'Rejected' : 'Pending Approval';
-        await supabase.from('contractors').update({ status: contractorStatus }).eq('id', id);
-        setContractors((prev) => prev.map((c) => (c.id === id ? { ...c, status: contractorStatus } : c)));
-      }
     } else {
       showToast("Failed to update worker status.", 'error');
     }
@@ -773,15 +761,6 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.from('contractors').update({ status }).eq('id', id);
     if (!error) {
       setContractors((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
-
-      // Also update matching worker status to match approval
-      const workerStatus = status === 'Approved' ? 'Verified' : status === 'Rejected' ? 'Rejected' : 'Pending Verification';
-      await supabase.from('workers').update({ status: workerStatus }).eq('id', id);
-      setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, status: workerStatus } : w)));
-
-      if (workerStatus === 'Verified') {
-        await autoAssignPendingBookingToWorker({ id, status: workerStatus });
-      }
     } else {
       showToast("Failed to update contractor status.", 'error');
     }

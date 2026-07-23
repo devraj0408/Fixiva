@@ -215,10 +215,10 @@ const WorkerDashboard = () => {
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
             <h2 className="text-xl font-black text-slate-900 tracking-tight">Professional Workspace</h2>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-              user?.status === 'Verified' ? 'bg-green-50 text-success border border-green-100' : 'bg-amber-50 text-warning border border-amber-100'
+              user?.status === 'Suspended' ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'
             }`}>
-              {user?.status === 'Verified' ? <CheckSquare size={12} /> : <Clock size={12} />}
-              {user?.status || 'Pending Verification'}
+              <CheckSquare size={12} />
+              {user?.status || 'Active'}
             </span>
           </div>
 

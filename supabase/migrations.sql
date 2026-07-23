@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
 -- Workers (extensions of profiles with worker‑specific fields)
 CREATE TABLE IF NOT EXISTS public.workers (
   id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  status text NOT NULL DEFAULT 'Pending Verification',
+  status text NOT NULL DEFAULT 'Active',
   trust_score int NOT NULL DEFAULT 100,
   skills text,
   city text,
@@ -36,7 +36,7 @@ CREATE TABLE IF NOT EXISTS public.workers (
 -- Contractors (extensions of profiles with contractor‑specific fields)
 CREATE TABLE IF NOT EXISTS public.contractors (
   id uuid PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
-  status text NOT NULL DEFAULT 'Pending Approval',
+  status text NOT NULL DEFAULT 'Active',
   company text,
   city text,
   location_text text,

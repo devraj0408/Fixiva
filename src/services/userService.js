@@ -55,7 +55,7 @@ export const updateCustomerStatus = async (id, account_status, actor = {}) => {
 };
 
 // ==========================================
-// WORKERS & VERIFICATION CRUD
+// WORKERS CRUD
 // ==========================================
 
 export const getWorkers = async () => {
@@ -84,34 +84,6 @@ export const getWorkers = async () => {
     return { data: merged, error: null };
   } catch (err) {
     return { data: [], error: err instanceof Error ? err.message : String(err) };
-  }
-};
-
-export const updateWorkerVerification = async (id, status, trustScore, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
-
-  const updates = { status };
-  if (trustScore !== undefined && trustScore !== null) {
-    updates.trust_score = Number(trustScore);
-  }
-
-  try {
-    const { data, error } = await supabase.from('workers').update(updates).eq('id', id).select().maybeSingle();
-
-    if (error) return { data: null, error: error.message };
-
-    await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
-      action: 'verify_worker',
-      objectType: 'worker',
-      objectId: id,
-      payload: updates,
-    });
-
-    return { data, error: null };
-  } catch (err) {
-    return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
 

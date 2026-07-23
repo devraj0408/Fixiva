@@ -1,16 +1,18 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
+import { useApp } from '../../context/AuthContext';
 
 
 const WorkersPanel = () => {
-  const { workers, updateWorkerVerification, filterItems, paginateItems } = useCms();
+  const { workers, filterItems, paginateItems } = useCms();
+  const { updateWorkerStatus } = useApp();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [page, setPage] = useState(1);
 
   const filtered = filterItems(workers, search, ['name', 'email', 'phone', 'city', 'skills']).filter((w) => {
     if (statusFilter === 'All') return true;
-    return (w.status || 'Verified').toLowerCase() === statusFilter.toLowerCase();
+    return (w.status || 'Active').toLowerCase() === statusFilter.toLowerCase();
   });
 
   const paginated = paginateItems(filtered, page, 8);
@@ -37,8 +39,7 @@ const WorkersPanel = () => {
           className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
         >
           <option value="All">All Statuses</option>
-          <option value="Verified">Verified</option>
-          <option value="Pending Verification">Pending Verification</option>
+          <option value="Active">Active</option>
           <option value="Suspended">Suspended</option>
         </select>
       </div>
@@ -74,18 +75,17 @@ const WorkersPanel = () => {
                     ★ {worker.trustScore ?? 100} / 100
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${worker.status === 'Verified' ? 'bg-emerald-50 text-emerald-700' : worker.status === 'Suspended' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {worker.status || 'Verified'}
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${worker.status === 'Suspended' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                      {worker.status || 'Active'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <select
-                      value={worker.status || 'Verified'}
-                      onChange={(e) => updateWorkerVerification(worker.id, e.target.value, worker.trustScore)}
+                      value={worker.status || 'Active'}
+                      onChange={(e) => updateWorkerStatus(worker.id, e.target.value)}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold"
                     >
-                      <option value="Verified">Verified</option>
-                      <option value="Pending Verification">Pending</option>
+                      <option value="Active">Active</option>
                       <option value="Suspended">Suspended</option>
                     </select>
                   </td>

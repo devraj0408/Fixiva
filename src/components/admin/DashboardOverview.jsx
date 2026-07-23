@@ -63,10 +63,6 @@ const DashboardOverview = ({ stats, recentActivity }) => {
               <p className="text-sm font-bold text-slate-800">Pending bookings</p>
               <p className="text-xs text-slate-500">Review new requests and assign workers quickly.</p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-3">
-              <p className="text-sm font-bold text-slate-800">Pending verifications</p>
-              <p className="text-xs text-slate-500">Approve workers and contractors without extra steps.</p>
-            </div>
           </div>
         </div>
       </div>

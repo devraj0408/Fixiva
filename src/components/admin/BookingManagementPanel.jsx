@@ -21,7 +21,7 @@ const BookingManagementPanel = () => {
   });
 
   const paginated = paginateItems(filtered, page, 8);
-  const verifiedWorkers = workers.filter((w) => w.status === 'Verified' || w.status === 'Live');
+  const verifiedWorkers = workers.filter((w) => w.status !== 'Suspended');
 
   return (
     <div className="space-y-6">
