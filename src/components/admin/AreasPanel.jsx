@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { MapPin, Plus, Edit2, Trash2 } from 'lucide-react';
+import { MapPin, Edit2, Trash2 } from 'lucide-react';
 
 const AreasPanel = () => {
   const {

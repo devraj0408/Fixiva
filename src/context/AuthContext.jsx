@@ -4,7 +4,6 @@ import { createContext, useState, useContext, useEffect, useRef, useCallback } f
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
-import { isAdminRole } from '../lib/adminAccess';
 
 const AppContext = createContext();
 
@@ -38,6 +37,7 @@ export const AuthProvider = ({ children }) => {
   const isVerifyingOtpRef = useRef(false);
   const isInitializingRef = useRef(false);
   const userRef = useRef(user);
+  const pendingRegistrationRef = useRef(null);
 
   useEffect(() => {
     userRef.current = user;
@@ -104,18 +104,12 @@ export const AuthProvider = ({ children }) => {
       fetchWithFallback('city_services', 'city_id,service_id,enabled'),
     ]);
 
-    const fallbackServices = [
-      { id: 'plumbing', name: 'Plumbing', description: 'Home plumbing support', category: 'Home Services', base_price: 499, platform_fee: 99, active: true },
-      { id: 'electrical', name: 'Electrical', description: 'Electrical repairs and inspections', category: 'Home Services', base_price: 599, platform_fee: 129, active: true },
-      { id: 'cleaning', name: 'Cleaning', description: 'Deep cleaning and maintenance', category: 'Home Services', base_price: 399, platform_fee: 79, active: true },
-    ];
-
     setBookings(bk || []);
     setWorkers(wk || []);
     setContractors(ct || []);
     setProfiles(pr || []);
     setTickets(tk || []);
-    setServices((sv || []).length > 0 ? sv : fallbackServices);
+    setServices(sv || []);
     setCities([]);
     setStates([]);
     setCoverageRequests([]);
@@ -138,7 +132,7 @@ export const AuthProvider = ({ children }) => {
     setCityControl(cityMap);
   }, []);
 
-  const fetchUserProfile = useCallback(async function fetchUserProfile(userId, fallbackEmail = '') {
+  const fetchUserProfile = useCallback(async function fetchUserProfile(userId, fallbackEmail = '', registrationData = null) {
     if (!supabase || !userId) {
       setUser(null);
       return null;
@@ -146,6 +140,7 @@ export const AuthProvider = ({ children }) => {
 
     const normalizedEmail = normalizeEmail(fallbackEmail);
     const isAdminEmail = normalizedEmail === PRIMARY_ADMIN_EMAIL;
+    const activeRegistrationData = registrationData || pendingRegistrationRef.current;
 
     try {
       // 1. Check profile by ID
@@ -175,21 +170,24 @@ export const AuthProvider = ({ children }) => {
             ...emailProfile,
             id: userId,
             account_status: 'active',
-            role: isAdminEmail ? 'admin' : (emailProfile.role || 'customer'),
+            role: isAdminEmail ? 'admin' : emailProfile.role,
           };
         }
       }
 
       // 3. Create ONE profile safely if not found
       if (!profile && normalizedEmail) {
-        const newRole = isAdminEmail ? 'admin' : 'customer';
+        const targetRole = isAdminEmail
+          ? 'admin'
+          : (activeRegistrationData?.role || 'customer');
+
         const newProfile = {
           id: userId,
           email: normalizedEmail,
-          role: newRole,
-          name: normalizedEmail.split('@')[0] || 'User',
-          phone: '',
-          city: '',
+          role: targetRole,
+          name: activeRegistrationData?.name || normalizedEmail.split('@')[0] || 'User',
+          phone: activeRegistrationData?.phone || '',
+          city: activeRegistrationData?.city || '',
           account_status: 'active',
           email_verified: true,
         };
@@ -203,7 +201,7 @@ export const AuthProvider = ({ children }) => {
         if (!insertErr && inserted) {
           profile = inserted;
         } else {
-          profile = newProfile;
+          profile = null;
         }
       }
 
@@ -227,14 +225,57 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
+      if (profile.account_status === 'suspended' && emailToCheck !== PRIMARY_ADMIN_EMAIL) {
+        await supabase.auth.signOut().catch(() => null);
+        setUser(null);
+        showToast('Your account is suspended. Please contact support.', 'error');
+        return null;
+      }
+
       let userData = { ...profile };
       const normalizedRole = String(userData.role || '').trim().toLowerCase();
+      const regExtra = activeRegistrationData?.extra || {};
 
       if (normalizedRole === 'worker') {
-        const { data: workerData } = await supabase.from('workers').select('*').eq('id', userId).maybeSingle();
+        let { data: workerData } = await supabase.from('workers').select('*').eq('id', userId).maybeSingle();
+        if (!workerData) {
+          const newWorker = {
+            id: userId,
+            status: 'Pending Verification',
+            trust_score: 100,
+            skills: regExtra.skills || activeRegistrationData?.skills || '',
+            city: profile.city || activeRegistrationData?.city || '',
+            location_text: activeRegistrationData?.locationText || '',
+            location_latitude: activeRegistrationData?.locationLatitude ?? null,
+            location_longitude: activeRegistrationData?.locationLongitude ?? null,
+            location_source: activeRegistrationData?.locationSource || '',
+            whatsapp: regExtra.whatsapp || activeRegistrationData?.whatsapp || '',
+            experience: regExtra.experience || activeRegistrationData?.experience || '',
+          };
+          const { data: createdWorker } = await supabase.from('workers').insert(newWorker).select().maybeSingle();
+          workerData = createdWorker || newWorker;
+        }
         userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
       } else if (normalizedRole === 'contractor') {
-        const { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
+        let { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
+        if (!contractorData) {
+          const newContractor = {
+            id: userId,
+            status: 'Pending Approval',
+            company: regExtra.company || activeRegistrationData?.company || profile.name || 'Business Entity',
+            owner_name: regExtra.owner_name || activeRegistrationData?.owner_name || profile.name || '',
+            city: profile.city || activeRegistrationData?.city || '',
+            location_text: activeRegistrationData?.locationText || '',
+            location_latitude: activeRegistrationData?.locationLatitude ?? null,
+            location_longitude: activeRegistrationData?.locationLongitude ?? null,
+            location_source: activeRegistrationData?.locationSource || '',
+            whatsapp: regExtra.whatsapp || activeRegistrationData?.whatsapp || '',
+            gst: regExtra.gst || activeRegistrationData?.gst || '',
+            services_offered: regExtra.services_offered || activeRegistrationData?.services_offered || '',
+          };
+          const { data: createdContractor } = await supabase.from('contractors').insert(newContractor).select().maybeSingle();
+          contractorData = createdContractor || newContractor;
+        }
         userData = { ...userData, ...contractorData };
       }
 
@@ -244,7 +285,7 @@ export const AuthProvider = ({ children }) => {
       setUser(null);
       return null;
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     const verifyDatabaseSchema = async () => {
@@ -297,11 +338,16 @@ export const AuthProvider = ({ children }) => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (isInitializingRef.current || isVerifyingOtpRef.current) return;
 
+      if (event === 'SIGNED_OUT') {
+        setUser(null);
+        return;
+      }
+
       if (session?.user) {
         if (userRef.current && userRef.current.id === session.user.id) return;
         setLoading(true);
         try {
-          await fetchUserProfile(session.user.id, session.user.email);
+          await fetchUserProfile(session.user.id, session.user.email, pendingRegistrationRef.current);
           await fetchMarketplaceData();
         } catch {
           // Silent catch
@@ -312,12 +358,28 @@ export const AuthProvider = ({ children }) => {
       }
     });
 
+    // Supabase Realtime Channel Subscription for live ecosystem sync
+    const realtimeChannel = supabase
+      .channel('fixiva-realtime-sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public' },
+        (payload) => {
+          fetchMarketplaceData();
+          if (userRef.current?.id && payload.table === 'profiles' && payload.new?.id === userRef.current.id) {
+            fetchUserProfile(userRef.current.id, userRef.current.email);
+          }
+        }
+      )
+      .subscribe();
+
     return () => {
       if (subscription) subscription.unsubscribe();
+      if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
   }, [fetchUserProfile, fetchMarketplaceData]);
 
-  const requestOtp = async (identifier, purpose = 'sign-in') => {
+  const requestOtp = async (identifier, purpose = 'sign-in', metadata = null) => {
     if (!supabase) {
       return { success: false, error: new Error('Supabase is not configured.') };
     }
@@ -327,15 +389,36 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    const email = await resolveEmailForAuth(supabase, normalized);
+    let email = await resolveEmailForAuth(supabase, normalized);
+    if (!email && (purpose === 'sign-up' || detectIdentifierKind(normalized) === 'email')) {
+      email = normalizeEmail(normalized);
+    }
+
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
+    }
+
+    if (purpose === 'sign-in' && email !== PRIMARY_ADMIN_EMAIL) {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (!existingProfile) {
+        return { success: false, error: new Error('Account does not exist. Please register first.') };
+      }
+    }
+
+    if (metadata && Object.keys(metadata).length > 0) {
+      pendingRegistrationRef.current = metadata;
     }
 
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
-        shouldCreateUser: true,
+        shouldCreateUser: purpose === 'sign-up',
+        data: metadata || undefined,
       },
     });
 
@@ -346,7 +429,7 @@ export const AuthProvider = ({ children }) => {
     return { success: true, email };
   };
 
-  const verifyOtp = async (identifier, otpCode) => {
+  const verifyOtp = async (identifier, otpCode, purpose = 'sign-in', metadata = null) => {
     const normalized = String(identifier || '').trim();
     if (!supabase) {
       return { success: false, error: new Error('Supabase is not configured.') };
@@ -355,9 +438,17 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    const email = await resolveEmailForAuth(supabase, normalized);
+    let email = await resolveEmailForAuth(supabase, normalized);
+    if (!email && (purpose === 'sign-up' || detectIdentifierKind(normalized) === 'email')) {
+      email = normalizeEmail(normalized);
+    }
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
+    }
+
+    const regData = metadata || pendingRegistrationRef.current;
+    if (regData) {
+      pendingRegistrationRef.current = regData;
     }
 
     setLoading(true);
@@ -381,7 +472,14 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: new Error('Session failure: Unable to create authenticated session.') };
       }
 
-      const profileRow = await fetchUserProfile(authUserId, email);
+      const profileRow = await fetchUserProfile(authUserId, email, regData || data?.user?.user_metadata);
+      if (!profileRow && purpose === 'sign-in') {
+        await supabase.auth.signOut().catch(() => null);
+        setUser(null);
+        setLoading(false);
+        return { success: false, error: new Error('Account does not exist. Please register first.') };
+      }
+
       await fetchMarketplaceData();
 
       setLoading(false);
@@ -391,15 +489,107 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Session failure: ' + (err instanceof Error ? err.message : String(err))) };
     } finally {
       isVerifyingOtpRef.current = false;
+      pendingRegistrationRef.current = null;
     }
   };
 
-  const register = async (email, password, role, extra) => ({ success: true, payload: { email, password, role, extra } });
-  const login = async (email, password) => ({ success: true, payload: { email, password } });
+  const register = async (email, password, role = 'customer', extra = {}) => {
+    if (!supabase) {
+      return { success: false, error: new Error('Supabase client is not configured.') };
+    }
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !password) {
+      return { success: false, error: new Error('Email and password are required.') };
+    }
+
+    const registrationData = {
+      role,
+      name: extra.name || normalizedEmail.split('@')[0],
+      phone: extra.phone || '',
+      city: extra.city || '',
+      state: extra.state || '',
+      locationText: extra.locationText || '',
+      locationLatitude: extra.locationLatitude ?? null,
+      locationLongitude: extra.locationLongitude ?? null,
+      locationSource: extra.locationSource || '',
+      extra: extra.extra || extra,
+    };
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password,
+        options: {
+          data: registrationData,
+        },
+      });
+
+      if (error) {
+        setLoading(false);
+        return { success: false, error };
+      }
+
+      if (data?.user) {
+        const profileRow = await fetchUserProfile(data.user.id, data.user.email, registrationData);
+        await fetchMarketplaceData();
+        setLoading(false);
+        return { success: true, user: data.user, profile: profileRow };
+      }
+
+      setLoading(false);
+      return { success: true, user: null };
+    } catch (err) {
+      setLoading(false);
+      return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  };
+
+  const login = async (email, password) => {
+    if (!supabase) {
+      return { success: false, error: new Error('Supabase client is not configured.') };
+    }
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail || !password) {
+      return { success: false, error: new Error('Email and password are required.') };
+    }
+
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: normalizedEmail,
+        password,
+      });
+
+      if (error) {
+        setLoading(false);
+        return { success: false, error };
+      }
+
+      const profileRow = await fetchUserProfile(data.user.id, data.user.email);
+      if (!profileRow) {
+        await supabase.auth.signOut().catch(() => null);
+        setUser(null);
+        setLoading(false);
+        return { success: false, error: new Error('Account does not exist. Please register first.') };
+      }
+
+      await fetchMarketplaceData();
+      setLoading(false);
+      return { success: true, user: data.user, profile: profileRow };
+    } catch (err) {
+      setLoading(false);
+      return { success: false, error: err instanceof Error ? err : new Error(String(err)) };
+    }
+  };
 
   const logout = async () => {
-    await supabase?.auth?.signOut();
+    if (supabase) {
+      await supabase.auth.signOut().catch(() => null);
+    }
+    pendingRegistrationRef.current = null;
     setUser(null);
+    return { success: true };
   };
 
   const forgotPassword = async () => ({ success: true });
@@ -634,8 +824,7 @@ export const AuthProvider = ({ children }) => {
       return { error };
     }
 
-    const configuredAdmins = getConfiguredAdminList();
-    if (role !== 'admin' && isAdminEmail(profile.email, configuredAdmins.join(','))) {
+    if (role !== 'admin' && normalizeEmail(profile.email) === PRIMARY_ADMIN_EMAIL) {
       const error = new Error('Cannot demote a configured admin email.');
       showToast(error.message, 'error');
       return { error };
@@ -781,6 +970,56 @@ export const AuthProvider = ({ children }) => {
     };
   });
 
+  const updateUserProfile = async (updates) => {
+    if (!supabase || !user?.id) return { error: new Error('Not authenticated') };
+
+    const profileUpdates = {};
+    if (updates.name !== undefined) profileUpdates.name = updates.name;
+    if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
+    if (updates.city !== undefined) profileUpdates.city = updates.city;
+
+    try {
+      if (Object.keys(profileUpdates).length > 0) {
+        const { error: pErr } = await supabase.from('profiles').update(profileUpdates).eq('id', user.id);
+        if (pErr) return { error: pErr };
+      }
+
+      const role = String(user.role || '').toLowerCase();
+      if (role === 'worker') {
+        const workerUpdates = {};
+        if (updates.skills !== undefined) workerUpdates.skills = updates.skills;
+        if (updates.experience !== undefined) workerUpdates.experience = updates.experience;
+        if (updates.whatsapp !== undefined) workerUpdates.whatsapp = updates.whatsapp;
+        if (updates.hourly_rate !== undefined) workerUpdates.hourly_rate = updates.hourly_rate;
+        if (updates.visit_charge !== undefined) workerUpdates.visit_charge = updates.visit_charge;
+        if (updates.city !== undefined) workerUpdates.city = updates.city;
+
+        if (Object.keys(workerUpdates).length > 0) {
+          await supabase.from('workers').update(workerUpdates).eq('id', user.id).catch(() => null);
+        }
+      } else if (role === 'contractor') {
+        const contractorUpdates = {};
+        if (updates.company !== undefined) contractorUpdates.company = updates.company;
+        if (updates.owner_name !== undefined) contractorUpdates.owner_name = updates.owner_name;
+        if (updates.whatsapp !== undefined) contractorUpdates.whatsapp = updates.whatsapp;
+        if (updates.gst !== undefined) contractorUpdates.gst = updates.gst;
+        if (updates.services_offered !== undefined) contractorUpdates.services_offered = updates.services_offered;
+        if (updates.city !== undefined) contractorUpdates.city = updates.city;
+
+        if (Object.keys(contractorUpdates).length > 0) {
+          await supabase.from('contractors').update(contractorUpdates).eq('id', user.id).catch(() => null);
+        }
+      }
+
+      await fetchUserProfile(user.id, user.email);
+      showToast('Profile details updated successfully.', 'success');
+      return { error: null };
+    } catch (err) {
+      showToast('Failed to update profile: ' + (err instanceof Error ? err.message : String(err)), 'error');
+      return { error: err };
+    }
+  };
+
   const value = {
     user,
     loading,
@@ -788,6 +1027,7 @@ export const AuthProvider = ({ children }) => {
     register,
     login,
     logout,
+    updateUserProfile,
     forgotPassword,
     resetPassword,
     requestOtp,
@@ -964,7 +1204,8 @@ export const AuthProvider = ({ children }) => {
     cityControl,
     toggleServiceInCity,
     coverageRequests,
-    refreshData: fetchMarketplaceData
+    refreshData: fetchMarketplaceData,
+    refreshMarketplaceData: fetchMarketplaceData
   };
 
   return (

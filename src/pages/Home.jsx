@@ -33,11 +33,9 @@ const IconMap = {
 
 const Home = () => {
   const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
-  const { banners, offers, reviews: cmsReviews, categories } = useCms();
+  const { reviews: cmsReviews } = useCms();
   const navigate = useNavigate();
 
-  const activeBanners = (banners || []).filter((b) => b.active !== false);
-  const activeOffers = (offers || []).filter((o) => o.active !== false);
   const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
 
   

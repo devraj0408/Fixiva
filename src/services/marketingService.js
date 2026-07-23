@@ -37,7 +37,7 @@ export const createCoupon = async (couponData, actor = {}) => {
   try {
     const { data, error } = await supabase.from('coupons').insert(payload).select().maybeSingle();
 
-    if (error) return { data: { id: `coupon_${Date.now()}`, ...payload }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -60,7 +60,7 @@ export const updateCoupon = async (id, updates, actor = {}) => {
   try {
     const { data, error } = await supabase.from('coupons').update(updates).eq('id', id).select().maybeSingle();
 
-    if (error) return { data: { id, ...updates }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -128,7 +128,7 @@ export const createBroadcastNotification = async (notificationData, actor = {}) 
   try {
     const { data, error } = await supabase.from('notifications').insert(payload).select().maybeSingle();
 
-    if (error) return { data: { id: `notif_${Date.now()}`, ...payload }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,

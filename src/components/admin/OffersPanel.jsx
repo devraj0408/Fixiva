@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Tag, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Tag, Edit2, Trash2 } from 'lucide-react';
 
 const OffersPanel = () => {
   const {

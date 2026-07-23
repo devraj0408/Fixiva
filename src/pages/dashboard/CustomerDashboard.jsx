@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
 import {
@@ -8,19 +8,40 @@ import {
 } from 'lucide-react';
 
 const CustomerDashboard = () => {
-  const { user, bookings, updateBookingStatus, reviews, addReview, tickets, addTicket, logout, showToast, confirm } = useApp();
+  const { user, bookings, updateBookingStatus, reviews, addReview, tickets, addTicket, updateUserProfile, logout, showToast, confirm } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profilePhone, setProfilePhone] = useState(user?.phone || '');
+  const [profileCity, setProfileCity] = useState(user?.city || '');
+  const [profileUpdating, setProfileUpdating] = useState(false);
+
+  const handleProfileSubmit = async (e) => {
+    e.preventDefault();
+    setProfileUpdating(true);
+    await updateUserProfile({
+      name: profileName,
+      phone: profilePhone,
+      city: profileCity,
+    });
+    setProfileUpdating(false);
+  };
+
   const activeTab = tabParam || 'bookings';
   const [reviewingBooking, setReviewingBooking] = useState(null);
-  
-  // Support ticket fields
   const [ticketSubject, setTicketSubject] = useState('');
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketLoading, setTicketLoading] = useState(false);
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  if (user && userRole !== 'customer') {
+    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
+    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
+    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+  }
 
   // Filters
   const myBookings = bookings.filter(b => b.customer_id === user?.id);
@@ -414,24 +435,46 @@ const CustomerDashboard = () => {
                 exit={{ opacity: 0, y: -10 }}
               >
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Customer Profile Settings</h2>
-                <div className="bg-slate-50 border border-slate-100 p-8 rounded-2xl shadow-sm space-y-4 text-xs font-semibold">
+                <form onSubmit={handleProfileSubmit} className="bg-slate-50 border border-slate-100 p-8 rounded-2xl shadow-sm space-y-4 text-xs font-semibold">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Registered Name</label>
-                    <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.name} disabled />
+                    <input
+                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
+                      value={profileName}
+                      onChange={(e) => setProfileName(e.target.value)}
+                      required
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email coordinate</label>
-                    <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.email} disabled />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email Coordinate</label>
+                    <input className="w-full h-11 px-4 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 outline-none" value={user?.email || ''} disabled />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Phone contact</label>
-                    <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.phone || 'Not Set'} disabled />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Phone Contact</label>
+                    <input
+                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
+                      value={profilePhone}
+                      onChange={(e) => setProfilePhone(e.target.value)}
+                      placeholder="Enter mobile number"
+                    />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Default operating city</label>
-                    <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.city || 'Not Set'} disabled />
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operating City</label>
+                    <input
+                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
+                      value={profileCity}
+                      onChange={(e) => setProfileCity(e.target.value)}
+                      placeholder="e.g. Ranchi"
+                    />
                   </div>
-                </div>
+                  <button
+                    type="submit"
+                    disabled={profileUpdating}
+                    className="btn-primary text-xs py-3 px-6 rounded-xl shadow-md w-full"
+                  >
+                    {profileUpdating ? 'Saving Changes...' : 'Save Profile Changes'}
+                  </button>
+                </form>
               </motion.div>
             )}
           </AnimatePresence>

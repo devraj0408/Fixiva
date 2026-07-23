@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
 import {
@@ -61,6 +61,13 @@ const ContractorDashboard = () => {
     };
     fetchCitiesList();
   }, []);
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  if (user && userRole !== 'contractor') {
+    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
+    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
+    return <Navigate to="/dashboard/customer" replace />;
+  }
 
   const updateTeamInDB = async (newTeam) => {
     const { services } = parseServicesAndTeam(user?.services_offered);

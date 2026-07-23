@@ -1,9 +1,8 @@
 import { useMemo } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { IndianRupee, TrendingUp, CheckCircle2, XCircle } from 'lucide-react';
 
 const RevenuePanel = () => {
-  const { bookings, services, workers } = useCms();
+  const { bookings } = useCms();
 
   const metrics = useMemo(() => {
     const totalVolume = bookings.reduce((sum, b) => sum + Number(b.total_price || b.price || 0), 0);

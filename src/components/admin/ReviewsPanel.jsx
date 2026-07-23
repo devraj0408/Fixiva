@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Star, Trash2, CheckCircle2 } from 'lucide-react';
+import { Star, Trash2 } from 'lucide-react';
 
 const ReviewsPanel = () => {
   const { reviews, featureReview, deleteReview, filterItems, paginateItems } = useCms();

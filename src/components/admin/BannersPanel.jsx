@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Image, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Image, Edit2, Trash2 } from 'lucide-react';
 
 const BannersPanel = () => {
   const {

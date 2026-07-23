@@ -1,6 +1,7 @@
+
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Ticket, Plus, Edit2, Trash2 } from 'lucide-react';
+import { Ticket, Edit2, Trash2 } from 'lucide-react';
 
 const CouponsPanel = () => {
   const {

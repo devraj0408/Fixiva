@@ -42,10 +42,7 @@ export const createBanner = async (bannerData, actor = {}) => {
   try {
     const { data, error } = await supabase.from('banners').insert(payload).select().maybeSingle();
 
-    if (error) {
-      // Fallback object if table is not directly writable
-      return { data: { id: `banner_${Date.now()}`, ...payload }, error: null };
-    }
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -68,7 +65,7 @@ export const updateBanner = async (id, updates, actor = {}) => {
   try {
     const { data, error } = await supabase.from('banners').update(updates).eq('id', id).select().maybeSingle();
 
-    if (error) return { data: { id, ...updates }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -141,7 +138,7 @@ export const createOffer = async (offerData, actor = {}) => {
   try {
     const { data, error } = await supabase.from('offers').insert(payload).select().maybeSingle();
 
-    if (error) return { data: { id: `offer_${Date.now()}`, ...payload }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -164,7 +161,7 @@ export const updateOffer = async (id, updates, actor = {}) => {
   try {
     const { data, error } = await supabase.from('offers').update(updates).eq('id', id).select().maybeSingle();
 
-    if (error) return { data: { id, ...updates }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -236,7 +233,7 @@ export const createFaq = async (faqData, actor = {}) => {
   try {
     const { data, error } = await supabase.from('faqs').insert(payload).select().maybeSingle();
 
-    if (error) return { data: { id: `faq_${Date.now()}`, ...payload }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,
@@ -259,7 +256,7 @@ export const updateFaq = async (id, updates, actor = {}) => {
   try {
     const { data, error } = await supabase.from('faqs').update(updates).eq('id', id).select().maybeSingle();
 
-    if (error) return { data: { id, ...updates }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,

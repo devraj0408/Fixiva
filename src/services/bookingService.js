@@ -106,25 +106,8 @@ export const getPayments = async () => {
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data && data.length > 0) {
-      return { data, error: null };
-    }
-
-    // Fallback: derive payments ledger from completed/active bookings
-    const { data: bookings } = await supabase.from('bookings').select('*');
-    const derivedPayments = (bookings || []).map((b) => ({
-      id: `pay_${b.id}`,
-      booking_id: b.id,
-      customer_name: b.customer_name || 'Customer',
-      service_name: b.service_name || 'Home Service',
-      amount: Number(b.total_price || b.price || 0) + Number(b.platform_fee || 0),
-      payment_method: 'Cash on Service',
-      status: b.status === 'Completed' ? 'Paid' : b.status === 'Cancelled' ? 'Refunded' : 'Pending',
-      transaction_id: `TXN_${b.id.slice(0, 8).toUpperCase()}`,
-      created_at: b.created_at || new Date().toISOString(),
-    }));
-
-    return { data: derivedPayments, error: null };
+    if (error) return { data: [], error: error.message };
+    return { data: data || [], error: null };
   } catch (err) {
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
@@ -141,7 +124,7 @@ export const updatePaymentStatus = async (id, status, actor = {}) => {
       .select()
       .maybeSingle();
 
-    if (error) return { data: { id, status }, error: null };
+    if (error) return { data: null, error: error.message };
 
     await logAdminAction({
       actorId: actor.id,

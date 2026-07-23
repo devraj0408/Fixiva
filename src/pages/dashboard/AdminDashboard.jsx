@@ -1,5 +1,5 @@
 import React, { useMemo, Suspense } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { Briefcase, CheckCircle, Clock, FileText, MessageCircle, ShieldCheck, Users } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import AdminShell from '../../components/admin/AdminShell';
@@ -77,6 +77,13 @@ const AdminDashboard = () => {
       .sort((a, b) => new Date(b.booking_date || b.preferred_date || 0) - new Date(a.booking_date || a.preferred_date || 0))
       .slice(0, 5);
   }, [bookings]);
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  if (user && userRole !== 'admin') {
+    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
+    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+    return <Navigate to="/dashboard/customer" replace />;
+  }
 
   const handleTabChange = (nextTab) => {
     navigate(`${location.pathname}?tab=${nextTab}`);

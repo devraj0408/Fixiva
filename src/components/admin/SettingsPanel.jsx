@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Settings, ShieldCheck, ToggleLeft, Save } from 'lucide-react';
 
 const SettingsPanel = () => {
-  const { settings, updateSettings, showToast } = useCms();
+  const { settings, updateSettings } = useCms();
   const [form, setForm] = useState(settings || {});
 
   const handleToggle = (key) => {

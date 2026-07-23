@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { HelpCircle, Plus, Edit2, Trash2 } from 'lucide-react';
+import { HelpCircle, Edit2, Trash2 } from 'lucide-react';
 
 const FaqsPanel = () => {
   const {

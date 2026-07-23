@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Briefcase, ShieldCheck, Star } from 'lucide-react';
+
 
 const WorkersPanel = () => {
   const { workers, updateWorkerVerification, filterItems, paginateItems } = useCms();

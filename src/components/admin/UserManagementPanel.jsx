@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Users, Shield, Lock } from 'lucide-react';
+
 
 const UserManagementPanel = () => {
   const { customers, updateCustomerStatus, filterItems, paginateItems } = useCms();

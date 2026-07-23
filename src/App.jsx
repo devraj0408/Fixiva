@@ -82,6 +82,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   return children;
 };
 
+const RoleBasedDashboardRedirect = () => {
+  const { user } = useAuth();
+  const role = String(user?.role || '').trim().toLowerCase();
+  if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
+  if (role === 'worker') return <Navigate to="/worker-dashboard" replace />;
+  if (role === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+  return <Navigate to="/dashboard/customer" replace />;
+};
+
 function AppShell() {
   return (
     <Router basename={routerBasename}>
@@ -103,7 +112,7 @@ function AppShell() {
               <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
               <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
               <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><RoleBasedDashboardRedirect /></ProtectedRoute>} />
               <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
               <Route path="/help" element={<HelpCenter />} />
               <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
@@ -112,6 +121,7 @@ function AppShell() {
               <Route path="/privacy" element={<PrivacyPolicy />} />
               <Route path="/refund" element={<RefundPolicy />} />
               <Route path="/cancellation" element={<RefundPolicy />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
         </main>

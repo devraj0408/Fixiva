@@ -1,5 +1,8 @@
+// src/context/CmsContext.jsx
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from '../lib/supabaseClient';
 import * as catalogService from '../services/catalogService';
 import * as locationService from '../services/locationService';
 import * as contentService from '../services/contentService';
@@ -12,7 +15,7 @@ import { filterItems, paginateItems, sortItems } from '../services/commonService
 const CmsContext = createContext();
 
 export const CmsProvider = ({ children }) => {
-  const { user, showToast } = useAuth();
+  const { user, showToast, refreshData: refreshMarketplaceData } = useAuth();
 
   // Phase 1 State Cache
   const [services, setServices] = useState([]);
@@ -52,6 +55,9 @@ export const CmsProvider = ({ children }) => {
   const refreshCmsData = useCallback(async () => {
     setLoading(true);
     setError(null);
+    if (typeof refreshMarketplaceData === 'function') {
+      refreshMarketplaceData().catch(() => null);
+    }
 
     try {
       const [
@@ -104,10 +110,26 @@ export const CmsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [refreshMarketplaceData]);
 
   useEffect(() => {
-    refreshCmsData();
+    let isMounted = true;
+    Promise.resolve().then(() => {
+      if (isMounted) refreshCmsData();
+    });
+
+    if (!supabase) return () => { isMounted = false; };
+    const cmsRealtimeChannel = supabase
+      .channel('fixiva-cms-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        if (isMounted) refreshCmsData();
+      })
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(cmsRealtimeChannel);
+    };
   }, [refreshCmsData]);
 
   // Phase 1 Action Handlers

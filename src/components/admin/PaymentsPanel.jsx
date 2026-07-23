@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { IndianRupee, RefreshCw, CheckCircle2, RotateCcw } from 'lucide-react';
+
 
 const PaymentsPanel = () => {
   const { payments, updatePaymentStatus, filterItems, paginateItems } = useCms();

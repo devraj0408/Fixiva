@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { FileText, Download, TrendingUp } from 'lucide-react';
+import { Download } from 'lucide-react';
 
 const ReportsPanel = () => {
-  const { bookings, customers, workers, contractors, reviews, faqs, showToast } = useCms();
+  const { bookings, customers, workers, reviews, showToast } = useCms();
   const [reportType, setReportType] = useState('bookings');
 
   const exportCsv = () => {

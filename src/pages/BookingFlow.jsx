@@ -1,6 +1,6 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 import { Fragment, useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Calendar, CheckSquare, ArrowRight,
@@ -14,6 +14,7 @@ const BookingFlow = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { services, addBooking, user, isAuthenticated, showToast, cityControl, submitCoverageRequest, cities = [] } = useApp();
+
   const [coverageEmail, setCoverageEmail] = useState('');
   const [isSubmittingCoverage, setIsSubmittingCoverage] = useState(false);
   const [isCoverageSubmitted, setIsCoverageSubmitted] = useState(false);
@@ -69,6 +70,13 @@ const BookingFlow = () => {
   }, [user]);
 
   const [errors, setErrors] = useState({});
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  if (isAuthenticated && user && userRole !== 'customer') {
+    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
+    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
+    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+  }
 
   const selectedService = services.find(s => s.id === formData.service);
   const basePrice = selectedService?.base_price || selectedService?.inspection_fee || 0;

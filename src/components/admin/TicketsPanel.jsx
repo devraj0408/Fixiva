@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { MessageCircle, CheckCircle2, Send } from 'lucide-react';
+import { MessageCircle, Send } from 'lucide-react';
 
 const TicketsPanel = () => {
   const { tickets, updateTicketStatus, filterItems, paginateItems, showToast } = useCms();

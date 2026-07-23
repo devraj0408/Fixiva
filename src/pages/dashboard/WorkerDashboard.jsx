@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
 import {
@@ -8,7 +8,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 
 const WorkerDashboard = () => {
-  const { user, bookings, updateBookingStatus, refreshData, tickets, addTicket, logout, showToast, confirm } = useApp();
+  const { user, bookings, updateBookingStatus, refreshData, tickets, addTicket, updateUserProfile, logout, showToast, confirm } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -27,6 +27,13 @@ const WorkerDashboard = () => {
   const [hourlyRate, setHourlyRate] = useState(user?.hourly_rate || '');
   const [visitCharge, setVisitCharge] = useState(user?.visit_charge || '');
   const [profileLoading, setProfileLoading] = useState(false);
+
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  if (user && userRole !== 'worker') {
+    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
+    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+    return <Navigate to="/dashboard/customer" replace />;
+  }
 
   // Filter jobs
   const myJobs = bookings.filter(b => b.worker_id === user?.id);
@@ -96,13 +103,13 @@ const WorkerDashboard = () => {
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileLoading(true);
-    const { error } = await supabase.from('workers').update({
+    const { error } = await updateUserProfile({
       skills,
       experience,
       whatsapp,
       hourly_rate: Number(hourlyRate) || 0,
       visit_charge: Number(visitCharge) || 0
-    }).eq('id', user.id);
+    });
     setProfileLoading(false);
     if (!error) {
       showToast('Profile details updated successfully!', 'success');

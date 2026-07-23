@@ -12,12 +12,28 @@ const Register = () => {
   const initialRole = queryParams.get('role') || 'customer';
   const [role, setRole] = useState(initialRole === 'worker' || initialRole === 'contractor' ? initialRole : 'customer');
 
-  const { requestOtp, verifyOtp, showToast } = useApp();
+  const { requestOtp, verifyOtp, showToast, user, isAuthenticated } = useApp();
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoMessage, setGeoMessage] = useState('');
+
+  // Auto-redirect if user is already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const activeRole = String(user.role || '').trim().toLowerCase();
+      if (activeRole === 'admin') {
+        navigate('/dashboard/admin', { replace: true });
+      } else if (activeRole === 'worker') {
+        navigate('/worker-dashboard', { replace: true });
+      } else if (activeRole === 'contractor') {
+        navigate('/contractor-dashboard', { replace: true });
+      } else {
+        navigate('/dashboard/customer', { replace: true });
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
 
   // OTP inputs references and states
   const otpRefs = useRef([]);
@@ -118,6 +134,11 @@ const Register = () => {
       phone: formData.phone,
       role,
       city: formData.city,
+      state: formData.state,
+      locationText: formData.locationText,
+      locationLatitude: formData.locationLatitude,
+      locationLongitude: formData.locationLongitude,
+      locationSource: formData.locationSource,
       extra: {
         skills: formData.skills,
         experience: formData.experience,
@@ -158,6 +179,11 @@ const Register = () => {
       phone: formData.phone,
       role,
       city: formData.city,
+      state: formData.state,
+      locationText: formData.locationText,
+      locationLatitude: formData.locationLatitude,
+      locationLongitude: formData.locationLongitude,
+      locationSource: formData.locationSource,
       extra: {
         skills: formData.skills,
         experience: formData.experience,
@@ -197,11 +223,16 @@ const Register = () => {
     setLoading(true);
     setAttempts(prev => prev + 1);
     
-    const { success, error } = await verifyOtp(formData.email, otp, 'sign-up', {
+    const registrationPayload = {
       name: formData.name,
       phone: formData.phone,
       role,
       city: formData.city,
+      state: formData.state,
+      locationText: formData.locationText,
+      locationLatitude: formData.locationLatitude,
+      locationLongitude: formData.locationLongitude,
+      locationSource: formData.locationSource,
       extra: {
         skills: formData.skills,
         experience: formData.experience,
@@ -212,7 +243,9 @@ const Register = () => {
         gst: formData.gst,
         services_offered: formData.services_offered,
       },
-    });
+    };
+
+    const { success, error, profile } = await verifyOtp(formData.email, otp, 'sign-up', registrationPayload);
     setLoading(false);
 
     if (!success) {
@@ -231,12 +264,15 @@ const Register = () => {
 
     showToast('Registration Successful', 'success');
 
-    if (role === 'worker') {
+    const activeRole = String(profile?.role || role || '').trim().toLowerCase();
+    if (activeRole === 'admin') {
+      navigate('/dashboard/admin');
+    } else if (activeRole === 'worker') {
       navigate('/worker-dashboard');
-    } else if (role === 'contractor') {
+    } else if (activeRole === 'contractor') {
       navigate('/contractor-dashboard');
     } else {
-      navigate('/dashboard');
+      navigate('/dashboard/customer');
     }
   };
 

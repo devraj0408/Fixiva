@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle } from 'lucide-react';
 
 const VerificationPanel = () => {
   const { workers, updateWorkerVerification, filterItems, paginateItems } = useCms();

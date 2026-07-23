@@ -3,7 +3,7 @@ import { useCms } from '../../context/CmsContext';
 import { Tag, Save } from 'lucide-react';
 
 const PricingPanel = () => {
-  const { services, updateService, showToast } = useCms();
+  const { services, updateService } = useCms();
   const [editingId, setEditingId] = useState(null);
   const [basePrice, setBasePrice] = useState(0);
   const [platformFee, setPlatformFee] = useState(0);
