@@ -193,7 +193,7 @@ const CustomerDashboard = () => {
         </aside>
 
         {/* Main Workspace content */}
-        <main className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[500px]">
+        <main id="dashboard-main-content" className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[500px]">
           <AnimatePresence mode="wait">
             {activeTab === 'bookings' && (
               <motion.div 

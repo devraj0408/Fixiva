@@ -18,7 +18,7 @@ const CoveragePanel = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [editingCity, setEditingCity] = useState(null);
-  const [form, setForm] = useState({ name: '', region: '', status: 'Live' });
+  const [form, setForm] = useState({ name: '', region: '', status: 'Live', display_order: 0 });
 
   const filteredCities = filterItems(cities, search, ['name', 'region', 'status']);
   const paginatedCities = paginateItems(filteredCities, page, 8);
@@ -33,14 +33,19 @@ const CoveragePanel = () => {
       return;
     }
 
+    const payload = {
+      ...form,
+      display_order: Number.isFinite(Number(form.display_order)) ? Number(form.display_order) : 0,
+    };
+
     if (editingCity) {
-      await updateCity(editingCity.id, form);
+      await updateCity(editingCity.id, payload);
       setEditingCity(null);
     } else {
-      await createCity(form);
+      await createCity(payload);
     }
 
-    setForm({ name: '', region: '', status: 'Live' });
+    setForm({ name: '', region: '', status: 'Live', display_order: 0 });
   };
 
   const handleEditCity = (city) => {
@@ -49,6 +54,7 @@ const CoveragePanel = () => {
       name: city.name || '',
       region: city.region || '',
       status: city.status || 'Live',
+      display_order: city.display_order || 0,
     });
   };
 

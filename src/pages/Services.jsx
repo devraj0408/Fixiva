@@ -8,6 +8,7 @@ import {
   ArrowRight, Star, Filter, RotateCcw
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { scrollToFeatureContent } from '../components/ScrollToTop';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const IconMap = {
@@ -143,7 +144,7 @@ const Services = () => {
       </section>
 
       {/* Catalog Workspace */}
-      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+      <div id="feature-content" className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Left Sidebar Filters */}
@@ -227,7 +228,10 @@ const Services = () => {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setActiveCategory(cat)}
+                    onClick={() => {
+                      setActiveCategory(cat);
+                      scrollToFeatureContent();
+                    }}
                     className={`px-4 py-2.5 rounded-xl text-xs capitalize transition-all ${
                       activeCategory === cat 
                         ? 'btn-primary shadow-md' 

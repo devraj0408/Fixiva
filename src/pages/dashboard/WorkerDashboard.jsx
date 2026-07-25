@@ -211,7 +211,7 @@ const WorkerDashboard = () => {
         </aside>
 
         {/* Main Workspace content */}
-        <main className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[550px] space-y-6">
+        <main id="dashboard-main-content" className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[550px] space-y-6">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
             <h2 className="text-xl font-black text-slate-900 tracking-tight">Professional Workspace</h2>
             <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${

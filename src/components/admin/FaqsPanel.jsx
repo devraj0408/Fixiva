@@ -19,7 +19,7 @@ const FaqsPanel = () => {
   const [form, setForm] = useState({
     question: '',
     answer: '',
-    category: 'General',
+    category: 'GENERAL',
     display_order: 0,
     active: true,
   });
@@ -34,14 +34,19 @@ const FaqsPanel = () => {
       return;
     }
 
+    const payload = {
+      ...form,
+      category: form.category ? form.category.toUpperCase() : 'GENERAL',
+    };
+
     if (editingFaq) {
-      await updateFaq(editingFaq.id, form);
+      await updateFaq(editingFaq.id, payload);
       setEditingFaq(null);
     } else {
-      await createFaq(form);
+      await createFaq(payload);
     }
 
-    setForm({ question: '', answer: '', category: 'General', display_order: 0, active: true });
+    setForm({ question: '', answer: '', category: 'GENERAL', display_order: 0, active: true });
   };
 
   const handleEdit = (faq) => {
@@ -49,7 +54,7 @@ const FaqsPanel = () => {
     setForm({
       question: faq.question || '',
       answer: faq.answer || '',
-      category: faq.category || 'General',
+      category: faq.category || 'GENERAL',
       display_order: faq.display_order || 0,
       active: faq.active !== false,
     });
@@ -148,13 +153,16 @@ const FaqsPanel = () => {
 
           <div>
             <label className="text-xs font-bold text-slate-600">Category</label>
-            <input
-              type="text"
+            <select
               value={form.category}
               onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder="e.g. Payments, Booking, Safety"
-              className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold"
-            />
+              className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
+            >
+              <option value="GENERAL">General</option>
+              <option value="ACCOUNT">Account</option>
+              <option value="BOOKINGS">Bookings</option>
+              <option value="PAYMENTS">Payments</option>
+            </select>
           </div>
 
           <div className="flex items-center justify-between pt-2">

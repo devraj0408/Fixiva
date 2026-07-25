@@ -8,6 +8,8 @@ import { ToastProvider } from './context/ToastContext';
 import { getRouterBasename } from './lib/routePaths';
 
 
+import ScrollToTop from './components/ScrollToTop';
+
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
 const BookingFlow = React.lazy(() => import('./pages/BookingFlow'));
@@ -94,6 +96,7 @@ const RoleBasedDashboardRedirect = () => {
 function AppShell() {
   return (
     <Router basename={routerBasename}>
+      <ScrollToTop />
       <div className="app-container">
         <Navbar />
         <main className="content">

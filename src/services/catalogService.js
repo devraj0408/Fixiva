@@ -29,35 +29,91 @@ export const getServices = async () => {
 export const createService = async (serviceData, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
-  const id = serviceData.id || serviceData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const payload = {
-    id,
-    name: serviceData.name,
-    category: serviceData.category || 'General',
-    description: serviceData.description || '',
-    icon: serviceData.icon || 'wrench',
-    base_price: Number(serviceData.base_price || 0),
-    platform_fee: Number(serviceData.platform_fee || 0),
-    inspection_fee: Number(serviceData.inspection_fee || 0),
-    active: serviceData.active !== false,
-  };
-
   try {
-    const { data, error } = await supabase.from('services').insert(payload).select().maybeSingle();
+    const slugId = serviceData.id || String(serviceData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service-' + Date.now();
+    const normalizedCategory = serviceData.category && String(serviceData.category).trim()
+      ? String(serviceData.category).trim()
+      : (serviceData.category_id ? String(serviceData.category_id).trim() : 'General');
 
-    if (error) return { data: null, error: error.message };
+    const fullPayload = {
+      id: slugId,
+      name: String(serviceData.name || '').trim(),
+      category: normalizedCategory,
+      category_id: serviceData.category_id || null,
+      description: String(serviceData.description || '').trim(),
+      icon: String(serviceData.icon || '').trim() || 'wrench',
+      base_price: Number.isFinite(Number(serviceData.base_price)) ? Number(serviceData.base_price) : 0,
+      platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
+      inspection_fee: Number.isFinite(Number(serviceData.inspection_fee)) ? Number(serviceData.inspection_fee) : 0,
+      active: serviceData.active === true || serviceData.active === 'true' || serviceData.active === 1 || serviceData.active === '1',
+    };
+
+    // Attempt 1: Full payload insert
+    let { data, error } = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+
+    // Attempt 2: If 'category_id' column is missing from schema
+    if (error && error.message && error.message.includes('category_id')) {
+      console.warn('createService: category_id column missing, retrying without category_id:', error.message);
+      delete fullPayload.category_id;
+      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Attempt 3: If 'category' column is missing from schema
+    if (error && error.message && (error.message.includes("'category'") || error.message.includes('column "category"'))) {
+      console.warn('createService: category column missing, retrying without category:', error.message);
+      delete fullPayload.category;
+      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Attempt 4: If invalid input syntax for type (e.g. PK is integer or UUID)
+    if (error && error.message && error.message.includes('invalid input syntax')) {
+      console.warn('createService: ID type mismatch, retrying without explicit id field:', error.message);
+      const payloadNoId = { ...fullPayload };
+      delete payloadNoId.id;
+      const retry = await supabase.from('services').insert(payloadNoId).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    // Attempt 5: Minimal payload fallback if other column schema mismatches exist
+    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
+      console.warn('createService: column mismatch, retrying clean minimal payload:', error.message);
+      const cleanPayload = {
+        name: String(serviceData.name || '').trim(),
+        base_price: Number.isFinite(Number(serviceData.base_price)) ? Number(serviceData.base_price) : 0,
+        platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
+        active: serviceData.active !== false,
+      };
+      const retryMinimal = await supabase.from('services').insert(cleanPayload).select().maybeSingle();
+      if (!retryMinimal.error) {
+        data = retryMinimal.data;
+        error = null;
+      } else {
+        error = retryMinimal.error;
+      }
+    }
+
+    if (error) {
+      console.error('createService DB error final:', error);
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
       actorEmail: actor.email,
       action: 'create',
       objectType: 'service',
-      objectId: id,
+      objectId: data?.id || slugId,
       payload: serviceData,
     });
 
-    return { data: data || payload, error: null };
+    return { data: data || fullPayload, error: null };
   } catch (err) {
+    console.error('createService exception:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -66,14 +122,32 @@ export const updateService = async (id, updates, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
-    const { data, error } = await supabase
+    const cleanUpdates = { ...updates };
+    let { data, error } = await supabase
       .from('services')
-      .update(updates)
+      .update(cleanUpdates)
       .eq('id', id)
       .select()
       .maybeSingle();
 
-    if (error) return { data: null, error: error.message };
+    if (error && error.message && (error.message.includes('category_id') || error.message.includes("'category'"))) {
+      delete cleanUpdates.category_id;
+      delete cleanUpdates.category;
+      const retry = await supabase.from('services').update(cleanUpdates).eq('id', id).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error && error.message && error.message.includes('invalid input syntax') && !isNaN(Number(id))) {
+      const retry = await supabase.from('services').update(cleanUpdates).eq('id', Number(id)).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('updateService DB error:', error);
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
@@ -86,6 +160,7 @@ export const updateService = async (id, updates, actor = {}) => {
 
     return { data, error: null };
   } catch (err) {
+    console.error('updateService exception:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -139,6 +214,7 @@ export const deleteService = async (id, actor = {}) => {
 
     return { success: true, error: null, deleteType, message };
   } catch (err) {
+    console.error('deleteService exception:', err);
     return { success: false, error: err instanceof Error ? err.message : String(err), deleteType: null, message: null };
   }
 };
@@ -159,6 +235,7 @@ export const getCategories = async () => {
     if (error) return { data: [], error: error.message };
     return { data: data || [], error: null };
   } catch (err) {
+    console.error('getCategories exception:', err);
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -166,32 +243,85 @@ export const getCategories = async () => {
 export const createCategory = async (categoryData, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
-  const id = categoryData.id || categoryData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-  const payload = {
-    id,
-    name: categoryData.name,
-    icon: categoryData.icon || 'tag',
-    description: categoryData.description || '',
-    display_order: Number(categoryData.display_order || 0),
-    active: categoryData.active !== false,
-  };
-
   try {
-    const { data, error } = await supabase.from('categories').insert(payload).select().maybeSingle();
+    const rawIcon = categoryData.icon !== undefined && categoryData.icon !== null ? String(categoryData.icon).trim() : null;
+    const iconValue = rawIcon && rawIcon !== 'tag' && rawIcon !== '' ? rawIcon : null;
 
-    if (error) return { data: null, error: error.message };
+    const parsedOrder = parseInt(categoryData.display_order, 10);
+    const display_order = isNaN(parsedOrder) ? 0 : parsedOrder;
+    const active = Boolean(categoryData.active === true || categoryData.active === 'true' || categoryData.active === 1 || categoryData.active === '1');
+
+    const slugId = String(categoryData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'category-' + Date.now();
+
+    const payloadWithSlug = {
+      id: categoryData.id || slugId,
+      name: String(categoryData.name || '').trim(),
+      icon: iconValue,
+      description: String(categoryData.description || '').trim(),
+      display_order,
+      active,
+    };
+
+    const payloadWithoutId = {
+      name: String(categoryData.name || '').trim(),
+      icon: iconValue,
+      description: String(categoryData.description || '').trim(),
+      display_order,
+      active,
+    };
+
+    // Attempt 1: Try inserting with custom slug ID
+    let { data, error } = await supabase.from('categories').insert(payloadWithSlug).select().maybeSingle();
+
+    // Attempt 2: If invalid input syntax for type (e.g. DB uses integer/serial or UUID PK), retry without explicit id field
+    if (error && error.message && error.message.includes('invalid input syntax')) {
+      console.warn('createCategory slug ID type mismatch, retrying without id field:', error.message);
+      const retryRes = await supabase.from('categories').insert(payloadWithoutId).select().maybeSingle();
+      if (!retryRes.error) {
+        data = retryRes.data;
+        error = null;
+      } else {
+        error = retryRes.error;
+      }
+    }
+
+    // Attempt 3: Fallback for missing column schema errors
+    if (error && error.message && (error.message.includes('display_order') || error.message.includes('icon') || error.message.includes('active'))) {
+      console.warn('createCategory column mismatch, retrying minimal payload:', error.message);
+      const minimalPayload = {
+        name: String(categoryData.name || '').trim(),
+        description: String(categoryData.description || '').trim(),
+      };
+      if (!error.message.includes('icon')) minimalPayload.icon = iconValue;
+      if (!error.message.includes('display_order')) minimalPayload.display_order = display_order;
+      if (!error.message.includes('active')) minimalPayload.active = active;
+
+      const retryMinimal = await supabase.from('categories').insert(minimalPayload).select().maybeSingle();
+      if (!retryMinimal.error) {
+        data = retryMinimal.data;
+        error = null;
+      } else {
+        error = retryMinimal.error;
+      }
+    }
+
+    if (error) {
+      console.error('createCategory DB error:', error);
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
       actorEmail: actor.email,
       action: 'create',
       objectType: 'category',
-      objectId: id,
+      objectId: data?.id || payloadWithSlug.id,
       payload: categoryData,
     });
 
-    return { data: data || payload, error: null };
+    return { data: data || payloadWithSlug, error: null };
   } catch (err) {
+    console.error('createCategory exception:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -200,9 +330,26 @@ export const updateCategory = async (id, updates, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
-    const { data, error } = await supabase.from('categories').update(updates).eq('id', id).select().maybeSingle();
+    const cleanUpdates = { ...updates };
+    if (cleanUpdates.icon === 'tag' || cleanUpdates.icon === '') cleanUpdates.icon = null;
+    if (cleanUpdates.display_order !== undefined) {
+      const order = parseInt(cleanUpdates.display_order, 10);
+      cleanUpdates.display_order = isNaN(order) ? 0 : order;
+    }
 
-    if (error) return { data: null, error: error.message };
+    let { data, error } = await supabase.from('categories').update(cleanUpdates).eq('id', id).select().maybeSingle();
+
+    if (error && error.message && error.message.includes('invalid input syntax') && !isNaN(Number(id))) {
+      const numId = Number(id);
+      const retry = await supabase.from('categories').update(cleanUpdates).eq('id', numId).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (error) {
+      console.error('updateCategory DB error:', error);
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
@@ -215,6 +362,7 @@ export const updateCategory = async (id, updates, actor = {}) => {
 
     return { data, error: null };
   } catch (err) {
+    console.error('updateCategory exception:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };

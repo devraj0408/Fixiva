@@ -179,9 +179,40 @@ export const CmsProvider = ({ children }) => {
   const handleUpdateFaq = async (id, updates) => { const res = await contentService.updateFaq(id, updates, actor); if (!res.error) { showToast('FAQ updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleDeleteFaq = async (id) => { const res = await contentService.deleteFaq(id, actor); if (res.success) { showToast('FAQ deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
 
-  const handleCreateCoupon = async (data) => { const res = await marketingService.createCoupon(data, actor); if (!res.error) { showToast('Coupon created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateCoupon = async (id, updates) => { const res = await marketingService.updateCoupon(id, updates, actor); if (!res.error) { showToast('Coupon updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteCoupon = async (id) => { const res = await marketingService.deleteCoupon(id, actor); if (res.success) { showToast('Coupon deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateCoupon = async (data) => {
+    const res = await marketingService.createCoupon(data, actor);
+    if (res.data) {
+      setCoupons((prev) => {
+        const filtered = prev.filter((c) => c.code !== res.data.code && c.id !== res.data.id);
+        return [res.data, ...filtered];
+      });
+      showToast('Coupon created successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast(res.error || 'Failed to create coupon', 'error');
+    }
+    return res;
+  };
+
+  const handleUpdateCoupon = async (id, updates) => {
+    const res = await marketingService.updateCoupon(id, updates, actor);
+    if (res.data) {
+      setCoupons((prev) => prev.map((c) => (c.id === id ? { ...c, ...res.data } : c)));
+      showToast('Coupon updated successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast(res.error || 'Failed to update coupon', 'error');
+    }
+    return res;
+  };
+
+  const handleDeleteCoupon = async (id) => {
+    const res = await marketingService.deleteCoupon(id, actor);
+    setCoupons((prev) => prev.filter((c) => c.id !== id));
+    showToast('Coupon deleted successfully.', 'success');
+    await refreshCmsData();
+    return res;
+  };
 
   const handleCreateBroadcastNotification = async (data) => { const res = await marketingService.createBroadcastNotification(data, actor); if (!res.error) { showToast('Notification dispatched.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleDeleteNotification = async (id) => { const res = await marketingService.deleteNotification(id, actor); if (res.success) { showToast('Notification deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };

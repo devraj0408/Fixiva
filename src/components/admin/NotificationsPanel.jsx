@@ -14,7 +14,7 @@ const NotificationsPanel = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [form, setForm] = useState({ title: '', message: '', target_role: 'all' });
+  const [form, setForm] = useState({ title: '', message: '', target_role: 'ALL' });
 
   const filtered = filterItems(notifications, search, ['title', 'message', 'target_role']);
   const paginated = paginateItems(filtered, page, 6);
@@ -26,8 +26,11 @@ const NotificationsPanel = () => {
       return;
     }
 
-    await createBroadcastNotification(form);
-    setForm({ title: '', message: '', target_role: 'all' });
+    await createBroadcastNotification({
+      ...form,
+      target_role: form.target_role ? form.target_role.toUpperCase() : 'ALL',
+    });
+    setForm({ title: '', message: '', target_role: 'ALL' });
   };
 
   return (
@@ -102,10 +105,10 @@ const NotificationsPanel = () => {
               onChange={(e) => setForm({ ...form, target_role: e.target.value })}
               className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
             >
-              <option value="all">All Users (Customers, Workers, Contractors)</option>
-              <option value="customer">Customers Only</option>
-              <option value="worker">Workers Only</option>
-              <option value="contractor">Contractors Only</option>
+              <option value="ALL">All Users (Customers, Workers, Contractors)</option>
+              <option value="CUSTOMER">Customers Only</option>
+              <option value="WORKER">Workers Only</option>
+              <option value="CONTRACTOR">Contractors Only</option>
             </select>
           </div>
 

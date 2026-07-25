@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { scrollToFeatureContent } from '../ScrollToTop';
 import {
   BarChart3,
   Briefcase,
@@ -73,7 +74,10 @@ const AdminShell = ({ user, activeTab, onTabChange, onLogout, children }) => {
               return (
                 <button
                   key={id}
-                  onClick={() => onTabChange(id)}
+                  onClick={() => {
+                    onTabChange(id);
+                    scrollToFeatureContent();
+                  }}
                   className={`flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all ${
                     isActive ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
                   }`}
@@ -96,7 +100,7 @@ const AdminShell = ({ user, activeTab, onTabChange, onLogout, children }) => {
           </button>
         </aside>
 
-        <main className="lg:col-span-9 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm min-h-[600px]">
+        <main id="admin-panel-content" className="lg:col-span-9 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm min-h-[600px]">
           {children}
         </main>
       </div>

@@ -23,6 +23,7 @@ const ServicesPanel = () => {
   const [form, setForm] = useState({
     name: '',
     category: '',
+    category_id: '',
     description: '',
     base_price: '',
     platform_fee: '',
@@ -62,16 +63,24 @@ const ServicesPanel = () => {
       return;
     }
 
+    const selectedCategory = categories.find((cat) => String(cat.id) === String(form.category_id));
+    const payload = {
+      ...form,
+      category: selectedCategory?.name || form.category || 'General',
+      category_id: selectedCategory?.id || form.category_id || null,
+    };
+
     if (editingService) {
-      await updateService(editingService.id, form);
+      await updateService(editingService.id, payload);
       setEditingService(null);
     } else {
-      await createService(form);
+      await createService(payload);
     }
 
     setForm({
       name: '',
       category: '',
+      category_id: '',
       description: '',
       base_price: '',
       platform_fee: '',
@@ -82,10 +91,12 @@ const ServicesPanel = () => {
   };
 
   const handleEdit = (service) => {
+    const matchingCategory = categories.find((cat) => String(cat.name).toLowerCase() === String(service.category || '').toLowerCase());
     setEditingService(service);
     setForm({
       name: service.name || '',
       category: service.category || '',
+      category_id: matchingCategory?.id || '',
       description: service.description || '',
       base_price: service.base_price || 0,
       platform_fee: service.platform_fee || 0,
@@ -237,13 +248,26 @@ const ServicesPanel = () => {
 
           <div>
             <label className="text-xs font-bold text-slate-600">Category</label>
-            <input
-              type="text"
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
-              placeholder="e.g. Home Services"
-              className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold"
-            />
+            <select
+              value={form.category_id || (categories.find((cat) => String(cat.name).toLowerCase() === String(form.category).toLowerCase())?.id || '')}
+              onChange={(e) => {
+                const selectedVal = e.target.value;
+                const selected = categories.find((cat) => String(cat.id) === String(selectedVal) || cat.name === selectedVal);
+                setForm({
+                  ...form,
+                  category_id: selected?.id || selectedVal,
+                  category: selected?.name || selectedVal || '',
+                });
+              }}
+              className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
+            >
+              <option value="">Select category</option>
+              {categories.map((cat) => (
+                <option key={cat.id || cat.name} value={cat.id || cat.name}>
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -311,6 +335,7 @@ const ServicesPanel = () => {
                     setForm({
                       name: '',
                       category: '',
+                      category_id: '',
                       description: '',
                       base_price: '',
                       platform_fee: '',

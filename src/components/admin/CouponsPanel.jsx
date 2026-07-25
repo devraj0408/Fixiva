@@ -36,14 +36,25 @@ const CouponsPanel = () => {
       return;
     }
 
+    const payload = {
+      ...form,
+      code: form.code.trim().toUpperCase(),
+      discount_value: Number(form.discount_value || 0),
+      min_order_amount: Number(form.min_order_amount || 0),
+      max_discount: form.max_discount !== '' && form.max_discount !== null ? Number(form.max_discount) : (form.discount_type === 'flat' ? Number(form.discount_value || 0) : 0),
+    };
+
+    let res;
     if (editingCoupon) {
-      await updateCoupon(editingCoupon.id, form);
-      setEditingCoupon(null);
+      res = await updateCoupon(editingCoupon.id, payload);
+      if (res && res.data) setEditingCoupon(null);
     } else {
-      await createCoupon(form);
+      res = await createCoupon(payload);
     }
 
-    setForm({ code: '', discount_value: '', discount_type: 'flat', min_order_amount: '', max_discount: '', active: true });
+    if (res && res.data) {
+      setForm({ code: '', discount_value: '', discount_type: 'flat', min_order_amount: '', max_discount: '', active: true });
+    }
   };
 
   const handleEdit = (coupon) => {
@@ -180,6 +191,17 @@ const CouponsPanel = () => {
               value={form.min_order_amount}
               onChange={(e) => setForm({ ...form, min_order_amount: e.target.value })}
               placeholder="499"
+              className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-600">Max Discount Amount (₹)</label>
+            <input
+              type="number"
+              value={form.max_discount}
+              onChange={(e) => setForm({ ...form, max_discount: e.target.value })}
+              placeholder="500"
               className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold"
             />
           </div>

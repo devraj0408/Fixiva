@@ -46,11 +46,18 @@ const CategoriesPanel = () => {
       return;
     }
 
+    const payload = {
+      ...form,
+      icon: form.icon && form.icon !== 'tag' && form.icon.trim() !== '' ? form.icon.trim() : null,
+      display_order: Number.isFinite(Number(form.display_order)) ? Number(form.display_order) : 0,
+      active: Boolean(form.active),
+    };
+
     if (editingCategory) {
-      await updateCategory(editingCategory.id, form);
+      await updateCategory(editingCategory.id, payload);
       setEditingCategory(null);
     } else {
-      await createCategory(form);
+      await createCategory(payload);
     }
 
     setForm({ name: '', icon: 'tag', description: '', display_order: 0, active: true });
