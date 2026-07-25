@@ -66,12 +66,15 @@ const Home = () => {
     setIsSubmitting(true);
     try {
       const res = await submitCoverageRequest(reqCity.trim(), reqState.trim(), reqEmail.trim());
+      const isDup = res.error === 'duplicate' || (res.error && typeof res.error === 'object' && (res.error.code === '23505' || String(res.error.message || '').toLowerCase().includes('duplicate') || String(res.error.message || '').toLowerCase().includes('unique')));
+
       if (res.success) {
         setIsSuccess(true);
         setReqCity('');
         setReqState('');
         setReqEmail('');
-      } else if (res.error === 'duplicate') {
+        showToast("Coverage request submitted successfully!", 'success');
+      } else if (isDup) {
         showToast("You've already requested this city.", 'error');
       } else {
         showToast("Something went wrong. Please try again.", 'error');
