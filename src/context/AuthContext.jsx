@@ -4,6 +4,7 @@ import { createContext, useState, useContext, useEffect, useRef, useCallback } f
 import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
+import * as staffService from '../services/staffService';
 
 const AppContext = createContext();
 
@@ -47,6 +48,7 @@ export const AuthProvider = ({ children }) => {
   const [bookings, setBookings] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [contractors, setContractors] = useState([]);
+  const [staff, setStaff] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [reviews, setReviews] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -102,7 +104,7 @@ export const AuthProvider = ({ children }) => {
       return [];
     };
 
-    const [bk, wk, ct, pr, rv, tk, sv, cs] = await Promise.all([
+    const [bk, wk, ct, pr, rv, tk, sv, cs, st] = await Promise.all([
       fetchWithFallback('bookings'),
       fetchWithFallback('workers'),
       fetchWithFallback('contractors'),
@@ -111,11 +113,13 @@ export const AuthProvider = ({ children }) => {
       fetchWithFallback('support_tickets'),
       fetchServices(),
       fetchWithFallback('city_services', 'city_id,service_id,enabled'),
+      fetchWithFallback('staff'),
     ]);
 
     setBookings(bk || []);
     setWorkers(wk || []);
     setContractors(ct || []);
+    setStaff(st || []);
     setProfiles(pr || []);
     setTickets(tk || []);
     setServices(sv || []);
@@ -1246,6 +1250,10 @@ export const AuthProvider = ({ children }) => {
     updateService,
     deleteService,
     updateUserRole,
+    staff,
+    fetchStaff: staffService.getStaffByContractor,
+    addStaffMember: staffService.createStaffMember,
+    deleteStaffMember: staffService.deleteStaffMember,
     cityControl,
     toggleServiceInCity,
     coverageRequests,

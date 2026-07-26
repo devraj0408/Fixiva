@@ -56,6 +56,19 @@ CREATE TABLE IF NOT EXISTS public.contractors (
   created_at timestamp with time zone DEFAULT now()
 );
 
+-- 3b. Staff / Employees
+CREATE TABLE IF NOT EXISTS public.staff (
+  id uuid PRIMARY KEY DEFAULT uuid_generate_v4(),
+  contractor_id uuid REFERENCES public.contractors(id) ON DELETE CASCADE NOT NULL,
+  name text NOT NULL,
+  role text NOT NULL,
+  phone text,
+  city text,
+  status text NOT NULL DEFAULT 'Available',
+  trust_score int NOT NULL DEFAULT 100,
+  created_at timestamp with time zone DEFAULT now()
+);
+
 -- 4. Categories
 CREATE TABLE IF NOT EXISTS public.categories (
   id text PRIMARY KEY,
@@ -298,6 +311,8 @@ DROP POLICY IF EXISTS "worker_all" ON public.workers;
 CREATE POLICY "worker_all" ON public.workers FOR ALL USING (true);
 DROP POLICY IF EXISTS "contractor_all" ON public.contractors;
 CREATE POLICY "contractor_all" ON public.contractors FOR ALL USING (true);
+DROP POLICY IF EXISTS "staff_all" ON public.staff;
+CREATE POLICY "staff_all" ON public.staff FOR ALL USING (true);
 
 -- Catalog tables
 DROP POLICY IF EXISTS "services_read" ON public.services;

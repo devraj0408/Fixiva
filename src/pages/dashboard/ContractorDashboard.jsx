@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
+import { getStaffByContractor, createStaffMember, deleteStaffMember } from '../../services/staffService';
 import {
   BarChart3,
   FileText,
@@ -26,10 +27,7 @@ const ContractorDashboard = () => {
   const {
     user,
     bookings = [],
-    workers = [],
     updateBookingStatus,
-    tickets = [],
-    addTicket,
     logout,
     refreshData,
     showToast,
@@ -43,34 +41,10 @@ const ContractorDashboard = () => {
 
   const activeTab = tabParam || 'overview';
 
-  // Parse helper for staff team JSON stored in services_offered
-  const parseServicesAndTeam = (servicesOffered) => {
-    if (!servicesOffered) return { services: '', teamList: [] };
-    const parts = servicesOffered.split(' | TEAM_JSON:');
-    const services = parts[0] || '';
-    let teamList = [];
-    if (parts[1]) {
-      try {
-        teamList = JSON.parse(parts[1]);
-      } catch {
-        // Failed to parse
-      }
-    }
-    return { services, teamList };
-  };
-
-  const serializeServicesAndTeam = (services, teamList) => {
-    return `${services} | TEAM_JSON:${JSON.stringify(teamList)}`;
-  };
-
-  const team = useMemo(() => {
-    return user?.services_offered ? parseServicesAndTeam(user.services_offered).teamList : [
-      { name: 'Rajesh Kumar', role: 'Lead Electrician', phone: '9876543210', status: 'Available', trustScore: 98 },
-      { name: 'Amit Sharma', role: 'Senior Painter', phone: '9876543211', status: 'Available', trustScore: 96 }
-    ];
-  }, [user?.services_offered]);
-
-  // Modals & States
+  // Modals & Form States
+  const [staffList, setStaffList] = useState([]);
+  const [isLoadingStaff, setIsLoadingStaff] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
@@ -81,6 +55,25 @@ const ContractorDashboard = () => {
   const [gstNumber, setGstNumber] = useState(user?.gst || '');
   const [contractorCity, setContractorCity] = useState(user?.city || 'Ranchi');
   const [notifications, setNotifications] = useState([]);
+
+  // Load contractor staff from Supabase staff table
+  const loadContractorStaff = useCallback(async () => {
+    if (!user?.id) return;
+    setIsLoadingStaff(true);
+    const { data, error } = await getStaffByContractor(user.id);
+    if (error) {
+      console.error('Failed to load contractor staff members from Supabase:', error);
+    } else {
+      setStaffList(data || []);
+    }
+    setIsLoadingStaff(false);
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      loadContractorStaff();
+    }
+  }, [user?.id, loadContractorStaff]);
 
   useEffect(() => {
     if (user) {
@@ -141,57 +134,82 @@ const ContractorDashboard = () => {
     return completedJobs.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
   }, [completedJobs]);
 
-  // Database Handlers
-  const updateTeamInDB = async (newTeam) => {
-    const { services } = parseServicesAndTeam(user?.services_offered);
-    const serialized = serializeServicesAndTeam(services, newTeam);
-    const { error } = await supabase.from('contractors').update({ services_offered: serialized }).eq('id', user.id);
-    if (!error) {
-      if (refreshData) await refreshData();
-      showToast('Team directory updated.', 'success');
-    } else {
-      showToast('Failed to update team: ' + error.message, 'error');
-    }
-  };
-
+  // Form Submission: Add Staff Member
   const handleAddTeamMember = async (e) => {
     e.preventDefault();
-    if (!newMemberName || !newMemberRole) {
-      showToast('Please provide name and role', 'error');
+
+    const name = newMemberName.trim();
+    const role = newMemberRole.trim();
+    const phone = newMemberPhone.trim();
+
+    if (!name || !role) {
+      showToast('Please provide both staff member name and role.', 'error');
       return;
     }
-    const newTeam = [
-      ...team,
-      {
-        name: newMemberName,
-        role: newMemberRole,
-        phone: newMemberPhone || '9876543210',
+
+    if (!user?.id) {
+      showToast('Contractor session not found. Please log in again.', 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        contractor_id: user.id,
+        name,
+        role,
+        phone: phone || null,
+        city: contractorCity || user?.city || 'Ranchi',
         status: 'Available',
-        trustScore: 98
+        trust_score: 98
+      };
+
+      const { data, error } = await createStaffMember(payload);
+
+      if (error) {
+        console.error('Supabase staff creation error:', error);
+        showToast(`Failed to add staff member: ${error}`, 'error');
+      } else {
+        showToast(`Staff member "${name}" added successfully!`, 'success');
+        setNewMemberName('');
+        setNewMemberRole('');
+        setNewMemberPhone('');
+        // Refresh staff list immediately after insert
+        await loadContractorStaff();
+        if (refreshData) await refreshData();
       }
-    ];
-    await updateTeamInDB(newTeam);
-    setNewMemberName('');
-    setNewMemberRole('');
-    setNewMemberPhone('');
+    } catch (err) {
+      console.error('Unexpected error during staff creation:', err);
+      showToast('An error occurred while adding the staff member.', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDeleteTeamMember = async (idxToDelete) => {
-    const ok = await confirm('Remove staff member from company directory?');
+  // Delete Staff Member Handler
+  const handleDeleteTeamMember = async (staffId, staffName) => {
+    const ok = await confirm(`Remove ${staffName || 'this staff member'} from company roster?`);
     if (ok) {
-      const newTeam = team.filter((_, idx) => idx !== idxToDelete);
-      await updateTeamInDB(newTeam);
+      const { error } = await deleteStaffMember(staffId);
+      if (!error) {
+        showToast('Staff member removed successfully.', 'success');
+        await loadContractorStaff();
+        if (refreshData) await refreshData();
+      } else {
+        console.error('Supabase staff deletion error:', error);
+        showToast(`Failed to delete staff member: ${error}`, 'error');
+      }
     }
   };
 
   const handleAssignStaffToBooking = async (bookingId, staffName) => {
-    const staffMember = team.find((t) => t.name === staffName) || { phone: user?.phone || '9876543210' };
+    const staffMember = staffList.find((t) => t.name === staffName) || { phone: user?.phone || '9876543210' };
     const { error } = await supabase
       .from('bookings')
       .update({
         worker_id: user?.id,
         worker_name: `${staffName} (${user?.company || 'Contractor'})`,
-        worker_phone: staffMember.phone,
+        worker_phone: staffMember.phone || user?.phone || '9876543210',
         status: 'Worker Assigned'
       })
       .eq('id', bookingId);
@@ -201,6 +219,7 @@ const ContractorDashboard = () => {
       setAssigningBooking(null);
       if (refreshData) await refreshData();
     } else {
+      console.error('Supabase worker assignment error:', error);
       showToast('Failed to assign worker: ' + error.message, 'error');
     }
   };
@@ -221,6 +240,7 @@ const ContractorDashboard = () => {
       showToast('Company profile details saved successfully!', 'success');
       if (refreshData) await refreshData();
     } else {
+      console.error('Supabase company profile update error:', error);
       showToast('Failed to save profile: ' + error.message, 'error');
     }
   };
@@ -239,11 +259,11 @@ const ContractorDashboard = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
-  // Sidebar Items matching exact prompt requirement
+  // Sidebar Navigation Items
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: BarChart3 },
     { id: 'bookings', label: 'Bookings', icon: FileText, count: pendingRequests.length + activeJobs.length },
-    { id: 'workers', label: 'Workers', icon: Users, count: team.length },
+    { id: 'workers', label: 'Workers', icon: Users, count: staffList.length },
     { id: 'assignments', label: 'Assignments', icon: Briefcase },
     { id: 'earnings', label: 'Earnings', icon: IndianRupee },
     { id: 'reviews', label: 'Reviews', icon: Star },
@@ -292,7 +312,6 @@ const ContractorDashboard = () => {
                       <p className="text-sm font-black text-slate-900 pt-1">Price Tariff: ₹{b.price || 999}</p>
                     </div>
 
-                    {/* Simple Card Actions */}
                     <div className="flex gap-2 flex-wrap">
                       {b.status !== 'Completed' && (
                         <button
@@ -357,15 +376,21 @@ const ContractorDashboard = () => {
                 onChange={(e) => setNewMemberPhone(e.target.value)}
                 className="h-10 px-3 bg-white border border-slate-200 rounded-xl outline-none"
               />
-              <button type="submit" className="h-10 bg-primary text-white font-extrabold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1">
-                <Plus size={14} /> Add Worker
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="h-10 bg-primary text-white font-extrabold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1 disabled:opacity-50 transition-all"
+              >
+                <Plus size={14} /> {isSubmitting ? 'Adding...' : 'Add Worker'}
               </button>
             </form>
 
-            {/* Simple Workers Table */}
+            {/* Staff Roster Table */}
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-              {team.length === 0 ? (
-                <div className="p-8 text-center text-xs font-semibold text-slate-500">No staff members in directory.</div>
+              {isLoadingStaff ? (
+                <div className="p-8 text-center text-xs font-semibold text-slate-500">Loading staff members from database...</div>
+              ) : staffList.length === 0 ? (
+                <div className="p-8 text-center text-xs font-semibold text-slate-500">No staff members in directory. Use the form above to add staff.</div>
               ) : (
                 <table className="min-w-full text-left text-xs">
                   <thead className="bg-slate-50 text-slate-500 font-extrabold uppercase border-b border-slate-100">
@@ -379,24 +404,31 @@ const ContractorDashboard = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
-                    {team.map((w, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
+                    {staffList.map((w) => (
+                      <tr key={w.id} className="hover:bg-slate-50">
                         <td className="px-5 py-4 flex items-center gap-3 font-extrabold text-slate-900">
                           <div className="h-8 w-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs font-black uppercase">
                             {w.name.charAt(0)}
                           </div>
-                          {w.name}
+                          <div>
+                            <p className="font-extrabold text-slate-900">{w.name}</p>
+                            {w.phone && <p className="text-[10px] text-slate-500 font-normal">{w.phone}</p>}
+                          </div>
                         </td>
                         <td className="px-5 py-4 text-slate-600">{w.role}</td>
-                        <td className="px-5 py-4 text-slate-600">{contractorCity}</td>
+                        <td className="px-5 py-4 text-slate-600">{w.city || contractorCity}</td>
                         <td className="px-5 py-4">
                           <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black text-[10px]">
                             {w.status || 'Available'}
                           </span>
                         </td>
-                        <td className="px-5 py-4 font-black text-emerald-700">{w.trustScore || 98}%</td>
+                        <td className="px-5 py-4 font-black text-emerald-700">{w.trust_score ?? 98}%</td>
                         <td className="px-5 py-4 text-right">
-                          <button onClick={() => handleDeleteTeamMember(idx)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-xl">
+                          <button
+                            onClick={() => handleDeleteTeamMember(w.id, w.name)}
+                            className="p-1.5 text-red-600 hover:bg-red-50 rounded-xl"
+                            title="Remove staff member"
+                          >
                             <Trash2 size={15} />
                           </button>
                         </td>
@@ -527,13 +559,13 @@ const ContractorDashboard = () => {
               </div>
             </div>
 
-            {/* Exact Top 4 Cards */}
+            {/* Top 4 Metric Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Workers</p>
-                    <p className="mt-2 text-2xl font-black text-slate-900">{team.length}</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{staffList.length}</p>
                   </div>
                   <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
                     <Users size={20} />
@@ -578,7 +610,7 @@ const ContractorDashboard = () => {
               </div>
             </div>
 
-            {/* Quick Leads & Projects */}
+            {/* Quick Leads & Staff Overview */}
             <div className="grid gap-6 lg:grid-cols-2">
               <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 space-y-4">
                 <div className="flex items-center justify-between">
@@ -621,17 +653,23 @@ const ContractorDashboard = () => {
                 </div>
 
                 <div className="space-y-3">
-                  {team.slice(0, 3).map((w, i) => (
-                    <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-extrabold text-slate-900">{w.name}</p>
-                        <p className="mt-0.5 text-[11px] text-slate-500">{w.role} • {w.status || 'Available'}</p>
-                      </div>
-                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                        {w.trustScore || 98}% Trust
-                      </span>
+                  {staffList.length === 0 ? (
+                    <div className="p-6 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">
+                      No staff members in directory.
                     </div>
-                  ))}
+                  ) : (
+                    staffList.slice(0, 3).map((w) => (
+                      <div key={w.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-extrabold text-slate-900">{w.name}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">{w.role} • {w.status || 'Available'}</p>
+                        </div>
+                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                          {w.trust_score ?? 98}% Trust
+                        </span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -643,7 +681,7 @@ const ContractorDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Sidebar matching Admin Shell */}
+        {/* Sidebar */}
         <aside className="lg:col-span-3 space-y-4">
           <div className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
             <div className="flex items-center gap-3">
@@ -718,8 +756,8 @@ const ContractorDashboard = () => {
                 className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none"
               >
                 <option value="">Select Technician / Worker</option>
-                {team.map((t, idx) => (
-                  <option key={idx} value={t.name}>
+                {staffList.map((t) => (
+                  <option key={t.id} value={t.name}>
                     {t.name} ({t.role})
                   </option>
                 ))}
