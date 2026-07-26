@@ -1,22 +1,49 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
-import {
-  Clock, List, Settings, CheckSquare, IndianRupee, HelpCircle, LogOut, Award, MapPin, PhoneOff
-} from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import {
+  BarChart3,
+  Briefcase,
+  Clock,
+  CheckCircle,
+  IndianRupee,
+  Calendar,
+  Bell,
+  Star,
+  Settings,
+  LogOut,
+  MapPin,
+  Phone,
+  PhoneOff,
+  User,
+  ShieldCheck,
+  CheckSquare,
+  HelpCircle
+} from 'lucide-react';
 
 const WorkerDashboard = () => {
-  const { user, bookings, updateBookingStatus, refreshData, tickets, addTicket, updateUserProfile, logout, showToast, confirm } = useApp();
+  const {
+    user,
+    bookings,
+    updateBookingStatus,
+    refreshData,
+    tickets,
+    addTicket,
+    updateUserProfile,
+    logout,
+    showToast,
+    confirm
+  } = useApp();
+
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const activeTab = tabParam || 'jobs';
-  
-  // Support & Profile fields
+  const activeTab = tabParam || 'overview';
+
+  // Support & Profile states
   const [ticketSubject, setTicketSubject] = useState('');
   const [ticketMessage, setTicketMessage] = useState('');
   const [ticketLoading, setTicketLoading] = useState(false);
@@ -26,8 +53,38 @@ const WorkerDashboard = () => {
   const [whatsapp, setWhatsapp] = useState(user?.whatsapp || '');
   const [hourlyRate, setHourlyRate] = useState(user?.hourly_rate || '');
   const [visitCharge, setVisitCharge] = useState(user?.visit_charge || '');
+  const [availabilityStatus, setAvailabilityStatus] = useState(user?.status || 'Active');
   const [profileLoading, setProfileLoading] = useState(false);
 
+  // Notifications state
+  const [notifications, setNotifications] = useState([]);
+
+  useEffect(() => {
+    if (user) {
+      setSkills(user.skills || '');
+      setExperience(user.experience || '');
+      setWhatsapp(user.whatsapp || '');
+      setHourlyRate(user.hourly_rate || '');
+      setVisitCharge(user.visit_charge || '');
+      setAvailabilityStatus(user.status || 'Active');
+    }
+  }, [user]);
+
+  // Fetch notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?.id || !supabase) return;
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (data) setNotifications(data);
+    };
+    fetchNotifications();
+  }, [user?.id, bookings]);
+
+  // Role validation
   const userRole = String(user?.role || '').trim().toLowerCase();
   if (user && userRole !== 'worker') {
     if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
@@ -35,68 +92,77 @@ const WorkerDashboard = () => {
     return <Navigate to="/dashboard/customer" replace />;
   }
 
-  // Filter jobs
-  const myJobs = bookings.filter(b => b.worker_id === user?.id);
-  const myTickets = tickets.filter(t => t.user_id === user?.id);
+  // Filter jobs for this worker
+  const myJobs = useMemo(() => {
+    return (bookings || []).filter((b) => b.worker_id === user?.id || (b.worker_name && b.worker_name.toLowerCase() === (user?.name || '').toLowerCase()));
+  }, [bookings, user?.id, user?.name]);
 
-  const assignedJobs = myJobs.filter(b => b.status === 'Assigned');
-  const activeJobs = myJobs.filter(b => ['Confirmed', 'In Progress'].includes(b.status));
-  const completedJobs = myJobs.filter(b => b.status === 'Completed');
+  const myTickets = useMemo(() => {
+    return (tickets || []).filter((t) => t.user_id === user?.id);
+  }, [tickets, user?.id]);
 
-  // Earnings calculations
-  const totalEarnings = completedJobs.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
-  const outstandingCommission = completedJobs.reduce((acc, curr) => acc + Number(curr.platform_fee || 0), 0);
+  // Specific Worker Dashboard Metrics
+  const todaysJobsCount = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return myJobs.filter((b) => {
+      const bDate = b.booking_date || b.preferred_date;
+      return bDate && new Date(bDate).toISOString().split('T')[0] === todayStr && b.status !== 'Completed';
+    }).length;
+  }, [myJobs]);
 
+  const pendingJobs = useMemo(() => {
+    return myJobs.filter((b) => ['Pending', 'New Request', 'Assigned'].includes(b.status));
+  }, [myJobs]);
+
+  const activeJobs = useMemo(() => {
+    return myJobs.filter((b) => ['Accepted', 'Worker Assigned', 'Confirmed', 'On The Way', 'Work Started', 'In Progress'].includes(b.status));
+  }, [myJobs]);
+
+  const completedJobs = useMemo(() => {
+    return myJobs.filter((b) => ['Completed', 'Reviewed'].includes(b.status));
+  }, [myJobs]);
+
+  // Earnings
+  const totalEarnings = useMemo(() => {
+    return completedJobs.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+  }, [completedJobs]);
+
+  // Action handlers
   const handleJobStatusUpdate = async (bookingId, newStatus) => {
     await updateBookingStatus(bookingId, newStatus);
-    await refreshData();
+    showToast(`Job status updated to ${newStatus}.`, 'success');
+    if (refreshData) refreshData();
   };
 
   const handleRejectJob = async (bookingId) => {
-    const ok = await confirm('Reject this job? It will be sent back to Admin for reassignment.');
+    const ok = await confirm('Reject this job? It will be sent back for reassignment.');
     if (!ok) return;
-    const { error } = await supabase.from('bookings').update({
-      status: 'New Request',
-      worker_id: null,
-      worker_name: null,
-      worker_phone: null
-    }).eq('id', bookingId);
-    
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        status: 'New Request',
+        worker_id: null,
+        worker_name: null,
+        worker_phone: null
+      })
+      .eq('id', bookingId);
+
     if (!error) {
-      showToast('Job rejected.', 'success');
-      await refreshData();
+      showToast('Job rejected.', 'info');
+      if (refreshData) refreshData();
     } else {
       showToast('Failed to reject job: ' + error.message, 'error');
     }
   };
 
-  const handleReportCustomerNoShow = async (bookingId) => {
-    const ok = await confirm('Confirm Customer No-Show? This will notify Admin.');
-    if (!ok) return;
-    await updateBookingStatus(bookingId, 'Customer No Show');
-    await refreshData();
-  };
-
-  const handleCreateTicket = async (e) => {
-    e.preventDefault();
-    if (!ticketSubject || !ticketMessage) {
-      showToast('Please fill out all fields', 'error');
-      return;
-    }
-    setTicketLoading(true);
-    const { error } = await addTicket({
-      user_id: user?.id,
-      subject: ticketSubject,
-      message: ticketMessage
-    });
-    setTicketLoading(false);
+  const handleUpdateAvailability = async (status) => {
+    setAvailabilityStatus(status);
+    const { error } = await supabase.from('workers').update({ status }).eq('id', user.id);
     if (!error) {
-      showToast('Support ticket raised successfully!', 'success');
-      setTicketSubject('');
-      setTicketMessage('');
-      await refreshData();
+      showToast(`Availability updated to ${status}.`, 'success');
+      if (refreshData) refreshData();
     } else {
-      showToast('Failed to raise ticket: ' + error.message, 'error');
+      showToast('Failed to update availability status', 'error');
     }
   };
 
@@ -112,8 +178,8 @@ const WorkerDashboard = () => {
     });
     setProfileLoading(false);
     if (!error) {
-      showToast('Profile details updated successfully!', 'success');
-      await refreshData();
+      showToast('Profile and pricing updated successfully!', 'success');
+      if (refreshData) refreshData();
     } else {
       showToast('Failed to update profile: ' + error.message, 'error');
     }
@@ -133,404 +199,480 @@ const WorkerDashboard = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-10 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Sidebar Navigation */}
-        <aside className="lg:col-span-3 space-y-6">
-          {/* Profile Card */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 text-center space-y-4 shadow-sm">
-            <div className="h-16 w-16 mx-auto rounded-full bg-gradient-to-tr from-amber-500 to-orange-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md ring-4 ring-amber-50">
-              {getInitials(user?.name)}
+  // Sidebar Items matching exact prompt requirement
+  const navItems = [
+    { id: 'overview', label: 'Dashboard', icon: BarChart3 },
+    { id: 'assigned-jobs', label: 'Assigned Jobs', icon: Briefcase, count: pendingJobs.length + activeJobs.length },
+    { id: 'history', label: 'Job History', icon: Clock, count: completedJobs.length },
+    { id: 'earnings', label: 'Earnings', icon: IndianRupee },
+    { id: 'availability', label: 'Availability', icon: CheckSquare },
+    { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter(n => !n.read).length },
+    { id: 'reviews', label: 'Reviews', icon: Star },
+    { id: 'profile', label: 'Profile', icon: Settings },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'assigned-jobs':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Assigned Jobs & Offers</h2>
+              <p className="text-sm text-slate-500">Review incoming dispatches and manage active job statuses.</p>
             </div>
-            <div className="space-y-0.5">
-              <h3 className="font-extrabold text-slate-800 text-sm leading-tight">{user?.name}</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.skills || 'Professional Partner'}</p>
+
+            {/* Pending Offers */}
+            <div className="space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Clock size={15} className="text-amber-500" /> Pending Offers ({pendingJobs.length})
+              </h3>
+              {pendingJobs.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-xs font-semibold text-slate-500">
+                  No pending job dispatches at the moment.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {pendingJobs.map((job) => (
+                    <div key={job.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex justify-between items-start flex-wrap gap-2">
+                        <div>
+                          <span className="text-[10px] font-black text-primary uppercase">ID: {job.id}</span>
+                          <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{job.service_name}</h4>
+                        </div>
+                        <span className="px-3 py-1 bg-amber-50 text-amber-700 font-black text-[10px] uppercase rounded-full border border-amber-200">
+                          {job.status}
+                        </span>
+                      </div>
+
+                      {/* Card Details */}
+                      <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2 font-semibold text-slate-700">
+                        <p><strong>Customer Name:</strong> {job.customer_name || 'Customer'}</p>
+                        <p><strong>Contact Mobile:</strong> {job.customer_phone || 'N/A'}</p>
+                        <p className="flex items-start gap-1">
+                          <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                          <span><strong>Address:</strong> {job.customer_address || job.address}, {job.city}</span>
+                        </p>
+                        <p className="flex items-center gap-1">
+                          <Calendar size={14} className="text-slate-400 shrink-0" />
+                          <span><strong>Date:</strong> {new Date(job.booking_date || job.preferred_date).toLocaleDateString()}</span>
+                        </p>
+                        <p className="text-sm font-black text-slate-900 pt-1">
+                          Price: ₹{job.price || 299}
+                        </p>
+                      </div>
+
+                      {/* One-Click Action Buttons */}
+                      <div className="flex gap-3 flex-wrap">
+                        <button
+                          onClick={() => handleJobStatusUpdate(job.id, 'Accepted')}
+                          className="flex-1 rounded-2xl bg-primary py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
+                        >
+                          Accept Job
+                        </button>
+                        <button
+                          onClick={() => handleRejectJob(job.id)}
+                          className="flex-1 rounded-2xl border border-red-200 bg-white py-3 text-xs font-extrabold text-red-600 shadow-sm hover:bg-red-50 transition-all"
+                        >
+                          Reject Job
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            {/* Trust Score Bar */}
-            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-left space-y-1.5">
-              <div className="flex justify-between items-center text-[9px] font-black uppercase text-slate-400">
-                <span>Trust Score</span>
-                <span className={user?.trust_score < 60 ? 'text-danger' : 'text-success'}>
-                  {user?.trust_score ?? 100}/100
-                </span>
+
+            {/* Active Ongoing Jobs */}
+            <div className="space-y-4 pt-4 border-t border-slate-100">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                <Briefcase size={15} className="text-primary" /> Active In Progress ({activeJobs.length})
+              </h3>
+              {activeJobs.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-3xl text-xs font-semibold text-slate-500">
+                  No active schedules currently in progress.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {activeJobs.map((job) => (
+                    <div key={job.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex justify-between items-start flex-wrap gap-2">
+                        <div>
+                          <span className="text-[10px] font-black text-primary uppercase">ID: {job.id}</span>
+                          <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{job.service_name}</h4>
+                        </div>
+                        <span className="px-3 py-1 bg-blue-50 text-primary font-black text-[10px] uppercase rounded-full border border-blue-200">
+                          {job.status}
+                        </span>
+                      </div>
+
+                      <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2 font-semibold text-slate-700">
+                        <p><strong>Customer Name:</strong> {job.customer_name}</p>
+                        <p><strong>Contact Mobile:</strong> {job.customer_phone}</p>
+                        <p className="flex items-start gap-1">
+                          <MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" />
+                          <span><strong>Address:</strong> {job.customer_address || job.address}, {job.city}</span>
+                        </p>
+                        <p className="flex items-center gap-1">
+                          <Calendar size={14} className="text-slate-400 shrink-0" />
+                          <span><strong>Date:</strong> {new Date(job.booking_date || job.preferred_date).toLocaleDateString()}</span>
+                        </p>
+                        <p className="text-sm font-black text-slate-900 pt-1">
+                          Price: ₹{job.price || 299}
+                        </p>
+                      </div>
+
+                      {/* Status Action Buttons */}
+                      <div className="flex gap-3 flex-wrap">
+                        {['Accepted', 'Assigned', 'Confirmed', 'Worker Assigned'].includes(job.status) && (
+                          <button
+                            onClick={() => handleJobStatusUpdate(job.id, 'On The Way')}
+                            className="flex-1 rounded-2xl bg-primary py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
+                          >
+                            Mark On The Way
+                          </button>
+                        )}
+                        {job.status === 'On The Way' && (
+                          <button
+                            onClick={() => handleJobStatusUpdate(job.id, 'Work Started')}
+                            className="flex-1 rounded-2xl bg-primary py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
+                          >
+                            Start Work
+                          </button>
+                        )}
+                        {['Work Started', 'In Progress'].includes(job.status) && (
+                          <button
+                            onClick={() => handleJobStatusUpdate(job.id, 'Completed')}
+                            className="flex-1 rounded-2xl bg-emerald-600 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700 transition-all"
+                          >
+                            Complete Work
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'history':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Job History</h2>
+              <p className="text-sm text-slate-500">Record of your completed home service assignments.</p>
+            </div>
+
+            {completedJobs.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+                No completed jobs in history.
               </div>
-              <div className="h-1 bg-slate-200 rounded-full overflow-hidden">
-                <div 
-                  className={`h-full transition-all duration-500 ${user?.trust_score < 60 ? 'bg-danger' : 'bg-success'}`}
-                  style={{ width: `${user?.trust_score ?? 100}%` }}
-                ></div>
+            ) : (
+              <div className="space-y-4">
+                {completedJobs.map((job) => (
+                  <div key={job.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center justify-between flex-wrap gap-4 text-xs">
+                    <div>
+                      <span className="text-[10px] font-black text-primary uppercase">ID: {job.id}</span>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{job.service_name}</h4>
+                      <p className="text-slate-500 mt-0.5">Customer: {job.customer_name} • Date: {new Date(job.booking_date || job.preferred_date).toLocaleDateString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-sm font-black text-emerald-700 block">₹{job.price || 299}</span>
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase">Completed</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'earnings':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Earnings & Revenue Ledger</h2>
+              <p className="text-sm text-slate-500">Review payout totals and completed job billing revenue.</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total Lifetime Payout</span>
+                <p className="text-3xl font-black text-slate-900 mt-2">₹{totalEarnings}</p>
+              </div>
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Completed Jobs Count</span>
+                <p className="text-3xl font-black text-slate-900 mt-2">{completedJobs.length}</p>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'availability':
+        return (
+          <div className="space-y-6 max-w-xl">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Availability & Shift Settings</h2>
+              <p className="text-sm text-slate-500">Set your work availability status for automated customer dispatching.</p>
+            </div>
+
+            <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl space-y-4">
+              <span className="text-xs font-extrabold text-slate-800 block">Current Status</span>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => handleUpdateAvailability('Active')}
+                  className={`py-3 px-4 rounded-2xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    availabilityStatus === 'Active'
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <CheckCircle size={16} /> Available Today
+                </button>
+                <button
+                  onClick={() => handleUpdateAvailability('Off Duty')}
+                  className={`py-3 px-4 rounded-2xl border text-xs font-extrabold flex items-center justify-center gap-2 transition-all ${
+                    availabilityStatus === 'Off Duty'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm'
+                      : 'bg-white text-slate-700 border-slate-200'
+                  }`}
+                >
+                  <PhoneOff size={16} /> Off Duty
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Notifications</h2>
+              <p className="text-sm text-slate-500">Job assignment alerts and platform broadcasts.</p>
+            </div>
+            {notifications.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+                No notifications.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((n) => (
+                  <div key={n.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm flex items-start gap-3 text-xs">
+                    <Bell size={16} className="text-primary shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="font-extrabold text-slate-900">{n.title}</h4>
+                      <p className="text-slate-600 mt-0.5">{n.message}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'reviews':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Customer Reviews</h2>
+              <p className="text-sm text-slate-500">Ratings and reviews submitted by customers for your services.</p>
+            </div>
+            <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+              <Star size={38} className="mx-auto text-slate-300 mb-2" />
+              Your customer ratings update automatically upon completed job reviews.
+            </div>
+          </div>
+        );
+
+      case 'profile':
+        return (
+          <div className="space-y-6 max-w-xl">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Worker Profile & Pricing</h2>
+              <p className="text-sm text-slate-500">Update your verified skills, experience, and service tariffs.</p>
+            </div>
+
+            <form onSubmit={handleUpdateProfile} className="bg-slate-50 border border-slate-200 p-8 rounded-3xl space-y-4 text-xs font-semibold">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Primary Skills</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="e.g. Electrician, AC Repair" required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Years of Experience</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 6+ Years" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Inspection Fee (₹)</label>
+                  <input type="number" className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={visitCharge} onChange={(e) => setVisitCharge(e.target.value)} placeholder="149" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase">Hourly Rate (₹)</label>
+                  <input type="number" className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={hourlyRate} onChange={(e) => setHourlyRate(e.target.value)} placeholder="299" />
+                </div>
+              </div>
+              <button type="submit" disabled={profileLoading} className="w-full py-3 rounded-2xl bg-primary text-white font-extrabold">
+                {profileLoading ? 'Saving...' : 'Save Profile Changes'}
+              </button>
+            </form>
+          </div>
+        );
+
+      case 'overview':
+      default:
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Worker Operations Desk</h2>
+                <p className="text-sm text-slate-500">Welcome back, {user?.name || 'Partner'}! Here is your daily work dispatch overview.</p>
+              </div>
+            </div>
+
+            {/* Exact Top 4 Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Today's Jobs</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{todaysJobsCount}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
+                    <Calendar size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pending Jobs</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{pendingJobs.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-amber-100 text-amber-700">
+                    <Clock size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Completed Jobs</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{completedJobs.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-emerald-100 text-emerald-700">
+                    <CheckCircle size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Monthly Earnings</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">₹{totalEarnings}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-violet-100 text-violet-700">
+                    <IndianRupee size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Assigned Jobs View */}
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Incoming Job Dispatches</h3>
+                <button onClick={() => navigate(`${location.pathname}?tab=assigned-jobs`)} className="text-xs font-extrabold text-primary hover:underline">
+                  View All ({pendingJobs.length})
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {pendingJobs.length === 0 ? (
+                  <div className="p-6 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">
+                    No pending job offers waiting for response.
+                  </div>
+                ) : (
+                  pendingJobs.slice(0, 3).map((item) => (
+                    <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-900">{item.service_name || 'Home Repair'}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">Customer: {item.customer_name} • Address: {item.city}</p>
+                      </div>
+                      <button
+                        onClick={() => handleJobStatusUpdate(item.id, 'Accepted')}
+                        className="rounded-xl bg-primary px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700"
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Sidebar matching Admin Shell */}
+        <aside className="lg:col-span-3 space-y-4">
+          <div className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-black uppercase shadow-inner">
+                {getInitials(user?.name)}
+              </div>
+              <div>
+                <p className="text-sm font-black">{user?.name || 'Worker Partner'}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Worker Desk</p>
               </div>
             </div>
           </div>
 
-          {/* Navigation Options */}
-          <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=jobs`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'jobs' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <List size={16} /> Job Schedules
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=earnings`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'earnings' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <IndianRupee size={16} /> Earnings Ledger
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=support`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'support' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <HelpCircle size={16} /> Support Tickets
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=profile`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'profile' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <Settings size={16} /> Pricing & Profile
-            </button>
-            <div className="h-px bg-slate-100 my-2"></div>
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2.5 p-3 rounded-xl btn-danger"
-            >
-              <LogOut size={16} /> Logout
-            </button>
+          <nav className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm space-y-1">
+            {navItems.map(({ id, label, icon: Icon, count }) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => navigate(`${location.pathname}?tab=${id}`)}
+                  className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all ${
+                    isActive ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon size={16} />
+                    <span>{label}</span>
+                  </div>
+                  {count !== undefined && count > 0 && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary'}`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </nav>
+
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+          >
+            <LogOut size={16} /> Logout
+          </button>
         </aside>
 
-        {/* Main Workspace content */}
-        <main id="dashboard-main-content" className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[550px] space-y-6">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 pb-4 border-b border-slate-100">
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Professional Workspace</h2>
-            <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-              user?.status === 'Suspended' ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'
-            }`}>
-              <CheckSquare size={12} />
-              {user?.status || 'Active'}
-            </span>
-          </div>
-
-          <AnimatePresence mode="wait">
-            {activeTab === 'jobs' && (
-              <motion.div 
-                key="jobs" 
-                className="space-y-8"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                {/* Dispatched Offers */}
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
-                    <Award size={16} /> Dispatched Job Offers ({assignedJobs.length})
-                  </h3>
-                  {assignedJobs.length === 0 ? (
-                    <p className="text-slate-400 text-xs p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl font-semibold">
-                      No new job dispatches waiting.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {assignedJobs.map(job => (
-                        <div key={job.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <div>
-                              <span className="text-[10px] font-black text-primary uppercase">ID: {job.id}</span>
-                              <h4 className="font-extrabold text-slate-900 text-sm mt-0.5">{job.service_name}</h4>
-                            </div>
-                            <span className="px-2.5 py-1 bg-amber-50 text-warning text-[9px] font-black uppercase tracking-wider rounded-md">
-                              New Offer
-                            </span>
-                          </div>
-                          
-                          {/* Client coordinates */}
-                          <div className="p-4 bg-slate-50 rounded-xl text-xs space-y-2 font-semibold text-slate-600">
-                            <p><strong>Customer:</strong> {job.customer_name}</p>
-                            <p><strong>Contact Mobile:</strong> {job.customer_phone}</p>
-                            <p className="flex items-start gap-1"><MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" /> <span>{job.customer_address}, {job.city}</span></p>
-                            <p className="flex items-center gap-1"><Clock size={14} className="text-slate-400 shrink-0" /> <span>Scheduled: {new Date(job.booking_date || job.preferred_date).toLocaleDateString()}</span></p>
-                          </div>
-                          
-                          <div className="flex gap-2">
-                            <button onClick={() => handleJobStatusUpdate(job.id, 'Confirmed')} className="flex-1 btn-primary text-xs py-2.5 rounded-xl shadow-md">Accept Job</button>
-                            <button onClick={() => handleRejectJob(job.id)} className="flex-1 btn-danger text-xs py-2.5 rounded-xl shadow-md">Reject Job</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Active Jobs */}
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-warning flex items-center gap-1.5">
-                    <Clock size={16} /> Active Schedules ({activeJobs.length})
-                  </h3>
-                  {activeJobs.length === 0 ? (
-                    <p className="text-slate-400 text-xs p-6 bg-slate-50 border border-dashed border-slate-200 rounded-2xl font-semibold">
-                      No active schedules in progress.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {activeJobs.map(job => (
-                        <div key={job.id} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <div>
-                              <span className="text-[10px] font-black text-primary uppercase">ID: {job.id}</span>
-                              <h4 className="font-extrabold text-slate-900 text-sm mt-0.5">{job.service_name}</h4>
-                            </div>
-                            <span className="px-2.5 py-1 bg-blue-50 text-primary text-[9px] font-black uppercase tracking-wider rounded-md">
-                              {job.status}
-                            </span>
-                          </div>
-                          
-                          <div className="p-4 bg-slate-50 rounded-xl text-xs space-y-2 font-semibold text-slate-600">
-                            <p><strong>Customer:</strong> {job.customer_name}</p>
-                            <p><strong>Contact Mobile:</strong> {job.customer_phone}</p>
-                            <p className="flex items-start gap-1"><MapPin size={14} className="text-slate-400 shrink-0 mt-0.5" /> <span>{job.customer_address}, {job.city}</span></p>
-                            <p className="flex items-center gap-1"><Clock size={14} className="text-slate-400 shrink-0" /> <span>Scheduled: {new Date(job.booking_date || job.preferred_date).toLocaleDateString()}</span></p>
-                          </div>
-
-                          <div className="flex gap-2">
-                            {job.status === 'Confirmed' && (
-                              <button onClick={() => handleJobStatusUpdate(job.id, 'In Progress')} className="flex-1 btn-primary text-xs py-2.5 rounded-xl shadow-md">Start Work</button>
-                            )}
-                            {job.status === 'In Progress' && (
-                              <button onClick={() => handleJobStatusUpdate(job.id, 'Completed')} className="flex-1 btn-success text-xs py-2.5 rounded-xl shadow-md">Complete Job</button>
-                            )}
-                            <button onClick={() => handleReportCustomerNoShow(job.id)} className="flex-1 btn-danger text-xs py-2.5 rounded-xl shadow-md flex items-center justify-center gap-1">
-                              <PhoneOff size={14} /> Customer No-Show
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'earnings' && (
-              <motion.div 
-                key="earnings" 
-                className="space-y-6"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <h3 className="text-lg font-black text-slate-900 tracking-tight">Earnings & Platform Commission</h3>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div className="bg-slate-50 p-6 border border-slate-100 rounded-2xl text-center space-y-1">
-                    <span className="text-[10px] font-black uppercase text-slate-400">Total Cash Collected</span>
-                    <h4 className="text-3xl font-black text-success">₹{totalEarnings}</h4>
-                    <p className="text-[10px] text-slate-400 font-semibold">Earnings from completed service assignments</p>
-                  </div>
-                  <div className="bg-slate-50 p-6 border border-slate-100 rounded-2xl text-center space-y-1">
-                    <span className="text-[10px] font-black uppercase text-slate-400">Platform Convenience Commission</span>
-                    <h4 className="text-3xl font-black text-primary">₹{outstandingCommission}</h4>
-                    <p className="text-[10px] text-slate-400 font-semibold">Convenience fee payouts to settle with platform</p>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                  <div className="p-5 bg-slate-55 border-b font-extrabold text-slate-800 text-xs uppercase tracking-wider">
-                    Completed service logs
-                  </div>
-                  {completedJobs.length === 0 ? (
-                    <p className="text-slate-400 text-xs text-center py-10 font-semibold">No completed jobs logged.</p>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                        <thead>
-                          <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100">
-                            <th className="p-4">Job ID</th>
-                            <th className="p-4">Customer</th>
-                            <th className="p-4">Service Type</th>
-                            <th className="p-4">Job Charge</th>
-                            <th className="p-4">Commission</th>
-                            <th className="p-4">Date</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {completedJobs.map(job => (
-                            <tr key={job.id} className="hover:bg-slate-50/50">
-                              <td className="p-4 font-bold text-primary">{job.id.substring(0, 8)}...</td>
-                              <td className="p-4 font-bold text-slate-900">{job.customer_name}</td>
-                              <td className="p-4">{job.service_name}</td>
-                              <td className="p-4 font-bold text-success">₹{job.price}</td>
-                              <td className="p-4 text-slate-400">₹{job.platform_fee}</td>
-                              <td className="p-4">{new Date(job.created_at).toLocaleDateString()}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'support' && (
-              <motion.div 
-                key="support" 
-                className="space-y-6"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Professional Support Desk</h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  
-                  {/* Create Ticket */}
-                  <form onSubmit={handleCreateTicket} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4 h-fit">
-                    <h3 className="font-extrabold text-slate-800 text-sm">Open Assistance Ticket</h3>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Topic Subject</label>
-                      <input 
-                        className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                        placeholder="e.g. Settlement issue, Customer dispute"
-                        value={ticketSubject}
-                        onChange={(e) => setTicketSubject(e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Description details</label>
-                      <textarea 
-                        className="w-full p-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                        rows="4"
-                        placeholder="Enter support details..."
-                        value={ticketMessage}
-                        onChange={(e) => setTicketMessage(e.target.value)}
-                        required
-                      />
-                    </div>
-                     <button type="submit" className="w-full btn-primary text-xs py-3 rounded-xl shadow-md flex justify-center items-center" disabled={ticketLoading}>
-                      {ticketLoading ? 'Submitting...' : 'Send Ticket'}
-                    </button>
-                  </form>
-
-                  {/* Tickets List */}
-                  <div className="space-y-4">
-                    <h3 className="font-extrabold text-slate-800 text-sm">Assistance Tickets logs</h3>
-                    {myTickets.length === 0 ? (
-                      <p className="text-slate-400 text-xs font-semibold">No support tickets raised.</p>
-                    ) : (
-                      myTickets.map(t => (
-                        <div key={t.id} className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm flex justify-between items-start gap-4 text-xs font-semibold">
-                          <div className="space-y-1">
-                            <h4 className="font-bold text-slate-900">{t.subject}</h4>
-                            <p className="text-slate-500">{t.message}</p>
-                            <span className="text-[10px] text-slate-400 block pt-1">Opened: {new Date(t.created_at).toLocaleDateString()}</span>
-                          </div>
-                          <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                            t.status === 'Resolved' ? 'bg-green-50 text-success' : 'bg-amber-50 text-warning'
-                          }`}>
-                            {t.status}
-                          </span>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                </div>
-              </motion.div>
-            )}
-
-            {activeTab === 'profile' && (
-              <motion.div 
-                key="profile" 
-                className="max-w-xl space-y-6"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                <h2 className="text-xl font-black text-slate-900 tracking-tight">Pricing & Profile Settings</h2>
-                
-                <form onSubmit={handleUpdateProfile} className="bg-slate-50 border border-slate-100 p-8 rounded-2xl shadow-sm space-y-4 text-xs font-semibold">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Professional Name</label>
-                    <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.name} disabled />
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Primary Skills Catalog</label>
-                    <input 
-                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
-                      value={skills} 
-                      onChange={(e) => setSkills(e.target.value)}
-                      placeholder="e.g. Plumber, Electrician"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Years of Experience</label>
-                    <input 
-                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
-                      value={experience} 
-                      onChange={(e) => setExperience(e.target.value)}
-                      placeholder="e.g. 5 Years"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Hourly Rate (₹)</label>
-                      <input 
-                        type="number"
-                        className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
-                        value={hourlyRate} 
-                        onChange={(e) => setHourlyRate(e.target.value)}
-                        placeholder="Hourly charge"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inspection Charge (₹)</label>
-                      <input 
-                        type="number"
-                        className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
-                        value={visitCharge} 
-                        onChange={(e) => setVisitCharge(e.target.value)}
-                        placeholder="Inspection charge"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WhatsApp Contact Mobile</label>
-                    <input 
-                      className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-slate-700 outline-none"
-                      value={whatsapp} 
-                      onChange={(e) => setWhatsapp(e.target.value)}
-                      placeholder="10-digit number"
-                    />
-                  </div>
-
-                   <button 
-                    type="submit" 
-                    className="w-full btn-primary text-xs py-3 rounded-xl shadow-md flex justify-center items-center" 
-                    disabled={profileLoading}
-                  >
-                    {profileLoading ? 'Saving Settings...' : 'Save Pricing Details'}
-                  </button>
-                </form>
-              </motion.div>
-            )}
-          </AnimatePresence>
+        {/* Main Workspace Panel */}
+        <main id="worker-panel-content" className="lg:col-span-9 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm min-h-[600px]">
+          {renderTabContent()}
         </main>
-
       </div>
     </div>
   );

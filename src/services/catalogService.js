@@ -19,8 +19,7 @@ export const getServices = async () => {
       .order('name', { ascending: true });
 
     if (error) return { data: [], error: error.message };
-    const activeServices = (data || []).filter((s) => s.active !== false);
-    return { data: activeServices, error: null };
+    return { data: data || [], error: null };
   } catch (err) {
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }

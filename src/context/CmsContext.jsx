@@ -15,7 +15,17 @@ import { filterItems, paginateItems, sortItems } from '../services/commonService
 const CmsContext = createContext();
 
 export const CmsProvider = ({ children }) => {
-  const { user, showToast, refreshData: refreshMarketplaceData } = useAuth();
+  const {
+    user,
+    showToast,
+    refreshData: refreshMarketplaceData,
+    cityControl,
+    toggleServiceInCity,
+    bookings: authBookings,
+    workers: authWorkers,
+    contractors: authContractors,
+    profiles: authProfiles,
+  } = useAuth();
 
   // Phase 1 State Cache
   const [services, setServices] = useState([]);
@@ -51,6 +61,21 @@ export const CmsProvider = ({ children }) => {
   const [pageSize, setPageSize] = useState(10);
 
   const actor = { id: user?.id || null, email: user?.email || '' };
+
+  useEffect(() => {
+    if (Array.isArray(authBookings)) {
+      setBookings(authBookings);
+    }
+    if (Array.isArray(authWorkers)) {
+      setWorkers(authWorkers);
+    }
+    if (Array.isArray(authContractors)) {
+      setContractors(authContractors);
+    }
+    if (Array.isArray(authProfiles)) {
+      setCustomers(authProfiles.filter((p) => p.role === 'customer'));
+    }
+  }, [authBookings, authWorkers, authContractors, authProfiles]);
 
   const refreshCmsData = useCallback(async () => {
     setLoading(true);
@@ -258,7 +283,7 @@ export const CmsProvider = ({ children }) => {
 
   const value = {
     // Phase 1 State
-    services, categories, cities, states, areas, pricingRules, coverageRequests,
+    services, categories, cities, states, areas, pricingRules, coverageRequests, cityControl, toggleServiceInCity,
     // Phase 2 State
     banners, coupons, offers, notifications, faqs, customers, workers, contractors, reviews,
     // Phase 3 State

@@ -69,8 +69,19 @@ export const getWorkers = async () => {
 
     if (wErr && pErr) return { data: [], error: wErr?.message || pErr?.message };
 
-    const merged = (workers || []).map((w) => {
-      const p = (profiles || []).find((prof) => prof.id === w.id);
+    const workerMap = new Map();
+
+    (workers || []).forEach((w) => {
+      workerMap.set(w.id, { ...w });
+    });
+
+    (profiles || []).forEach((p) => {
+      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active', trust_score: 100 };
+      workerMap.set(p.id, { ...existing, profile: p });
+    });
+
+    const merged = Array.from(workerMap.values()).map((w) => {
+      const p = w.profile || (profiles || []).find((prof) => prof.id === w.id);
       return {
         ...w,
         name: p?.name || 'Service Professional',
@@ -78,6 +89,7 @@ export const getWorkers = async () => {
         phone: p?.phone || '',
         city: w.city || p?.city || '',
         trustScore: w.trust_score ?? 100,
+        status: w.status || 'Active',
       };
     });
 
@@ -125,15 +137,27 @@ export const getContractors = async () => {
 
     if (cErr && pErr) return { data: [], error: cErr?.message || pErr?.message };
 
-    const merged = (contractors || []).map((c) => {
-      const p = (profiles || []).find((prof) => prof.id === c.id);
+    const contractorMap = new Map();
+
+    (contractors || []).forEach((c) => {
+      contractorMap.set(c.id, { ...c });
+    });
+
+    (profiles || []).forEach((p) => {
+      const existing = contractorMap.get(p.id) || { id: p.id, status: 'Active', company: p.name || 'Business Entity' };
+      contractorMap.set(p.id, { ...existing, profile: p });
+    });
+
+    const merged = Array.from(contractorMap.values()).map((c) => {
+      const p = c.profile || (profiles || []).find((prof) => prof.id === c.id);
       return {
         ...c,
         name: p?.name || 'Contractor Owner',
         email: p?.email || '',
         phone: p?.phone || '',
-        company: c.company || 'Business Entity',
+        company: c.company || p?.name || 'Business Entity',
         city: c.city || p?.city || '',
+        status: c.status || 'Active',
       };
     });
 

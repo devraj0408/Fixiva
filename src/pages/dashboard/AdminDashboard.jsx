@@ -71,7 +71,7 @@ const AdminDashboard = () => {
 
   const recentActivity = useMemo(() => {
     return [...(bookings || [])]
-      .sort((a, b) => new Date(b.booking_date || b.preferred_date || 0) - new Date(a.booking_date || a.preferred_date || 0))
+      .sort((a, b) => new Date(b.created_at || b.booking_date || b.preferred_date || 0) - new Date(a.created_at || a.booking_date || a.preferred_date || 0))
       .slice(0, 5);
   }, [bookings]);
 

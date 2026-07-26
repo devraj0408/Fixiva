@@ -1,24 +1,49 @@
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '../../context/AuthContext';
-import {
-  Building, MapPin, Briefcase, Plus,
-  Settings, Layout, ShieldCheck, Hourglass,
-  Users, CheckCircle, HelpCircle, LogOut
-} from 'lucide-react';
 import { supabase } from '../../lib/supabaseClient';
+import {
+  BarChart3,
+  FileText,
+  Users,
+  Briefcase,
+  IndianRupee,
+  Star,
+  Bell,
+  Building,
+  LogOut,
+  Clock,
+  CheckCircle,
+  Plus,
+  Trash2,
+  User,
+  MapPin,
+  X,
+  Search
+} from 'lucide-react';
 
 const ContractorDashboard = () => {
-  const { user, bookings, updateBookingStatus, tickets, addTicket, logout, refreshData, showToast, confirm } = useApp();
+  const {
+    user,
+    bookings = [],
+    workers = [],
+    updateBookingStatus,
+    tickets = [],
+    addTicket,
+    logout,
+    refreshData,
+    showToast,
+    confirm
+  } = useApp();
+
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const activeTab = tabParam || 'leads';
+  const activeTab = tabParam || 'overview';
 
-  // Parse and serialize helper functions
+  // Parse helper for staff team JSON stored in services_offered
   const parseServicesAndTeam = (servicesOffered) => {
     if (!servicesOffered) return { services: '', teamList: [] };
     const parts = servicesOffered.split(' | TEAM_JSON:');
@@ -28,7 +53,7 @@ const ContractorDashboard = () => {
       try {
         teamList = JSON.parse(parts[1]);
       } catch {
-        // Failed to parse team JSON
+        // Failed to parse
       }
     }
     return { services, teamList };
@@ -38,30 +63,49 @@ const ContractorDashboard = () => {
     return `${services} | TEAM_JSON:${JSON.stringify(teamList)}`;
   };
 
-  // Team metadata derived from the contractor profile
-  const team = user?.services_offered ? parseServicesAndTeam(user.services_offered).teamList : [];
+  const team = useMemo(() => {
+    return user?.services_offered ? parseServicesAndTeam(user.services_offered).teamList : [
+      { name: 'Rajesh Kumar', role: 'Lead Electrician', phone: '9876543210', status: 'Available', trustScore: 98 },
+      { name: 'Amit Sharma', role: 'Senior Painter', phone: '9876543211', status: 'Available', trustScore: 96 }
+    ];
+  }, [user?.services_offered]);
+
+  // Modals & States
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
-
   const [assigningBooking, setAssigningBooking] = useState(null);
-
-  const [cities, setCities] = useState([]);
-  const [coverageAreas, setCoverageAreas] = useState(['Ranchi', 'Patna']);
-
-  // Support states
-  const [ticketSubject, setTicketSubject] = useState('');
-  const [ticketMessage, setTicketMessage] = useState('');
-  const [ticketLoading, setTicketLoading] = useState(false);
+  const [selectedStaffName, setSelectedStaffName] = useState('');
+  const [companyName, setCompanyName] = useState(user?.company || user?.name || '');
+  const [ownerName, setOwnerName] = useState(user?.owner_name || user?.name || '');
+  const [gstNumber, setGstNumber] = useState(user?.gst || '');
+  const [contractorCity, setContractorCity] = useState(user?.city || 'Ranchi');
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    const fetchCitiesList = async () => {
-      const { data, error } = await supabase.from('cities').select('*');
-      if (!error && data) setCities(data);
-    };
-    fetchCitiesList();
-  }, []);
+    if (user) {
+      setCompanyName(user.company || user.name || '');
+      setOwnerName(user.owner_name || user.name || '');
+      setGstNumber(user.gst || '');
+      setContractorCity(user.city || 'Ranchi');
+    }
+  }, [user]);
 
+  // Fetch notifications
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      if (!user?.id || !supabase) return;
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (data) setNotifications(data);
+    };
+    fetchNotifications();
+  }, [user?.id, bookings]);
+
+  // Role Validation
   const userRole = String(user?.role || '').trim().toLowerCase();
   if (user && userRole !== 'contractor') {
     if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
@@ -69,31 +113,63 @@ const ContractorDashboard = () => {
     return <Navigate to="/dashboard/customer" replace />;
   }
 
+  // Filter contractor bookings
+  const contractorBookings = useMemo(() => {
+    return bookings.filter(
+      (b) =>
+        b.worker_id === user?.id ||
+        (b.worker_name && b.worker_name.toLowerCase().includes((user?.company || user?.name || '').toLowerCase())) ||
+        b.status === 'New Request' || b.status === 'Pending'
+    );
+  }, [bookings, user?.id, user?.company, user?.name]);
+
+  const pendingRequests = useMemo(() => {
+    return contractorBookings.filter((b) => ['Pending', 'New Request'].includes(b.status));
+  }, [contractorBookings]);
+
+  const activeJobs = useMemo(() => {
+    return contractorBookings.filter((b) =>
+      ['Accepted', 'Assigned', 'Confirmed', 'Worker Assigned', 'On The Way', 'Work Started', 'In Progress'].includes(b.status)
+    );
+  }, [contractorBookings]);
+
+  const completedJobs = useMemo(() => {
+    return contractorBookings.filter((b) => ['Completed', 'Reviewed'].includes(b.status));
+  }, [contractorBookings]);
+
+  const totalRevenue = useMemo(() => {
+    return completedJobs.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+  }, [completedJobs]);
+
+  // Database Handlers
   const updateTeamInDB = async (newTeam) => {
     const { services } = parseServicesAndTeam(user?.services_offered);
     const serialized = serializeServicesAndTeam(services, newTeam);
     const { error } = await supabase.from('contractors').update({ services_offered: serialized }).eq('id', user.id);
     if (!error) {
-      await refreshData();
+      if (refreshData) await refreshData();
+      showToast('Team directory updated.', 'success');
     } else {
-      showToast('Failed to update team in database: ' + error.message, 'error');
+      showToast('Failed to update team: ' + error.message, 'error');
     }
   };
 
-  // Leads & Projects
-  const largeLeads = bookings.filter(b => b.status === 'New Request');
-  const activeProjects = bookings.filter(b => b.worker_id === user?.id && b.status !== 'Completed');
-  const myTickets = tickets.filter(t => t.user_id === user?.id);
-
   const handleAddTeamMember = async (e) => {
     e.preventDefault();
-    if (!newMemberName || !newMemberRole) return;
-    const newTeam = [...team, { 
-      name: newMemberName, 
-      role: newMemberRole, 
-      phone: newMemberPhone || '9876543210', 
-      status: 'Available' 
-    }];
+    if (!newMemberName || !newMemberRole) {
+      showToast('Please provide name and role', 'error');
+      return;
+    }
+    const newTeam = [
+      ...team,
+      {
+        name: newMemberName,
+        role: newMemberRole,
+        phone: newMemberPhone || '9876543210',
+        status: 'Available',
+        trustScore: 98
+      }
+    ];
     await updateTeamInDB(newTeam);
     setNewMemberName('');
     setNewMemberRole('');
@@ -101,103 +177,51 @@ const ContractorDashboard = () => {
   };
 
   const handleDeleteTeamMember = async (idxToDelete) => {
-    const ok = await confirm('Remove this staff member from directory?');
+    const ok = await confirm('Remove staff member from company directory?');
     if (ok) {
       const newTeam = team.filter((_, idx) => idx !== idxToDelete);
       await updateTeamInDB(newTeam);
     }
   };
 
-  const handleToggleService = async (serviceName) => {
-    const { services: currentServices, teamList } = parseServicesAndTeam(user?.services_offered);
-    let serviceList = currentServices.split(',').map(s => s.trim()).filter(Boolean);
-    if (serviceList.includes(serviceName)) {
-      serviceList = serviceList.filter(s => s !== serviceName);
-    } else {
-      serviceList = [...serviceList, serviceName];
-    }
-    const updatedServicesStr = serviceList.join(', ');
-    const serialized = serializeServicesAndTeam(updatedServicesStr, teamList);
-    const { error } = await supabase.from('contractors').update({ services_offered: serialized }).eq('id', user.id);
-    if (!error) {
-      await refreshData();
-    } else {
-      showToast('Failed to update services offered: ' + error.message, 'error');
-    }
-  };
+  const handleAssignStaffToBooking = async (bookingId, staffName) => {
+    const staffMember = team.find((t) => t.name === staffName) || { phone: user?.phone || '9876543210' };
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        worker_id: user?.id,
+        worker_name: `${staffName} (${user?.company || 'Contractor'})`,
+        worker_phone: staffMember.phone,
+        status: 'Worker Assigned'
+      })
+      .eq('id', bookingId);
 
-  const handleAssignStaff = async (bookingId, staffName) => {
-    const staffMember = team.find(t => t.name === staffName);
-    const staffPhone = staffMember?.phone || user.phone || '9876543210';
-    const { error } = await supabase.from('bookings').update({
-      worker_name: staffName,
-      worker_phone: staffPhone,
-      status: 'Confirmed'
-    }).eq('id', bookingId);
     if (!error) {
-      showToast(`Assigned ${staffName} to project.`, 'success');
+      showToast(`Assigned ${staffName} to booking!`, 'success');
       setAssigningBooking(null);
-      await refreshData();
+      if (refreshData) await refreshData();
     } else {
-      showToast('Failed to assign staff: ' + error.message, 'error');
+      showToast('Failed to assign worker: ' + error.message, 'error');
     }
   };
 
-  const handleStartWork = async (bookingId) => {
-    await updateBookingStatus(bookingId, 'In Progress');
-    await refreshData();
-  };
-
-  const handleCompleteProject = async (bookingId) => {
-    await updateBookingStatus(bookingId, 'Completed');
-    await refreshData();
-  };
-
-  const handleAcceptLead = async (bookingId) => {
-    const ok = await confirm('Accept this booking and assign to your firm?');
-    if (!ok) return;
-    const { error } = await supabase.from('bookings').update({
-      worker_id: user.id,
-      worker_name: user.company || user.name,
-      worker_phone: user.phone,
-      status: 'Assigned'
-    }).eq('id', bookingId);
-    if (!error) {
-      showToast("Booking accepted! You can now assign workers under Projects.", 'success');
-      await refreshData();
-    } else {
-      showToast("Failed to accept booking: " + error.message, 'error');
-    }
-  };
-
-  const handleToggleCoverage = (cityName) => {
-    if (coverageAreas.includes(cityName)) {
-      setCoverageAreas(prev => prev.filter(c => c !== cityName));
-    } else {
-      setCoverageAreas(prev => [...prev, cityName]);
-    }
-  };
-
-  const handleCreateTicket = async (e) => {
+  const handleUpdateCompanyProfile = async (e) => {
     e.preventDefault();
-    if (!ticketSubject || !ticketMessage) {
-      showToast('Please fill out all fields', 'error');
-      return;
-    }
-    setTicketLoading(true);
-    const { error } = await addTicket({
-      user_id: user?.id,
-      subject: ticketSubject,
-      message: ticketMessage
-    });
-    setTicketLoading(false);
+    const { error } = await supabase
+      .from('contractors')
+      .update({
+        company: companyName,
+        owner_name: ownerName,
+        gst: gstNumber,
+        city: contractorCity
+      })
+      .eq('id', user.id);
+
     if (!error) {
-      showToast('Support ticket raised successfully!', 'success');
-      setTicketSubject('');
-      setTicketMessage('');
-      await refreshData();
+      showToast('Company profile details saved successfully!', 'success');
+      if (refreshData) await refreshData();
     } else {
-      showToast('Failed to raise support ticket: ' + error.message, 'error');
+      showToast('Failed to save profile: ' + error.message, 'error');
     }
   };
 
@@ -206,514 +230,517 @@ const ContractorDashboard = () => {
     navigate('/login');
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-10 sm:px-6 lg:px-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        
-        {/* Sidebar Navigation */}
-        <aside className="lg:col-span-3 space-y-6">
-          {/* Profile Card */}
-          <div className="bg-white rounded-3xl border border-slate-100 p-6 text-center space-y-4 shadow-sm">
-            <div className="h-16 w-16 mx-auto rounded-2xl bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md">
-              <Building size={28} />
+  const getInitials = (name) => {
+    if (!name) return 'C';
+    const parts = name.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  // Sidebar Items matching exact prompt requirement
+  const navItems = [
+    { id: 'overview', label: 'Dashboard', icon: BarChart3 },
+    { id: 'bookings', label: 'Bookings', icon: FileText, count: pendingRequests.length + activeJobs.length },
+    { id: 'workers', label: 'Workers', icon: Users, count: team.length },
+    { id: 'assignments', label: 'Assignments', icon: Briefcase },
+    { id: 'earnings', label: 'Earnings', icon: IndianRupee },
+    { id: 'reviews', label: 'Reviews', icon: Star },
+    { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter((n) => !n.read).length },
+    { id: 'profile', label: 'Company Profile', icon: Building },
+  ];
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'bookings':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Bookings & Leads</h2>
+              <p className="text-sm text-slate-500">Manage incoming service leads, assign staff workers, and complete jobs.</p>
             </div>
-            <div className="space-y-0.5">
-              <h3 className="font-extrabold text-slate-800 text-sm leading-tight">{user?.company || 'Contractor Entity'}</h3>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.owner_name || 'Business Partner'}</p>
-            </div>
-            <div className="pt-2">
-              <span className={`inline-flex px-3 py-1 text-[10px] font-black uppercase tracking-wider rounded-full ${
-                user?.status === 'Suspended' ? 'bg-red-50 text-danger border border-red-100' : 'bg-green-50 text-success border border-green-100'
-              }`}>
-                {user?.status || 'Active'}
-              </span>
-            </div>
-          </div>
 
-          {/* Navigation Options */}
-          <nav className="bg-white rounded-3xl border border-slate-100 p-3 shadow-sm flex flex-col gap-1 text-slate-600 text-xs">
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=leads`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'leads' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <Layout size={16} /> Leads Command
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=projects`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'projects' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <Briefcase size={16} /> Projects ({activeProjects.length})
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=team`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'team' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <Users size={16} /> Manage Team
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=services`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'services' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <CheckCircle size={16} /> Service Management
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=areas`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'areas' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <MapPin size={16} /> Service Areas
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=support`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'support' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <HelpCircle size={16} /> Support Tickets
-            </button>
-            <button 
-              onClick={() => navigate(`${location.pathname}?tab=profile`)}
-              className={`flex items-center gap-2.5 p-3 rounded-xl ${
-                activeTab === 'profile' ? 'btn-primary shadow-md' : 'btn-secondary'
-              }`}
-            >
-              <Settings size={16} /> Firm Profile
-            </button>
-            <div className="h-px bg-slate-100 my-2"></div>
-            <button 
-              onClick={handleLogout}
-              className="flex items-center gap-2.5 p-3 rounded-xl btn-danger"
-            >
-              <LogOut size={16} /> Logout
-            </button>
-          </nav>
-        </aside>
-
-        {/* Main Work panel */}
-        <main id="dashboard-main-content" className="lg:col-span-9 bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[500px]">
-          <AnimatePresence mode="wait">
-              {activeTab === 'leads' && (
-                <motion.div 
-                  key="leads"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                    <h2 className="text-xl font-black text-slate-900">Contracting Leads Dispatch</h2>
-                    <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{largeLeads.length} Available</span>
-                  </div>
-
-                  {largeLeads.length === 0 ? (
-                    <div className="py-20 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl">
-                      <Layout size={36} className="mx-auto text-slate-300 mb-2" />
-                      <h4 className="font-extrabold text-slate-700 text-sm uppercase tracking-wider">No Leads Dispatched</h4>
-                      <p className="text-xs text-slate-400 font-semibold mt-1">Check back later for large-scale contracting assignments in Jharkhand.</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {largeLeads.map(lead => (
-                        <div key={lead.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                          <div>
-                            <span className="text-[9px] font-black text-primary uppercase">LEAD ID: {lead.id}</span>
-                            <h4 className="font-extrabold text-slate-900 text-sm mt-0.5">{lead.service_name}</h4>
-                            <p className="text-xs text-slate-500 font-semibold mt-2 flex items-center gap-1"><MapPin size={12} /> City: {lead.city}</p>
-                          </div>
-                          <button onClick={() => handleAcceptLead(lead.id)} className="btn-primary text-xs px-5 py-2.5 rounded-xl shadow-md">Accept & Self-Assign</button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {activeTab === 'projects' && (
-                <motion.div 
-                  key="projects"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                    <h2 className="text-xl font-black text-slate-900">Active Projects</h2>
-                  </div>
-
-                  {activeProjects.length === 0 ? (
-                    <div className="py-20 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl">
-                      <Briefcase size={36} className="mx-auto text-slate-300" />
-                      <h4 className="font-extrabold text-slate-700 text-sm uppercase tracking-wider mt-2">No Active Projects</h4>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                      {activeProjects.map(proj => (
-                        <div key={proj.id} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
-                          <div className="flex justify-between items-start flex-wrap gap-2">
-                            <div>
-                              <span className="text-[10px] font-black text-primary uppercase">ID: {proj.id}</span>
-                              <h4 className="font-extrabold text-slate-900 text-sm mt-0.5">{proj.service_name}</h4>
-                              <p className="text-xs text-slate-400 font-semibold mt-1">Customer: {proj.customer_name} ({proj.customer_phone})</p>
-                            </div>
-                            <span className="px-2.5 py-1 bg-blue-50 text-primary text-[9px] font-black uppercase tracking-wider rounded-md">
-                              {proj.status}
-                            </span>
-                          </div>
-                          <p className="text-xs text-slate-500 font-semibold flex items-center gap-1"><MapPin size={12} /> {proj.customer_address}, {proj.city}</p>
-                          
-                          <div className="p-3 bg-white border border-slate-100 rounded-xl text-xs font-semibold flex justify-between items-center shadow-sm">
-                            <span>
-                              <strong>Assigned Worker:</strong> {proj.worker_name && proj.worker_name !== user.company ? proj.worker_name : 'None (Contractor Firm)'}
-                            </span>
-                            <button 
-                              onClick={() => setAssigningBooking(proj)} 
-                              className="btn-secondary text-[10px] px-3 py-1.5 rounded-lg shadow-sm"
-                            >
-                              {proj.worker_name && proj.worker_name !== user.company ? 'Reassign' : 'Assign Worker'}
-                            </button>
-                          </div>
-
-                          <div className="flex gap-2">
-                            {proj.status === 'Assigned' && (
-                              <button 
-                                onClick={() => setAssigningBooking(proj)} 
-                                className="flex-1 btn-primary text-xs py-2 rounded-xl shadow-sm"
-                              >
-                                Assign Worker to Start
-                              </button>
-                            )}
-                            {proj.status === 'Confirmed' && (
-                              <button 
-                                onClick={() => handleStartWork(proj.id)} 
-                                className="flex-1 btn-primary text-xs py-2 rounded-xl shadow-sm"
-                              >
-                                Start Work
-                              </button>
-                            )}
-                            {proj.status === 'In Progress' && (
-                              <button 
-                                onClick={() => handleCompleteProject(proj.id)} 
-                                className="flex-1 btn-success text-xs py-2.5 rounded-xl shadow-md"
-                              >
-                                Complete Project
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-
-              {activeTab === 'team' && (
-                <motion.div 
-                  key="team"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <h2 className="text-xl font-black text-slate-900 pb-4 border-b border-slate-100">Manage Staff Directory</h2>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Add Staff form */}
-                    <form onSubmit={handleAddTeamMember} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4 h-fit">
-                      <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Add Staff Member</h3>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Full Name</label>
-                        <input 
-                          className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                          placeholder="e.g. Ramesh Kumar"
-                          value={newMemberName}
-                          onChange={(e) => setNewMemberName(e.target.value)}
-                          required
-                        />
+            {contractorBookings.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+                No active contractor bookings received yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-4">
+                {contractorBookings.map((b) => (
+                  <div key={b.id} className="p-6 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-4">
+                    <div className="flex justify-between items-start flex-wrap gap-2">
+                      <div>
+                        <span className="text-[10px] font-black text-primary uppercase">ID: {b.id}</span>
+                        <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{b.service_name}</h4>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Specialty / Role</label>
-                        <input 
-                          className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                          placeholder="e.g. Lead Electrician, Mason"
-                          value={newMemberRole}
-                          onChange={(e) => setNewMemberRole(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mobile Phone</label>
-                        <input 
-                          className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                          placeholder="10-digit number"
-                          value={newMemberPhone}
-                          onChange={(e) => setNewMemberPhone(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <button type="submit" className="w-full btn-primary text-xs py-3 rounded-xl shadow-md flex items-center justify-center gap-1"><Plus size={14} /> Add Staff</button>
-                    </form>
-
-                    {/* Staff Directory table */}
-                    <div className="lg:col-span-2 space-y-4">
-                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Employees</h3>
-                      <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">
-                        <table className="w-full text-left border-collapse text-xs font-semibold text-slate-600">
-                          <thead>
-                            <tr className="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-100">
-                              <th className="p-4">Name</th>
-                              <th className="p-4">Role Specialty</th>
-                              <th className="p-4">Mobile</th>
-                              <th className="p-4">Duty Status</th>
-                              <th className="p-4">Action</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {team.map((t, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/50">
-                                <td className="p-4 font-bold text-slate-900">{t.name}</td>
-                                <td className="p-4">{t.role}</td>
-                                <td className="p-4">{t.phone || 'N/A'}</td>
-                                <td className="p-4"><span className="px-2.5 py-1 bg-green-50 text-success text-[9px] font-black uppercase tracking-wider rounded-md">{t.status}</span></td>
-                                <td className="p-4">
-                                  <button onClick={() => handleDeleteTeamMember(idx)} className="btn-danger text-[9px] px-2 py-1 rounded-md shadow-sm">Remove</button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          b.status === 'Completed'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-blue-50 text-primary border border-blue-200'
+                        }`}
+                      >
+                        {b.status}
+                      </span>
                     </div>
-                  </div>
-                </motion.div>
-              )}
 
-              {activeTab === 'areas' && (
-                <motion.div 
-                  key="areas"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <h2 className="text-xl font-black text-slate-900 pb-4 border-b border-slate-100">Service Coverage Areas</h2>
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-800">Select Jharkhand regions for Leads dispatch</h3>
-                    
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                      {cities.map(city => {
-                        const active = coverageAreas.includes(city.name);
-                        return (
-                          <div 
-                            key={city.id} 
-                            onClick={() => handleToggleCoverage(city.name)}
-                            className={`p-4 border rounded-xl cursor-pointer text-center font-bold text-xs uppercase tracking-wider transition-all ${
-                              active 
-                                ? 'bg-primary border-primary text-white shadow-md shadow-primary/10' 
-                                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-                            }`}
-                          >
-                            {city.name}
-                          </div>
-                        );
-                      })}
+                    <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-1.5 font-semibold text-slate-700">
+                      <p><strong>Customer:</strong> {b.customer_name}</p>
+                      <p><strong>Location:</strong> {b.customer_address || b.address}, {b.city}</p>
+                      <p><strong>Worker Assigned:</strong> {b.worker_name || 'None (Unassigned)'}</p>
+                      <p className="text-sm font-black text-slate-900 pt-1">Price Tariff: ₹{b.price || 999}</p>
                     </div>
-                  </div>
-                </motion.div>
-              )}
 
-              {activeTab === 'support' && (
-                <motion.div 
-                  key="support"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <h2 className="text-xl font-black text-slate-900 pb-4 border-b border-slate-100">Contractor Help Resolution Desk</h2>
-                  
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    {/* Create Ticket */}
-                    <form onSubmit={handleCreateTicket} className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4 h-fit">
-                      <h3 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">Raise Support Ticket</h3>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Topic Subject</label>
-                        <input 
-                          className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                          placeholder="e.g. Lead dispute, GST verification updates"
-                          value={ticketSubject}
-                          onChange={(e) => setTicketSubject(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Inquiry Statement</label>
-                        <textarea 
-                          className="w-full p-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none"
-                          rows="4"
-                          placeholder="Enter details of your ticket..."
-                          value={ticketMessage}
-                          onChange={(e) => setTicketMessage(e.target.value)}
-                          required
-                        />
-                      </div>
-                      <button type="submit" className="w-full btn-primary text-xs py-3 rounded-xl shadow-md flex justify-center items-center" disabled={ticketLoading}>
-                        {ticketLoading ? 'Submitting...' : 'Submit Support Ticket'}
-                      </button>
-                    </form>
-
-                    {/* Tickets List */}
-                    <div className="space-y-4">
-                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Tickets logs</h3>
-                      {myTickets.length === 0 ? (
-                        <p className="text-slate-400 text-xs font-semibold">No support tickets raised.</p>
-                      ) : (
-                        myTickets.map(t => (
-                          <div key={t.id} className="p-4 bg-white border border-slate-100 rounded-2xl shadow-sm flex justify-between items-start gap-4 text-xs font-semibold">
-                            <div className="space-y-1">
-                              <h4 className="font-bold text-slate-900">{t.subject}</h4>
-                              <p className="text-slate-500">{t.message}</p>
-                              <span className="text-[10px] text-slate-400 block pt-1">Opened: {new Date(t.created_at).toLocaleDateString()}</span>
-                            </div>
-                            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                              t.status === 'Resolved' ? 'bg-green-50 text-success' : 'bg-amber-50 text-warning'
-                            }`}>
-                              {t.status}
-                            </span>
-                          </div>
-                        ))
+                    {/* Simple Card Actions */}
+                    <div className="flex gap-2 flex-wrap">
+                      {b.status !== 'Completed' && (
+                        <button
+                          onClick={() => setAssigningBooking(b)}
+                          className="flex-1 py-2.5 rounded-2xl bg-primary text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
+                        >
+                          {b.worker_name ? 'Reassign Staff' : 'Assign Worker'}
+                        </button>
+                      )}
+                      {b.status !== 'Completed' && (
+                        <button
+                          onClick={async () => {
+                            await updateBookingStatus(b.id, 'Completed');
+                            showToast('Booking marked as completed!', 'success');
+                            if (refreshData) refreshData();
+                          }}
+                          className="flex-1 py-2.5 rounded-2xl bg-emerald-600 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700 transition-all"
+                        >
+                          Mark Complete
+                        </button>
                       )}
                     </div>
                   </div>
-                </motion.div>
-              )}
+                ))}
+              </div>
+            )}
+          </div>
+        );
 
-              {activeTab === 'profile' && (
-                <motion.div 
-                  key="profile"
-                  className="space-y-6 max-w-xl animate-fade-in"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <h2 className="text-xl font-black text-slate-900 pb-4 border-b border-slate-100">Firm Profile details</h2>
-                  <div className="bg-slate-50 border border-slate-100 p-8 rounded-2xl shadow-sm space-y-4 text-xs font-semibold">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Company / Firm Name</label>
-                      <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.company} disabled />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">MD / Proprietor Name</label>
-                      <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.owner_name} disabled />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">GST Registration Identification</label>
-                      <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-primary font-bold outline-none" value={user?.gst || 'EXEMPT / NOT REGISTERED'} disabled />
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Services Catalog Offered</label>
-                      <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-xl text-slate-700 outline-none" value={user?.services_offered || 'General contracting / painting'} disabled />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-              {activeTab === 'services' && (
-                <motion.div 
-                  key="services"
-                  className="space-y-6"
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                >
-                  <h2 className="text-xl font-black text-slate-900 pb-4 border-b border-slate-100">Service Management</h2>
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 space-y-4">
-                    <h3 className="text-xs font-bold text-slate-800">Select the home services your contracting company offers</h3>
-                    
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      {['Electrician', 'Plumber', 'AC Repair', 'Cleaning Help', 'Painting Services', 'Carpenter Help'].map(serviceName => {
-                        const { services: currentServices } = parseServicesAndTeam(user?.services_offered);
-                        const isOffered = currentServices.split(',').map(s => s.trim()).filter(Boolean).includes(serviceName);
-                        return (
-                          <div 
-                            key={serviceName} 
-                            onClick={() => handleToggleService(serviceName)}
-                            className={`p-4 border rounded-xl cursor-pointer flex justify-between items-center transition-all ${
-                              isOffered 
-                                ? 'bg-primary border-primary text-white shadow-md shadow-primary/10' 
-                                : 'bg-white border-slate-200 text-slate-500 hover:border-slate-300'
-                            }`}
-                          >
-                            <span className="font-bold text-xs uppercase tracking-wider">{serviceName}</span>
-                            <div className={`h-4 w-4 rounded border flex items-center justify-center ${
-                              isOffered ? 'border-white bg-white text-primary' : 'border-slate-300'
-                            }`}>
-                              {isOffered && <CheckCircle size={10} />}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </main>
-
-      </div>
-
-      {/* Assign Staff member Modal */}
-      {assigningBooking && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-100 space-y-6">
-            <div>
-              <h3 className="text-lg font-black text-slate-900 leading-tight">Assign Staff Member</h3>
-              <p className="text-xs text-slate-400 font-semibold mt-1">Select an employee from your team directory to assign to this project.</p>
+      case 'workers':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Staff & Worker Roster</h2>
+                <p className="text-sm text-slate-500">Manage internal technicians and field staff.</p>
+              </div>
             </div>
-            
-            <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+
+            {/* Add Team Member Form */}
+            <form onSubmit={handleAddTeamMember} className="p-5 bg-slate-50 border border-slate-200 rounded-3xl grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs font-semibold">
+              <input
+                type="text"
+                placeholder="Staff Full Name"
+                value={newMemberName}
+                onChange={(e) => setNewMemberName(e.target.value)}
+                className="h-10 px-3 bg-white border border-slate-200 rounded-xl outline-none"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Role / Skill (e.g. Electrician)"
+                value={newMemberRole}
+                onChange={(e) => setNewMemberRole(e.target.value)}
+                className="h-10 px-3 bg-white border border-slate-200 rounded-xl outline-none"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Mobile Number"
+                value={newMemberPhone}
+                onChange={(e) => setNewMemberPhone(e.target.value)}
+                className="h-10 px-3 bg-white border border-slate-200 rounded-xl outline-none"
+              />
+              <button type="submit" className="h-10 bg-primary text-white font-extrabold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1">
+                <Plus size={14} /> Add Worker
+              </button>
+            </form>
+
+            {/* Simple Workers Table */}
+            <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
               {team.length === 0 ? (
-                <div className="text-center py-6 text-slate-400 text-xs font-semibold space-y-2">
-                  <p>No staff members found in directory.</p>
-                  <button 
-                    onClick={() => { setAssigningBooking(null); navigate(`${location.pathname}?tab=team`); }}
-                    className="btn-primary text-xs px-4 py-2 rounded-xl shadow-md text-center inline-block"
-                  >
-                    Add Staff Members
+                <div className="p-8 text-center text-xs font-semibold text-slate-500">No staff members in directory.</div>
+              ) : (
+                <table className="min-w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-500 font-extrabold uppercase border-b border-slate-100">
+                    <tr>
+                      <th className="px-5 py-3.5">Photo & Name</th>
+                      <th className="px-5 py-3.5">Skills / Role</th>
+                      <th className="px-5 py-3.5">City</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5">Trust Score</th>
+                      <th className="px-5 py-3.5 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
+                    {team.map((w, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-5 py-4 flex items-center gap-3 font-extrabold text-slate-900">
+                          <div className="h-8 w-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-xs font-black uppercase">
+                            {w.name.charAt(0)}
+                          </div>
+                          {w.name}
+                        </td>
+                        <td className="px-5 py-4 text-slate-600">{w.role}</td>
+                        <td className="px-5 py-4 text-slate-600">{contractorCity}</td>
+                        <td className="px-5 py-4">
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black text-[10px]">
+                            {w.status || 'Available'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 font-black text-emerald-700">{w.trustScore || 98}%</td>
+                        <td className="px-5 py-4 text-right">
+                          <button onClick={() => handleDeleteTeamMember(idx)} className="p-1.5 text-red-600 hover:bg-red-50 rounded-xl">
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'assignments':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Work Assignments</h2>
+              <p className="text-sm text-slate-500">Track field staff dispatches and job completions.</p>
+            </div>
+            <div className="space-y-3">
+              {activeJobs.map((j) => (
+                <div key={j.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex justify-between items-center text-xs font-semibold">
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-sm">{j.service_name}</h4>
+                    <p className="text-slate-500">Assigned Staff: {j.worker_name || 'Firm Unassigned'}</p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-blue-50 text-primary font-black text-[10px] uppercase">
+                    {j.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 'earnings':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Revenue Ledger</h2>
+              <p className="text-sm text-slate-500">Company revenue from completed client projects.</p>
+            </div>
+            <div className="p-8 bg-slate-50 border border-slate-200 rounded-3xl">
+              <span className="text-[10px] font-black uppercase text-slate-400">Total Completed Revenue</span>
+              <p className="text-4xl font-black text-slate-900 mt-2">₹{totalRevenue}</p>
+            </div>
+          </div>
+        );
+
+      case 'reviews':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Company Reviews</h2>
+              <p className="text-sm text-slate-500">Client reviews for completed firm projects.</p>
+            </div>
+            <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+              <Star size={38} className="mx-auto text-slate-300 mb-2" />
+              Verified client reviews for your firm will display here upon project completion.
+            </div>
+          </div>
+        );
+
+      case 'notifications':
+        return (
+          <div className="space-y-6">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Notifications</h2>
+              <p className="text-sm text-slate-500">Incoming lead notifications and admin broadcasts.</p>
+            </div>
+            {notifications.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+                No notifications.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notifications.map((n) => (
+                  <div key={n.id} className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm text-xs space-y-1">
+                    <h4 className="font-extrabold text-slate-900">{n.title}</h4>
+                    <p className="text-slate-600">{n.message}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+
+      case 'profile':
+        return (
+          <div className="space-y-6 max-w-xl">
+            <div className="border-b border-slate-100 pb-4">
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Company Profile & GST</h2>
+              <p className="text-sm text-slate-500">Manage business entity details and GST registration.</p>
+            </div>
+
+            <form onSubmit={handleUpdateCompanyProfile} className="bg-slate-50 border border-slate-200 p-8 rounded-3xl space-y-4 text-xs font-semibold">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Company / Firm Name</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Proprietor / Owner Name</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} required />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">GST Identification Number</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} placeholder="e.g. 20AAAAA0000A1Z5" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Base Operating City</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={contractorCity} onChange={(e) => setContractorCity(e.target.value)} />
+              </div>
+              <button type="submit" className="w-full py-3 rounded-2xl bg-primary text-white font-extrabold">
+                Save Company Profile
+              </button>
+            </form>
+          </div>
+        );
+
+      case 'overview':
+      default:
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Operations Desk</h2>
+                <p className="text-sm text-slate-500">Welcome back, {user?.company || user?.name || 'Contractor Partner'}! Platform activity overview.</p>
+              </div>
+            </div>
+
+            {/* Exact Top 4 Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Workers</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{team.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
+                    <Users size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Jobs</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{activeJobs.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-amber-100 text-amber-700">
+                    <Briefcase size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pending Requests</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{pendingRequests.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-emerald-100 text-emerald-700">
+                    <Clock size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Revenue</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">₹{totalRevenue}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-violet-100 text-violet-700">
+                    <IndianRupee size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Leads & Projects */}
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Incoming Booking Leads</h3>
+                  <button onClick={() => navigate(`${location.pathname}?tab=bookings`)} className="text-xs font-extrabold text-primary hover:underline">
+                    View All ({pendingRequests.length})
                   </button>
                 </div>
-              ) : (
-                team.map(member => (
-                  <div 
-                    key={member.name} 
-                    onClick={() => handleAssignStaff(assigningBooking.id, member.name)}
-                    className="p-4 bg-slate-50 hover:bg-blue-50 border border-slate-100 hover:border-primary/30 rounded-xl cursor-pointer flex justify-between items-center transition-all"
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-slate-800">{member.name}</h4>
-                      <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{member.role} • {member.phone}</p>
+
+                <div className="space-y-3">
+                  {pendingRequests.length === 0 ? (
+                    <div className="p-6 text-center bg-white rounded-2xl border border-slate-200 text-xs text-slate-500 font-semibold">
+                      No new incoming booking leads.
                     </div>
-                    <span className="text-[10px] font-black text-primary uppercase">Assign</span>
+                  ) : (
+                    pendingRequests.slice(0, 3).map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-extrabold text-slate-900">{item.service_name || 'Client Project'}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">Client: {item.customer_name} • {item.city}</p>
+                        </div>
+                        <button
+                          onClick={() => setAssigningBooking(item)}
+                          className="rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-blue-700 transition-all"
+                        >
+                          Assign Worker
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">Staff Roster Overview</h3>
+                  <button onClick={() => navigate(`${location.pathname}?tab=workers`)} className="text-xs font-extrabold text-primary hover:underline">
+                    Manage Roster
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {team.slice(0, 3).map((w, i) => (
+                    <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-900">{w.name}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{w.role} • {w.status || 'Available'}</p>
+                      </div>
+                      <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
+                        {w.trustScore || 98}% Trust
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Sidebar matching Admin Shell */}
+        <aside className="lg:col-span-3 space-y-4">
+          <div className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-black uppercase shadow-inner">
+                {getInitials(user?.company || user?.name)}
+              </div>
+              <div>
+                <p className="text-sm font-black">{user?.company || user?.name || 'Contractor Entity'}</p>
+                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Contractor Desk</p>
+              </div>
+            </div>
+          </div>
+
+          <nav className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm space-y-1">
+            {navItems.map(({ id, label, icon: Icon, count }) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => navigate(`${location.pathname}?tab=${id}`)}
+                  className={`flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left text-xs font-bold transition-all ${
+                    isActive ? 'bg-primary text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon size={16} />
+                    <span>{label}</span>
                   </div>
-                ))
-              )}
+                  {count !== undefined && count > 0 && (
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary'}`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </nav>
+
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-600 shadow-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-all"
+          >
+            <LogOut size={16} /> Logout
+          </button>
+        </aside>
+
+        {/* Main Panel Content */}
+        <main id="contractor-panel-content" className="lg:col-span-9 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm min-h-[600px]">
+          {renderTabContent()}
+        </main>
+      </div>
+
+      {/* Assign Worker Modal */}
+      {assigningBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-black text-slate-900">Assign Staff Worker</h3>
+                <p className="text-xs text-slate-500 font-semibold mt-0.5">Booking #{assigningBooking.id} - {assigningBooking.service_name}</p>
+              </div>
+              <button onClick={() => setAssigningBooking(null)} className="p-2 text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
             </div>
 
-            <div className="flex justify-end pt-2">
-              <button 
-                type="button" 
-                onClick={() => setAssigningBooking(null)} 
-                className="btn-secondary text-xs px-4 py-2.5 rounded-xl"
+            <div className="space-y-4 text-xs font-semibold">
+              <label className="text-[10px] font-black text-slate-400 uppercase">Select Staff Member from Roster</label>
+              <select
+                value={selectedStaffName}
+                onChange={(e) => setSelectedStaffName(e.target.value)}
+                className="w-full h-11 px-4 bg-slate-50 border border-slate-200 rounded-2xl font-bold text-slate-800 outline-none"
               >
-                Close
-              </button>
+                <option value="">Select Technician / Worker</option>
+                {team.map((t, idx) => (
+                  <option key={idx} value={t.name}>
+                    {t.name} ({t.role})
+                  </option>
+                ))}
+              </select>
+
+              <div className="flex gap-2 justify-end pt-2">
+                <button type="button" onClick={() => setAssigningBooking(null)} className="rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-50">Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedStaffName) {
+                      showToast('Please select a staff member', 'error');
+                      return;
+                    }
+                    handleAssignStaffToBooking(assigningBooking.id, selectedStaffName);
+                  }}
+                  className="rounded-xl bg-primary px-5 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700"
+                >
+                  Assign Worker
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -35,7 +35,7 @@ const IconMap = {
 
 
 const Services = () => {
-  const { services, cities, cityControl, submitCoverageRequest, showToast, user } = useApp();
+  const { services, cities, cityControl, submitCoverageRequest, showToast, user, openBookingModal } = useApp();
   const location = useLocation();
   const [submittedCoverages, setSubmittedCoverages] = useState([]);
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -261,9 +261,9 @@ const Services = () => {
                     return (
                       <div key={service.id} className="h-full flex">
                         {isServiceAvailable(service.id) ? (
-                          <Link 
-                            to={`/book/${service.id}${selectedCity ? `?city=${encodeURIComponent(selectedCity)}&state=${encodeURIComponent(selectedState || '')}` : ''}`} 
-                            className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
+                          <div 
+                            onClick={() => openBookingModal({ serviceId: service.id, city: selectedCity, state: selectedState })} 
+                            className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
                           >
                             <div className="flex flex-col justify-between h-full w-full">
                               <div>
@@ -305,7 +305,7 @@ const Services = () => {
                                 </div>
                               </div>
                             </div>
-                          </Link>
+                          </div>
                         ) : (
                           <div className="bg-slate-50/40 rounded-2xl border border-slate-150 p-6 flex flex-col justify-between h-full w-full opacity-95">
                             <div className="flex flex-col justify-between h-full w-full">

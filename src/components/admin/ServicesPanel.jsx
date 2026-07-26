@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Wrench, Edit2, Trash2 } from 'lucide-react';
+import { Edit2, Trash2 } from 'lucide-react';
 
 const ServicesPanel = () => {
   const {
     services,
     categories,
+    cities,
+    cityControl,
+    toggleServiceInCity,
     createService,
     updateService,
     deleteService,
@@ -20,6 +23,7 @@ const ServicesPanel = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [page, setPage] = useState(1);
   const [editingService, setEditingService] = useState(null);
+  const [selectedCityIds, setSelectedCityIds] = useState([]);
   const [form, setForm] = useState({
     name: '',
     category: '',
@@ -63,18 +67,33 @@ const ServicesPanel = () => {
       return;
     }
 
-    const selectedCategory = categories.find((cat) => String(cat.id) === String(form.category_id));
+    const selectedCategoryObj = categories.find((cat) => String(cat.id) === String(form.category_id));
     const payload = {
       ...form,
-      category: selectedCategory?.name || form.category || 'General',
-      category_id: selectedCategory?.id || form.category_id || null,
+      category: selectedCategoryObj?.name || form.category || 'General',
+      category_id: selectedCategoryObj?.id || form.category_id || null,
+      base_price: Number(form.base_price) || 0,
+      platform_fee: Number(form.platform_fee) || 0,
+      inspection_fee: Number(form.inspection_fee) || 0,
     };
+
+    let savedServiceId = editingService?.id;
 
     if (editingService) {
       await updateService(editingService.id, payload);
       setEditingService(null);
     } else {
-      await createService(payload);
+      const res = await createService(payload);
+      if (res?.data?.id) savedServiceId = res.data.id;
+    }
+
+    // Persist city availability checklist for this service
+    if (savedServiceId && cities.length > 0) {
+      const promises = cities.map((city) => {
+        const enabled = selectedCityIds.includes(city.id);
+        return toggleServiceInCity(city.id, savedServiceId, enabled);
+      });
+      await Promise.all(promises);
     }
 
     setForm({
@@ -88,6 +107,7 @@ const ServicesPanel = () => {
       icon: 'wrench',
       active: true,
     });
+    setSelectedCityIds([]);
   };
 
   const handleEdit = (service) => {
@@ -104,6 +124,15 @@ const ServicesPanel = () => {
       icon: service.icon || 'wrench',
       active: service.active !== false,
     });
+
+    // Populate active city IDs for this service
+    const enabledCityIds = cities.filter((city) => {
+      const mapping = cityControl && cityControl[city.id] ? cityControl[city.id] : {};
+      if (mapping[service.id] !== undefined) return mapping[service.id] === true;
+      return [1, 2, 3, 4, 5].includes(city.id);
+    }).map((c) => c.id);
+
+    setSelectedCityIds(enabledCityIds);
   };
 
   return (
@@ -111,7 +140,7 @@ const ServicesPanel = () => {
       <div className="flex items-center justify-between border-b border-slate-100 pb-4">
         <div>
           <h2 className="text-xl font-black text-slate-900">Services Catalog</h2>
-          <p className="text-sm text-slate-500">Manage service pricing, categories, and availability.</p>
+          <p className="text-sm text-slate-500">Manage service pricing, categories, and city availability.</p>
         </div>
       </div>
 
@@ -151,47 +180,38 @@ const ServicesPanel = () => {
               paginated.data.map((service) => (
                 <div key={service.id} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                   <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Wrench size={20} />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-700 font-bold uppercase text-xs">
+                      {(service.name || 'S').slice(0, 2)}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-900">{service.name}</span>
-                        <button
-                          onClick={() => toggleServiceActive(service.id, service.active === false)}
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase ${service.active !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
-                        >
-                          {service.active !== false ? 'Active' : 'Disabled'}
-                        </button>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {service.category || 'General'}
+                        </span>
                       </div>
                       <p className="text-xs text-slate-500">
-                        {service.category || 'General'} • Base: ₹{service.base_price || 0} • Fee: ₹{service.platform_fee || 0}
+                        Price: ₹{service.base_price || 0} • Fee: ₹{service.platform_fee || 0}
                       </p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
-                      onClick={() => handleEdit(service)}
-                      className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+                      onClick={() => toggleServiceActive(service.id, !service.active)}
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                        service.active !== false ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+                      }`}
                     >
+                      {service.active !== false ? 'Active' : 'Disabled'}
+                    </button>
+                    <button onClick={() => handleEdit(service)} className="rounded-xl border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50">
                       <Edit2 size={16} />
                     </button>
                     <button
-                      type="button"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        console.log('[ServicesPanel.onClick] Delete button triggered for Service ID:', service.id, 'Name:', service.name);
-                        if (
-                          window.confirm(
-                            `Delete service "${service.name}"?\n\nNote: If this service has existing bookings, pricing rules, or related records, it will be archived (disabled) instead of permanently deleted to preserve business history.\n\nContinue?`
-                          )
-                        ) {
-                          console.log('[ServicesPanel.onClick] User confirmed delete. Invoking deleteService...');
-                          const result = await deleteService(service.id);
-                          console.log('[ServicesPanel.onClick] deleteService finished with result:', result);
-                        } else {
-                          console.log('[ServicesPanel.onClick] User cancelled delete dialog.');
+                      onClick={() => {
+                        if (window.confirm(`Delete service "${service.name}"?`)) {
+                          deleteService(service.id);
                         }
                       }}
                       className="rounded-xl bg-red-50 p-2 text-red-600 hover:bg-red-100"
@@ -252,11 +272,11 @@ const ServicesPanel = () => {
               value={form.category_id || (categories.find((cat) => String(cat.name).toLowerCase() === String(form.category).toLowerCase())?.id || '')}
               onChange={(e) => {
                 const selectedVal = e.target.value;
-                const selected = categories.find((cat) => String(cat.id) === String(selectedVal) || cat.name === selectedVal);
+                const selectedCat = categories.find((cat) => String(cat.id) === String(selectedVal) || cat.name === selectedVal);
                 setForm({
                   ...form,
-                  category_id: selected?.id || selectedVal,
-                  category: selected?.name || selectedVal || '',
+                  category_id: selectedCat?.id || selectedVal,
+                  category: selectedCat?.name || selectedVal || '',
                 });
               }}
               className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
@@ -304,6 +324,39 @@ const ServicesPanel = () => {
             </div>
           </div>
 
+          {/* Available Cities Checklist */}
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-600">Available Cities</label>
+              <div className="flex gap-2 text-[10px] font-extrabold text-primary">
+                <button type="button" onClick={() => setSelectedCityIds(cities.map(c => c.id))} className="hover:underline">All</button>
+                <button type="button" onClick={() => setSelectedCityIds([])} className="hover:underline text-slate-400">None</button>
+              </div>
+            </div>
+            <div className="mt-1 grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200">
+              {cities.map((city) => {
+                const isChecked = selectedCityIds.includes(city.id);
+                return (
+                  <label key={city.id} className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedCityIds([...selectedCityIds, city.id]);
+                        } else {
+                          setSelectedCityIds(selectedCityIds.filter((id) => id !== city.id));
+                        }
+                      }}
+                      className="h-3.5 w-3.5 rounded border-slate-300 text-primary"
+                    />
+                    <span className="truncate">{city.name}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-bold text-slate-600">Icon / Image Upload</label>
             <input
@@ -332,6 +385,7 @@ const ServicesPanel = () => {
                   type="button"
                   onClick={() => {
                     setEditingService(null);
+                    setSelectedCityIds([]);
                     setForm({
                       name: '',
                       category: '',

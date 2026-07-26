@@ -9,6 +9,7 @@ import { getRouterBasename } from './lib/routePaths';
 
 
 import ScrollToTop from './components/ScrollToTop';
+import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
 
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
@@ -129,6 +130,7 @@ function AppShell() {
           </Suspense>
         </main>
         <Footer />
+        <UnifiedBookingModal />
       </div>
     </Router>
   );

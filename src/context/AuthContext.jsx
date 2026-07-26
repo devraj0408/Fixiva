@@ -58,6 +58,15 @@ export const AuthProvider = ({ children }) => {
   const [serviceSupportsCategory, setServiceSupportsCategory] = useState(true);
   const { showToast } = useToast();
 
+  // Centralized Booking Modal State
+  const [bookingModalState, setBookingModalState] = useState({ isOpen: false, initialData: {} });
+  const openBookingModal = useCallback((initialData = {}) => {
+    setBookingModalState({ isOpen: true, initialData });
+  }, []);
+  const closeBookingModal = useCallback(() => {
+    setBookingModalState({ isOpen: false, initialData: {} });
+  }, []);
+
   // Confirm dialog (promise-based)
   const [confirmState, setConfirmState] = useState(null);
   const confirm = (message, title = 'Confirm') => new Promise((resolve) => {
@@ -86,7 +95,7 @@ export const AuthProvider = ({ children }) => {
         return [];
       }
 
-      const { data, error } = await supabase.from('services').select('id,name,description,base_price,platform_fee,active');
+      const { data, error } = await supabase.from('services').select('*');
       if (!error) {
         return (data || []).map((item) => ({ ...item, category: item.category || '' }));
       }
@@ -696,6 +705,7 @@ export const AuthProvider = ({ children }) => {
       const newBooking = data[0];
       setBookings((prev) => [...prev, newBooking]);
       await autoAssignBookingToWorker(newBooking);
+      await fetchMarketplaceData();
     }
     return { data, error };
   };
@@ -725,6 +735,7 @@ export const AuthProvider = ({ children }) => {
           await updateWorkerTrust(booking.worker_id, -5); // Penalty for cancellation
         }
       }
+      await fetchMarketplaceData();
     } else {
       // Failed to update booking
       showToast("Failed to update booking status: " + error.message, 'error');
@@ -741,6 +752,7 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.from('workers').update({ trust_score: newScore, status: newStatus }).eq('id', id);
     if (!error) {
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, trust_score: newScore, status: newStatus } : w)));
+      await fetchMarketplaceData();
     } else {
       // Failed to update worker trust
     }
@@ -751,6 +763,7 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.from('workers').update({ status }).eq('id', id);
     if (!error) {
       setWorkers((prev) => prev.map((w) => (w.id === id ? { ...w, status } : w)));
+      await fetchMarketplaceData();
     } else {
       showToast("Failed to update worker status.", 'error');
     }
@@ -761,6 +774,7 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.from('contractors').update({ status }).eq('id', id);
     if (!error) {
       setContractors((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+      await fetchMarketplaceData();
     } else {
       showToast("Failed to update contractor status.", 'error');
     }
@@ -923,8 +937,18 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Merge profile information for workers & contractors
-  const mergedWorkers = workers.map((w) => {
-    const p = profiles.find((prof) => prof.id === w.id);
+  const workerMap = new Map();
+  (workers || []).forEach((w) => {
+    workerMap.set(w.id, { ...w });
+  });
+  (profiles || []).forEach((p) => {
+    if (p.role === 'worker') {
+      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active', trust_score: 100 };
+      workerMap.set(p.id, { ...existing, profile: p });
+    }
+  });
+  const mergedWorkers = Array.from(workerMap.values()).map((w) => {
+    const p = w.profile || profiles.find((prof) => prof.id === w.id);
     const c = contractors.find((cont) => cont.id === w.id);
     return {
       ...w,
@@ -933,19 +957,31 @@ export const AuthProvider = ({ children }) => {
       phone: p?.phone || '',
       city: w.city || p?.city || '',
       trustScore: w.trust_score ?? 100,
-      isContractor: !!c
+      isContractor: !!c,
+      status: w.status || 'Active',
     };
   });
 
-  const mergedContractors = contractors.map((c) => {
-    const p = profiles.find((prof) => prof.id === c.id);
+  const contractorMap = new Map();
+  (contractors || []).forEach((c) => {
+    contractorMap.set(c.id, { ...c });
+  });
+  (profiles || []).forEach((p) => {
+    if (p.role === 'contractor') {
+      const existing = contractorMap.get(p.id) || { id: p.id, status: 'Active', company: p.name || 'Business Entity' };
+      contractorMap.set(p.id, { ...existing, profile: p });
+    }
+  });
+  const mergedContractors = Array.from(contractorMap.values()).map((c) => {
+    const p = c.profile || profiles.find((prof) => prof.id === c.id);
     return {
       ...c,
       name: p?.name || 'Contractor Owner',
       email: p?.email || '',
       phone: p?.phone || '',
-      company: c.company || 'Business Entity',
-      city: c.city || p?.city || ''
+      company: c.company || p?.name || 'Business Entity',
+      city: c.city || p?.city || '',
+      status: c.status || 'Active',
     };
   });
 
@@ -1213,6 +1249,9 @@ export const AuthProvider = ({ children }) => {
     cityControl,
     toggleServiceInCity,
     coverageRequests,
+    bookingModalState,
+    openBookingModal,
+    closeBookingModal,
     refreshData: fetchMarketplaceData,
     refreshMarketplaceData: fetchMarketplaceData
   };

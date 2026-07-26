@@ -32,7 +32,7 @@ const IconMap = {
 };
 
 const Home = () => {
-  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
+  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest, openBookingModal } = useApp();
   const { reviews: cmsReviews } = useCms();
   const navigate = useNavigate();
 
@@ -88,12 +88,13 @@ const Home = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // Redirect to services with query params
-    const params = new URLSearchParams();
-    if (searchQuery) params.append('search', searchQuery);
-    if (selectedCity) params.append('city', selectedCity);
-    if (selectedState) params.append('state', selectedState);
-    navigate(`/services?${params.toString()}`);
+    // Open centralized 8-step booking flow
+    const matchedService = services.find(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.id === searchQuery.toLowerCase());
+    openBookingModal({
+      serviceId: matchedService?.id || searchQuery.toLowerCase() || 'plumbing',
+      state: selectedState || 'Jharkhand',
+      city: selectedCity || 'Ranchi'
+    });
   };
 
   // Animation variants
