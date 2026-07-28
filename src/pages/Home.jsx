@@ -51,6 +51,7 @@ const Home = () => {
   const [reqLocality, setReqLocality] = useState('');
   const [reqState, setReqState] = useState('');
   const [reqPhone, setReqPhone] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -71,7 +72,7 @@ const Home = () => {
 
   const handleRequestSubmit = async (e) => {
     e.preventDefault();
-    if (!reqDistrict.trim() || !reqLocality.trim() || !reqPhone.trim()) {
+    if (!reqDistrict.trim() || (!reqPhone.trim() && !reqEmail.trim())) {
       showToast("Please fill in all fields.", 'error');
       return;
     }
@@ -82,7 +83,8 @@ const Home = () => {
         state: reqState.trim() || 'Jharkhand',
         district: reqDistrict.trim(),
         locality: reqLocality.trim(),
-        phone: reqPhone.trim(),
+        phone: reqPhone.trim() || reqEmail.trim(),
+        email: reqEmail.trim(),
         service_name: searchQuery.trim() || 'Home Services'
       });
 
@@ -91,6 +93,7 @@ const Home = () => {
         setReqDistrict('');
         setReqLocality('');
         setReqPhone('');
+        setReqEmail('');
         showToast(res.message || "Coverage request submitted successfully!", 'success');
       } else {
         showToast(res.error || "Failed to submit request.", 'error');
@@ -552,10 +555,11 @@ const Home = () => {
                     <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Select Location</label>
                     <HierarchicalLocationSelector
                       selectedState={reqState}
-                      selectedDistrict={reqCity}
-                      onChange={(district, state) => {
-                        setReqCity(district);
+                      selectedDistrict={reqDistrict}
+                      onChange={({ state, district, locality }) => {
+                        setReqDistrict(district);
                         setReqState(state);
+                        if (locality) setReqLocality(locality);
                       }}
                       statePlaceholder="Select State"
                       districtPlaceholder="Select District/City"
