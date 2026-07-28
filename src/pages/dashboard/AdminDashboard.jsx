@@ -11,6 +11,7 @@ const ServicesPanel = React.lazy(() => import('../../components/admin/ServicesPa
 const CategoriesPanel = React.lazy(() => import('../../components/admin/CategoriesPanel'));
 const AreasPanel = React.lazy(() => import('../../components/admin/AreasPanel'));
 const CoveragePanel = React.lazy(() => import('../../components/admin/CoveragePanel'));
+const CoverageRequestsPanel = React.lazy(() => import('../../components/admin/CoverageRequestsPanel'));
 const PricingPanel = React.lazy(() => import('../../components/admin/PricingPanel'));
 const BannersPanel = React.lazy(() => import('../../components/admin/BannersPanel'));
 const CouponsPanel = React.lazy(() => import('../../components/admin/CouponsPanel'));
@@ -76,11 +77,6 @@ const AdminDashboard = () => {
   }, [bookings]);
 
   const userRole = String(user?.role || '').trim().toLowerCase();
-  if (user && userRole !== 'admin') {
-    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
-    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
-    return <Navigate to="/dashboard/customer" replace />;
-  }
 
   const handleTabChange = (nextTab) => {
     navigate(`${location.pathname}?tab=${nextTab}`);
@@ -104,6 +100,8 @@ const AdminDashboard = () => {
         return <AreasPanel />;
       case 'coverage':
         return <CoveragePanel />;
+      case 'coverage-requests':
+        return <CoverageRequestsPanel />;
       case 'pricing':
         return <PricingPanel />;
       case 'banners':

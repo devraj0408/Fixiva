@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
+import BookingStatusTimeline from '../booking/BookingStatusTimeline';
 
 const BookingManagementPanel = () => {
   const {
@@ -103,9 +104,7 @@ const BookingManagementPanel = () => {
                   </td>
                   <td className="px-4 py-3 font-black text-slate-900">₹{booking.total_price || booking.price || 0}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${booking.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : booking.status === 'Cancelled' ? 'bg-red-50 text-red-700' : booking.status === 'Assigned' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {booking.status || 'New Request'}
-                    </span>
+                    <BookingStatusTimeline status={booking.status || 'NEW'} compact={true} />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <select

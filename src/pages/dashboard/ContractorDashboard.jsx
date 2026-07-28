@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
-import { getStaffByContractor, createStaffMember, deleteStaffMember } from '../../services/staffService';
+import { getStaffByContractor, createStaffMember, updateStaffMember, deleteStaffMember } from '../../services/staffService';
 import {
   BarChart3,
   FileText,
@@ -20,8 +20,15 @@ import {
   User,
   MapPin,
   X,
-  Search
+  Search,
+  Edit2,
+  Send,
+  Headphones,
+  ShieldCheck,
+  Check
 } from 'lucide-react';
+import ProfileCard from '../../components/ProfileCard';
+import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
 
 const ContractorDashboard = () => {
   const {
@@ -31,7 +38,10 @@ const ContractorDashboard = () => {
     logout,
     refreshData,
     showToast,
-    confirm
+    confirm,
+    reviews: allReviews = [],
+    addTicket,
+    tickets = []
   } = useApp();
 
   const navigate = useNavigate();
@@ -48,13 +58,39 @@ const ContractorDashboard = () => {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('');
+  
+  // Edit Staff Modal State
+  const [editingStaff, setEditingStaff] = useState(null);
+  const [editStaffName, setEditStaffName] = useState('');
+  const [editStaffRole, setEditStaffRole] = useState('');
+  const [editStaffPhone, setEditStaffPhone] = useState('');
+  const [editStaffStatus, setEditStaffStatus] = useState('Available');
+
+  // Booking Assignment State
   const [assigningBooking, setAssigningBooking] = useState(null);
   const [selectedStaffName, setSelectedStaffName] = useState('');
+  
+  // Company Profile Form States
   const [companyName, setCompanyName] = useState(user?.company || user?.name || '');
   const [ownerName, setOwnerName] = useState(user?.owner_name || user?.name || '');
   const [gstNumber, setGstNumber] = useState(user?.gst || '');
-  const [contractorCity, setContractorCity] = useState(user?.city || 'Ranchi');
+  const [contractorCity, setContractorCity] = useState(user?.district || user?.city || 'Ranchi');
+  const [servicesOffered, setServicesOffered] = useState(user?.services_offered || 'Electrician, Plumbing, AC Repair, Cleaning');
+  const [coverageArea, setCoverageArea] = useState(user?.coverage_area || 'Jharkhand - Ranchi District');
+  const [logoUrl, setLogoUrl] = useState(user?.profile_photo_url || '');
+
+  // Notifications State
   const [notifications, setNotifications] = useState([]);
+
+  // Contractor Reviews State
+  const [contractorReviews, setContractorReviews] = useState([]);
+  const [reviewReplyText, setReviewReplyText] = useState({});
+
+  // Contractor Realtime Support Chat State
+  const [liveTickets, setLiveTickets] = useState([]);
+  const [chatInputMessage, setChatInputMessage] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const chatBottomRef = useRef(null);
 
   // Load contractor staff from Supabase staff table
   const loadContractorStaff = useCallback(async () => {
@@ -75,46 +111,177 @@ const ContractorDashboard = () => {
     }
   }, [user?.id, loadContractorStaff]);
 
+  // Realtime listener for staff inserts/updates/deletions
+  useEffect(() => {
+    if (!user?.id || !supabase) return;
+
+    const staffChannel = supabase
+      .channel(`contractor-staff-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'staff', filter: `contractor_id=eq.${user.id}` },
+        () => {
+          loadContractorStaff();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(staffChannel);
+    };
+  }, [user?.id, loadContractorStaff]);
+
+  // Sync profile form states
   useEffect(() => {
     if (user) {
       setCompanyName(user.company || user.name || '');
       setOwnerName(user.owner_name || user.name || '');
       setGstNumber(user.gst || '');
-      setContractorCity(user.city || 'Ranchi');
+      setContractorCity(user.district || user.city || 'Ranchi');
+      setServicesOffered(user.services_offered || 'Electrician, Plumbing, AC Repair, Cleaning');
+      setCoverageArea(user.coverage_area || 'Jharkhand - Ranchi District');
+      setLogoUrl(user.profile_photo_url || '');
     }
   }, [user]);
 
-  // Fetch notifications
+  // Fetch Contractor Reviews
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!user?.id || !supabase) return;
-      const { data } = await supabase
+    if (!user?.id) return;
+    const filtered = (allReviews || []).filter(
+      r => r.contractor_id === user.id || r.worker_id === user.id || (user.company && (r.serviceType || '').toLowerCase().includes((user.company || '').toLowerCase()))
+    );
+    setContractorReviews(filtered);
+  }, [allReviews, user?.id, user?.company]);
+
+  // Fetch Notifications & Realtime Subscription
+  const fetchNotifications = useCallback(async () => {
+    if (!user?.id || !supabase) return;
+    try {
+      const { data, error } = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .or(`user_id.eq.${user.id},target_role.in.(contractor,all,CONTRACTOR,ALL)`)
         .order('created_at', { ascending: false });
-      if (data) setNotifications(data);
-    };
+
+      if (error) {
+        console.error('Contractor notification fetch error:', error);
+        return;
+      }
+
+      if (data) {
+        let readIds = [];
+        try {
+          const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
+          readIds = stored ? JSON.parse(stored) : [];
+        } catch {}
+
+        const processed = data.map((n) => ({
+          ...n,
+          read: n.user_id === user.id ? Boolean(n.read) : readIds.includes(n.id)
+        }));
+        setNotifications(processed);
+      }
+    } catch (err) {
+      console.error('Exception fetching contractor notifications:', err);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
     fetchNotifications();
-  }, [user?.id, bookings]);
 
-  // Role Validation
+    if (!user?.id || !supabase) return;
+
+    const notifChannel = supabase
+      .channel(`contractor-notifications-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'notifications' },
+        () => {
+          fetchNotifications();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(notifChannel);
+    };
+  }, [user?.id, fetchNotifications]);
+
+  // Mark Contractor Notifications as read when opening notifications tab
+  useEffect(() => {
+    if (activeTab === 'notifications' && user?.id && notifications.length > 0) {
+      const unread = notifications.filter((n) => !n.read);
+      if (unread.length > 0) {
+        let readIds = [];
+        try {
+          const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
+          readIds = stored ? JSON.parse(stored) : [];
+        } catch {}
+
+        const newReadIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
+        try {
+          localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
+        } catch {}
+
+        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      }
+    }
+  }, [activeTab, user?.id, notifications.length]);
+
+  // Realtime Support Tickets Sync for Contractor
+  useEffect(() => {
+    const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
+    setLiveTickets(userTickets);
+  }, [tickets, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !supabase) return;
+
+    const channel = supabase
+      .channel(`contractor-support-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_tickets', filter: `user_id=eq.${user.id}` },
+        async () => {
+          const { data } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+          if (data) setLiveTickets(data);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Scroll to bottom of support chat
+  useEffect(() => {
+    if (activeTab === 'support') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [liveTickets, activeTab]);
+
   const userRole = String(user?.role || '').trim().toLowerCase();
-  if (user && userRole !== 'contractor') {
-    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
-    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
-    return <Navigate to="/dashboard/customer" replace />;
-  }
 
-  // Filter contractor bookings
+  // Filter contractor bookings (Contractor specific or matching district)
   const contractorBookings = useMemo(() => {
-    return bookings.filter(
-      (b) =>
-        b.worker_id === user?.id ||
-        (b.worker_name && b.worker_name.toLowerCase().includes((user?.company || user?.name || '').toLowerCase())) ||
-        b.status === 'New Request' || b.status === 'Pending'
-    );
-  }, [bookings, user?.id, user?.company, user?.name]);
+    const userCityLower = (user?.district || user?.city || '').toLowerCase();
+    const companyLower = (user?.company || user?.name || '').toLowerCase();
+
+    return (bookings || []).filter((b) => {
+      const isAssignedToContractor = b.contractor_id === user?.id || b.worker_id === user?.id;
+      const isNamedWorker = b.worker_name && b.worker_name.toLowerCase().includes(companyLower);
+      const isNearbyUnassigned =
+        (b.status === 'New Request' || b.status === 'Pending') &&
+        ((b.district || b.city || '').toLowerCase() === userCityLower || !b.contractor_id);
+
+      return isAssignedToContractor || isNamedWorker || isNearbyUnassigned;
+    });
+  }, [bookings, user?.id, user?.company, user?.name, user?.district, user?.city]);
 
   const pendingRequests = useMemo(() => {
     return contractorBookings.filter((b) => ['Pending', 'New Request'].includes(b.status));
@@ -130,9 +297,51 @@ const ContractorDashboard = () => {
     return contractorBookings.filter((b) => ['Completed', 'Reviewed'].includes(b.status));
   }, [contractorBookings]);
 
-  const totalRevenue = useMemo(() => {
-    return completedJobs.reduce((acc, curr) => acc + Number(curr.price || 0), 0);
+  // Earnings Breakdown Calculation
+  const earningsMetrics = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    let todayRev = 0;
+    let weeklyRev = 0;
+    let monthlyRev = 0;
+    let totalRev = 0;
+
+    completedJobs.forEach(j => {
+      const amount = Number(j.price || 0);
+      totalRev += amount;
+
+      const dateObj = new Date(j.created_at || j.booking_date || j.preferred_date || 0);
+      const dateStr = dateObj.toISOString().split('T')[0];
+
+      if (dateStr === todayStr) {
+        todayRev += amount;
+      }
+      if (dateObj >= sevenDaysAgo) {
+        weeklyRev += amount;
+      }
+      if (dateObj >= startOfMonth) {
+        monthlyRev += amount;
+      }
+    });
+
+    return {
+      today: todayRev,
+      weekly: weeklyRev,
+      monthly: monthlyRev,
+      total: totalRev
+    };
   }, [completedJobs]);
+
+  // Average Rating
+  const averageRating = useMemo(() => {
+    if (contractorReviews.length === 0) return 5.0;
+    const sum = contractorReviews.reduce((acc, curr) => acc + (curr.rating || 5), 0);
+    return (sum / contractorReviews.length).toFixed(1);
+  }, [contractorReviews]);
 
   // Form Submission: Add Staff Member
   const handleAddTeamMember = async (e) => {
@@ -174,7 +383,6 @@ const ContractorDashboard = () => {
         setNewMemberName('');
         setNewMemberRole('');
         setNewMemberPhone('');
-        // Refresh staff list immediately after insert
         await loadContractorStaff();
         if (refreshData) await refreshData();
       }
@@ -183,6 +391,27 @@ const ContractorDashboard = () => {
       showToast('An error occurred while adding the staff member.', 'error');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // Edit Staff Member Submit
+  const handleSaveEditedStaff = async (e) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+
+    const { error } = await updateStaffMember(editingStaff.id, {
+      name: editStaffName.trim(),
+      role: editStaffRole.trim(),
+      phone: editStaffPhone.trim() || null,
+      status: editStaffStatus
+    });
+
+    if (!error) {
+      showToast('Staff member details updated successfully!', 'success');
+      setEditingStaff(null);
+      await loadContractorStaff();
+    } else {
+      showToast(`Failed to update staff: ${error}`, 'error');
     }
   };
 
@@ -202,21 +431,42 @@ const ContractorDashboard = () => {
     }
   };
 
+  // Accept Lead
+  const handleAcceptBooking = async (bookingId) => {
+    const { error } = await supabase
+      .from('bookings')
+      .update({
+        contractor_id: user?.id,
+        status: 'CONTRACTOR ACCEPTED'
+      })
+      .eq('id', bookingId);
+
+    if (!error) {
+      showToast('Booking accepted by your firm!', 'success');
+      if (refreshData) await refreshData();
+    } else {
+      showToast('Failed to accept booking: ' + error.message, 'error');
+    }
+  };
+
+  // Assign or Reassign Staff Worker to Booking
   const handleAssignStaffToBooking = async (bookingId, staffName) => {
     const staffMember = staffList.find((t) => t.name === staffName) || { phone: user?.phone || '9876543210' };
     const { error } = await supabase
       .from('bookings')
       .update({
+        contractor_id: user?.id,
         worker_id: user?.id,
-        worker_name: `${staffName} (${user?.company || 'Contractor'})`,
+        worker_name: `${staffName} (${user?.company || 'Contractor Agency'})`,
         worker_phone: staffMember.phone || user?.phone || '9876543210',
-        status: 'Worker Assigned'
+        status: 'WORKER ASSIGNED'
       })
       .eq('id', bookingId);
 
     if (!error) {
-      showToast(`Assigned ${staffName} to booking!`, 'success');
+      showToast(`Assigned ${staffName} to booking #${bookingId}!`, 'success');
       setAssigningBooking(null);
+      setSelectedStaffName('');
       if (refreshData) await refreshData();
     } else {
       console.error('Supabase worker assignment error:', error);
@@ -224,6 +474,7 @@ const ContractorDashboard = () => {
     }
   };
 
+  // Update Company Profile
   const handleUpdateCompanyProfile = async (e) => {
     e.preventDefault();
     const { error } = await supabase
@@ -232,17 +483,58 @@ const ContractorDashboard = () => {
         company: companyName,
         owner_name: ownerName,
         gst: gstNumber,
-        city: contractorCity
+        city: contractorCity,
+        district: contractorCity,
+        services_offered: servicesOffered,
+        coverage_area: coverageArea,
+        profile_photo_url: logoUrl
       })
       .eq('id', user.id);
 
     if (!error) {
-      showToast('Company profile details saved successfully!', 'success');
+      showToast('Company profile & GST details saved successfully!', 'success');
       if (refreshData) await refreshData();
     } else {
       console.error('Supabase company profile update error:', error);
       showToast('Failed to save profile: ' + error.message, 'error');
     }
+  };
+
+  // Send Contractor Support Chat Message
+  const handleSendSupportMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInputMessage.trim()) return;
+
+    const messageText = chatInputMessage.trim();
+    setChatInputMessage('');
+    setChatSending(true);
+
+    const { error } = await addTicket({
+      user_id: user?.id,
+      subject: `Contractor Support (${user?.company || 'Agency'})`,
+      message: messageText
+    });
+
+    setChatSending(false);
+    if (!error) {
+      showToast('Message sent to Fixiva Support Desk!', 'success');
+      const { data } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: true });
+      if (data) setLiveTickets(data);
+    } else {
+      showToast('Failed to send support message', 'error');
+    }
+  };
+
+  // Save Review Reply
+  const handleSaveReviewReply = (reviewId) => {
+    const reply = reviewReplyText[reviewId];
+    if (!reply || !reply.trim()) return;
+    showToast('Reply submitted to client review!', 'success');
+    setReviewReplyText(prev => ({ ...prev, [reviewId]: '' }));
   };
 
   const handleLogout = () => {
@@ -259,31 +551,123 @@ const ContractorDashboard = () => {
     return name.slice(0, 2).toUpperCase();
   };
 
-  // Sidebar Navigation Items
+  // Sidebar Items
   const navItems = [
     { id: 'overview', label: 'Dashboard', icon: BarChart3 },
-    { id: 'bookings', label: 'Bookings', icon: FileText, count: pendingRequests.length + activeJobs.length },
-    { id: 'workers', label: 'Workers', icon: Users, count: staffList.length },
-    { id: 'assignments', label: 'Assignments', icon: Briefcase },
-    { id: 'earnings', label: 'Earnings', icon: IndianRupee },
-    { id: 'reviews', label: 'Reviews', icon: Star },
+    { id: 'bookings', label: 'Bookings & Leads', icon: FileText, count: pendingRequests.length + activeJobs.length },
+    { id: 'workers', label: 'Staff Management', icon: Users, count: staffList.length },
+    { id: 'assignments', label: 'Work Assignments', icon: Briefcase, count: activeJobs.length },
+    { id: 'earnings', label: 'Earnings & Ledger', icon: IndianRupee },
+    { id: 'reviews', label: 'Client Reviews', icon: Star },
+    { id: 'support', label: 'Support Desk', icon: Headphones },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter((n) => !n.read).length },
     { id: 'profile', label: 'Company Profile', icon: Building },
   ];
 
   const renderTabContent = () => {
     switch (activeTab) {
+      
+      // SUPPORT DESK: WHATSAPP-STYLE REALTIME CHAT FOR CONTRACTORS
+      case 'support':
+        return (
+          <div className="space-y-4 max-w-3xl mx-auto">
+            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md font-bold">
+                  <Headphones size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold text-slate-900">Fixiva Contractor Support Desk</h2>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      ⚡ Priority Response
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">Live chat for contractor dispatches, staff management & payments.</p>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold text-slate-400">Official Channel</span>
+            </div>
+
+            <div className="bg-slate-900/95 rounded-3xl border border-slate-800 shadow-xl overflow-hidden flex flex-col h-[520px]">
+              <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+                <div className="flex justify-start">
+                  <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tl-sm bg-slate-800 text-slate-100 p-4 border border-slate-700/60 shadow-sm space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                      <ShieldCheck size={13} /> Fixiva Support Desk
+                    </div>
+                    <p className="text-xs font-medium leading-relaxed">
+                      Hello {user?.company || user?.name || 'Contractor'}! 👋 Welcome to Contractor Support. How can we help your agency today?
+                    </p>
+                    <span className="text-[9px] text-slate-400 block text-right">Official Desk</span>
+                  </div>
+                </div>
+
+                {liveTickets.map(t => (
+                  <div key={t.id} className="space-y-3">
+                    <div className="flex justify-end">
+                      <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tr-sm bg-primary text-white p-3.5 shadow-sm space-y-1">
+                        <p className="text-xs font-semibold leading-relaxed whitespace-pre-wrap">{t.message}</p>
+                        <span className="text-[9px] text-blue-200 block text-right">
+                          {t.created_at ? new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sent'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {t.admin_reply && (
+                      <div className="flex justify-start">
+                        <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tl-sm bg-emerald-950/90 text-emerald-100 p-3.5 border border-emerald-800/60 shadow-sm space-y-1">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                            <ShieldCheck size={12} /> Fixiva Support Team
+                          </div>
+                          <p className="text-xs font-semibold leading-relaxed whitespace-pre-wrap">{t.admin_reply}</p>
+                          <span className="text-[9px] text-emerald-400/80 block text-right">
+                            {t.created_at ? new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Replied'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                <div ref={chatBottomRef} />
+              </div>
+
+              <form onSubmit={handleSendSupportMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Type message to contractor support desk..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 outline-none focus:border-primary font-medium"
+                  value={chatInputMessage}
+                  onChange={(e) => setChatInputMessage(e.target.value)}
+                />
+
+                <button
+                  type="submit"
+                  disabled={chatSending || !chatInputMessage.trim()}
+                  className="btn-primary rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-1.5 shadow-md shrink-0"
+                >
+                  <Send size={14} />
+                  <span>{chatSending ? 'Sending...' : 'Send'}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+        );
+
+      // BOOKINGS TAB
       case 'bookings':
         return (
           <div className="space-y-6">
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Bookings & Leads</h2>
-              <p className="text-sm text-slate-500">Manage incoming service leads, assign staff workers, and complete jobs.</p>
+              <p className="text-sm text-slate-500">Manage incoming service leads, accept bookings, assign staff workers, and complete jobs.</p>
             </div>
 
             {contractorBookings.length === 0 ? (
               <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
-                No active contractor bookings received yet.
+                No active contractor bookings received yet in {contractorCity}.
               </div>
             ) : (
               <div className="grid grid-cols-1 gap-4">
@@ -292,35 +676,50 @@ const ContractorDashboard = () => {
                     <div className="flex justify-between items-start flex-wrap gap-2">
                       <div>
                         <span className="text-[10px] font-black text-primary uppercase">ID: {b.id}</span>
-                        <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{b.service_name}</h4>
+                        <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{b.service_name || 'Home Service'}</h4>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
                           b.status === 'Completed'
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : b.status === 'Accepted'
+                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
                             : 'bg-blue-50 text-primary border border-blue-200'
                         }`}
                       >
-                        {b.status}
+                        ● {b.status}
                       </span>
                     </div>
 
                     <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-1.5 font-semibold text-slate-700">
-                      <p><strong>Customer:</strong> {b.customer_name}</p>
-                      <p><strong>Location:</strong> {b.customer_address || b.address}, {b.city}</p>
-                      <p><strong>Worker Assigned:</strong> {b.worker_name || 'None (Unassigned)'}</p>
+                      <p><strong>Customer:</strong> {b.customer_name || 'Customer'}</p>
+                      <p><strong>Location:</strong> {b.locality || b.customer_address || b.address || 'Address'}, {b.district || b.city || contractorCity}</p>
+                      <p><strong>Assigned Worker:</strong> <span className="font-extrabold text-slate-900">{b.worker_name || 'Unassigned'}</span></p>
                       <p className="text-sm font-black text-slate-900 pt-1">Price Tariff: ₹{b.price || 999}</p>
                     </div>
 
                     <div className="flex gap-2 flex-wrap">
+                      {(b.status === 'Pending' || b.status === 'New Request') && (
+                        <button
+                          onClick={() => handleAcceptBooking(b.id)}
+                          className="flex-1 py-2.5 rounded-2xl bg-amber-500 text-xs font-extrabold text-white shadow-sm hover:bg-amber-600 transition-all flex items-center justify-center gap-1"
+                        >
+                          <Check size={14} /> Accept Lead
+                        </button>
+                      )}
+
                       {b.status !== 'Completed' && (
                         <button
-                          onClick={() => setAssigningBooking(b)}
+                          onClick={() => {
+                            setAssigningBooking(b);
+                            setSelectedStaffName('');
+                          }}
                           className="flex-1 py-2.5 rounded-2xl bg-primary text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
                         >
                           {b.worker_name ? 'Reassign Staff' : 'Assign Worker'}
                         </button>
                       )}
+
                       {b.status !== 'Completed' && (
                         <button
                           onClick={async () => {
@@ -341,13 +740,14 @@ const ContractorDashboard = () => {
           </div>
         );
 
+      // WORKERS / STAFF MANAGEMENT TAB
       case 'workers':
         return (
           <div className="space-y-6">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Staff & Worker Roster</h2>
-                <p className="text-sm text-slate-500">Manage internal technicians and field staff.</p>
+                <p className="text-sm text-slate-500">Add, edit, and manage internal technicians and field staff.</p>
               </div>
             </div>
 
@@ -379,7 +779,7 @@ const ContractorDashboard = () => {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="h-10 bg-primary text-white font-extrabold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1 disabled:opacity-50 transition-all"
+                className="h-10 bg-primary text-white font-extrabold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-1 disabled:opacity-50 transition-all shadow-sm"
               >
                 <Plus size={14} /> {isSubmitting ? 'Adding...' : 'Add Worker'}
               </button>
@@ -397,10 +797,10 @@ const ContractorDashboard = () => {
                     <tr>
                       <th className="px-5 py-3.5">Photo & Name</th>
                       <th className="px-5 py-3.5">Skills / Role</th>
-                      <th className="px-5 py-3.5">City</th>
+                      <th className="px-5 py-3.5">City / District</th>
                       <th className="px-5 py-3.5">Status</th>
                       <th className="px-5 py-3.5">Trust Score</th>
-                      <th className="px-5 py-3.5 text-right">Action</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 font-semibold text-slate-700">
@@ -418,18 +818,31 @@ const ContractorDashboard = () => {
                         <td className="px-5 py-4 text-slate-600">{w.role}</td>
                         <td className="px-5 py-4 text-slate-600">{w.city || contractorCity}</td>
                         <td className="px-5 py-4">
-                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black text-[10px]">
+                          <span className={`px-2.5 py-0.5 rounded-full font-black text-[10px] ${w.status === 'On Job' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>
                             {w.status || 'Available'}
                           </span>
                         </td>
                         <td className="px-5 py-4 font-black text-emerald-700">{w.trust_score ?? 98}%</td>
-                        <td className="px-5 py-4 text-right">
+                        <td className="px-5 py-4 text-right space-x-1">
+                          <button
+                            onClick={() => {
+                              setEditingStaff(w);
+                              setEditStaffName(w.name);
+                              setEditStaffRole(w.role);
+                              setEditStaffPhone(w.phone || '');
+                              setEditStaffStatus(w.status || 'Available');
+                            }}
+                            className="p-1.5 text-slate-600 hover:bg-slate-100 rounded-xl"
+                            title="Edit staff member"
+                          >
+                            <Edit2 size={14} />
+                          </button>
                           <button
                             onClick={() => handleDeleteTeamMember(w.id, w.name)}
                             className="p-1.5 text-red-600 hover:bg-red-50 rounded-xl"
                             title="Remove staff member"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </td>
                       </tr>
@@ -441,63 +854,148 @@ const ContractorDashboard = () => {
           </div>
         );
 
+      // WORK ASSIGNMENTS TAB
       case 'assignments':
         return (
           <div className="space-y-6">
             <div className="border-b border-slate-100 pb-4">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Work Assignments</h2>
-              <p className="text-sm text-slate-500">Track field staff dispatches and job completions.</p>
+              <h2 className="text-xl font-black text-slate-900 tracking-tight">Active Work Assignments & History</h2>
+              <p className="text-sm text-slate-500">Track field staff dispatches, reassignments, and completed projects.</p>
             </div>
+
             <div className="space-y-3">
-              {activeJobs.map((j) => (
-                <div key={j.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex justify-between items-center text-xs font-semibold">
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-sm">{j.service_name}</h4>
-                    <p className="text-slate-500">Assigned Staff: {j.worker_name || 'Firm Unassigned'}</p>
-                  </div>
-                  <span className="px-3 py-1 rounded-full bg-blue-50 text-primary font-black text-[10px] uppercase">
-                    {j.status}
-                  </span>
+              {contractorBookings.length === 0 ? (
+                <div className="p-8 text-center bg-slate-50 rounded-3xl text-xs font-semibold text-slate-500">
+                  No active or past work assignments recorded.
                 </div>
-              ))}
+              ) : (
+                contractorBookings.map((j) => (
+                  <div key={j.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs font-semibold">
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{j.service_name || 'Project'}</h4>
+                      <p className="text-slate-500">Assigned Staff: <span className="font-bold text-slate-900">{j.worker_name || 'Unassigned'}</span></p>
+                      <p className="text-[11px] text-slate-400">Location: {j.locality || j.district || contractorCity}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className={`px-3 py-1 rounded-full font-black text-[10px] uppercase ${j.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-primary'}`}>
+                        {j.status}
+                      </span>
+                      {j.status !== 'Completed' && (
+                        <button
+                          onClick={() => {
+                            setAssigningBooking(j);
+                            setSelectedStaffName('');
+                          }}
+                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs"
+                        >
+                          Reassign
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         );
 
+      // EARNINGS TAB
       case 'earnings':
         return (
           <div className="space-y-6">
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Contractor Revenue Ledger</h2>
-              <p className="text-sm text-slate-500">Company revenue from completed client projects.</p>
+              <p className="text-sm text-slate-500">Automatic revenue calculations from completed client projects.</p>
             </div>
-            <div className="p-8 bg-slate-50 border border-slate-200 rounded-3xl">
-              <span className="text-[10px] font-black uppercase text-slate-400">Total Completed Revenue</span>
-              <p className="text-4xl font-black text-slate-900 mt-2">₹{totalRevenue}</p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl">
+                <span className="text-[10px] font-black uppercase text-slate-400">Today's Revenue</span>
+                <p className="text-2xl font-black text-slate-900 mt-2">₹{earningsMetrics.today}</p>
+              </div>
+
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl">
+                <span className="text-[10px] font-black uppercase text-slate-400">Weekly Revenue</span>
+                <p className="text-2xl font-black text-slate-900 mt-2">₹{earningsMetrics.weekly}</p>
+              </div>
+
+              <div className="p-6 bg-slate-50 border border-slate-200 rounded-3xl">
+                <span className="text-[10px] font-black uppercase text-slate-400">Monthly Revenue</span>
+                <p className="text-2xl font-black text-slate-900 mt-2">₹{earningsMetrics.monthly}</p>
+              </div>
+
+              <div className="p-6 bg-slate-900 text-white rounded-3xl shadow-md">
+                <span className="text-[10px] font-black uppercase text-slate-400">Total Lifetime Revenue</span>
+                <p className="text-2xl font-black text-white mt-2">₹{earningsMetrics.total}</p>
+              </div>
             </div>
           </div>
         );
 
+      // REVIEWS TAB
       case 'reviews':
         return (
           <div className="space-y-6">
-            <div className="border-b border-slate-100 pb-4">
-              <h2 className="text-xl font-black text-slate-900 tracking-tight">Company Reviews</h2>
-              <p className="text-sm text-slate-500">Client reviews for completed firm projects.</p>
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Company Reviews & Ratings</h2>
+                <p className="text-sm text-slate-500">Verified feedback and ratings from clients.</p>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-amber-50 px-3 py-1.5 rounded-2xl border border-amber-200 text-amber-800 font-black text-sm">
+                <Star size={16} fill="currentColor" /> {averageRating} / 5.0
+              </div>
             </div>
-            <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
-              <Star size={38} className="mx-auto text-slate-300 mb-2" />
-              Verified client reviews for your firm will display here upon project completion.
-            </div>
+
+            {contractorReviews.length === 0 ? (
+              <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
+                <Star size={38} className="mx-auto text-slate-300 mb-2" />
+                Verified client reviews for your firm will display here upon project completion.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {contractorReviews.map(r => (
+                  <div key={r.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-900 text-sm">{r.userName || 'Verified Client'}</span>
+                      <span className="flex items-center gap-1 text-amber-500 font-bold text-xs">
+                        <Star size={14} fill="currentColor" /> {r.rating} / 5
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 font-medium">{r.comment}</p>
+
+                    {/* Reply Section */}
+                    <div className="pt-2 border-t border-slate-100 flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Reply to client review..."
+                        className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium outline-none"
+                        value={reviewReplyText[r.id] || ''}
+                        onChange={(e) => setReviewReplyText({ ...reviewReplyText, [r.id]: e.target.value })}
+                      />
+                      <button
+                        onClick={() => handleSaveReviewReply(r.id)}
+                        className="btn-primary text-xs px-3 py-2 rounded-xl font-bold"
+                      >
+                        Reply
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
 
+      // NOTIFICATIONS TAB
       case 'notifications':
         return (
           <div className="space-y-6">
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Notifications</h2>
-              <p className="text-sm text-slate-500">Incoming lead notifications and admin broadcasts.</p>
+              <p className="text-sm text-slate-500">Incoming lead notifications and dispatch alerts.</p>
             </div>
             {notifications.length === 0 ? (
               <div className="p-12 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-3xl text-xs font-semibold text-slate-500">
@@ -516,15 +1014,20 @@ const ContractorDashboard = () => {
           </div>
         );
 
+      // COMPANY PROFILE TAB
       case 'profile':
         return (
           <div className="space-y-6 max-w-xl">
             <div className="border-b border-slate-100 pb-4">
               <h2 className="text-xl font-black text-slate-900 tracking-tight">Company Profile & GST</h2>
-              <p className="text-sm text-slate-500">Manage business entity details and GST registration.</p>
+              <p className="text-sm text-slate-500">Manage business entity details, GST registration, coverage, and logo.</p>
             </div>
 
             <form onSubmit={handleUpdateCompanyProfile} className="bg-slate-50 border border-slate-200 p-8 rounded-3xl space-y-4 text-xs font-semibold">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Company Logo / Image URL</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
+              </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase">Company / Firm Name</label>
                 <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
@@ -538,16 +1041,25 @@ const ContractorDashboard = () => {
                 <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={gstNumber} onChange={(e) => setGstNumber(e.target.value)} placeholder="e.g. 20AAAAA0000A1Z5" />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase">Base Operating City</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase">Base Operating District</label>
                 <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={contractorCity} onChange={(e) => setContractorCity(e.target.value)} />
               </div>
-              <button type="submit" className="w-full py-3 rounded-2xl bg-primary text-white font-extrabold">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Coverage Area</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={coverageArea} onChange={(e) => setCoverageArea(e.target.value)} placeholder="e.g. Ranchi District, Lalpur, Main Road" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Services Offered</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={servicesOffered} onChange={(e) => setServicesOffered(e.target.value)} placeholder="e.g. Electrician, Plumbing, AC Repair" />
+              </div>
+              <button type="submit" className="w-full py-3 rounded-2xl bg-primary text-white font-extrabold shadow-md">
                 Save Company Profile
               </button>
             </form>
           </div>
         );
 
+      // OVERVIEW TAB
       case 'overview':
       default:
         return (
@@ -559,16 +1071,16 @@ const ContractorDashboard = () => {
               </div>
             </div>
 
-            {/* Top 4 Metric Cards */}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {/* Marketplace Metric Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Workers</p>
-                    <p className="mt-2 text-2xl font-black text-slate-900">{staffList.length}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Today's Revenue</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">₹{earningsMetrics.today}</p>
                   </div>
-                  <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
-                    <Users size={20} />
+                  <div className="rounded-2xl p-2.5 bg-emerald-100 text-emerald-700">
+                    <IndianRupee size={20} />
                   </div>
                 </div>
               </div>
@@ -576,11 +1088,11 @@ const ContractorDashboard = () => {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Jobs</p>
-                    <p className="mt-2 text-2xl font-black text-slate-900">{activeJobs.length}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Today's Jobs</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{todaysJobsCount}</p>
                   </div>
-                  <div className="rounded-2xl p-2.5 bg-amber-100 text-amber-700">
-                    <Briefcase size={20} />
+                  <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
+                    <Calendar size={20} />
                   </div>
                 </div>
               </div>
@@ -591,7 +1103,7 @@ const ContractorDashboard = () => {
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Pending Requests</p>
                     <p className="mt-2 text-2xl font-black text-slate-900">{pendingRequests.length}</p>
                   </div>
-                  <div className="rounded-2xl p-2.5 bg-emerald-100 text-emerald-700">
+                  <div className="rounded-2xl p-2.5 bg-amber-100 text-amber-700">
                     <Clock size={20} />
                   </div>
                 </div>
@@ -600,8 +1112,20 @@ const ContractorDashboard = () => {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Revenue</p>
-                    <p className="mt-2 text-2xl font-black text-slate-900">₹{totalRevenue}</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Workers</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">{staffList.length}</p>
+                  </div>
+                  <div className="rounded-2xl p-2.5 bg-sky-100 text-sky-700">
+                    <Users size={20} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Monthly Revenue</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">₹{earningsMetrics.monthly}</p>
                   </div>
                   <div className="rounded-2xl p-2.5 bg-violet-100 text-violet-700">
                     <IndianRupee size={20} />
@@ -630,10 +1154,13 @@ const ContractorDashboard = () => {
                       <div key={item.id} className="rounded-2xl border border-slate-200 bg-white p-4 flex items-center justify-between gap-3">
                         <div>
                           <p className="text-xs font-extrabold text-slate-900">{item.service_name || 'Client Project'}</p>
-                          <p className="mt-0.5 text-[11px] text-slate-500">Client: {item.customer_name} • {item.city}</p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">Client: {item.customer_name} • {item.district || item.city}</p>
                         </div>
                         <button
-                          onClick={() => setAssigningBooking(item)}
+                          onClick={() => {
+                            setAssigningBooking(item);
+                            setSelectedStaffName('');
+                          }}
                           className="rounded-xl bg-primary px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-blue-700 transition-all"
                         >
                           Assign Worker
@@ -681,19 +1208,13 @@ const ContractorDashboard = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Sidebar */}
+        {/* Sidebar matching Customer Dashboard */}
         <aside className="lg:col-span-3 space-y-4">
-          <div className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-black uppercase shadow-inner">
-                {getInitials(user?.company || user?.name)}
-              </div>
-              <div>
-                <p className="text-sm font-black">{user?.company || user?.name || 'Contractor Entity'}</p>
-                <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400 font-bold">Contractor Desk</p>
-              </div>
-            </div>
-          </div>
+          <ProfileCard
+            user={user}
+            role="contractor"
+            onEditProfile={() => navigate(`${location.pathname}?tab=profile`)}
+          />
 
           <nav className="rounded-3xl border border-slate-200 bg-white p-2 shadow-sm space-y-1">
             {navItems.map(({ id, label, icon: Icon, count }) => {
@@ -734,6 +1255,46 @@ const ContractorDashboard = () => {
         </main>
       </div>
 
+      {/* Edit Staff Modal */}
+      {editingStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <form onSubmit={handleSaveEditedStaff} className="bg-white p-6 sm:p-8 rounded-3xl shadow-2xl max-w-md w-full border border-slate-200 space-y-4 text-xs font-semibold">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Edit Staff Member</h3>
+              <button type="button" onClick={() => setEditingStaff(null)} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase">Staff Name</label>
+                <input className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold" value={editStaffName} onChange={(e) => setEditStaffName(e.target.value)} required />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase">Role / Skill</label>
+                <input className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold" value={editStaffRole} onChange={(e) => setEditStaffRole(e.target.value)} required />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase">Phone Number</label>
+                <input className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold" value={editStaffPhone} onChange={(e) => setEditStaffPhone(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-400 uppercase">Availability Status</label>
+                <select className="w-full h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-bold" value={editStaffStatus} onChange={(e) => setEditStaffStatus(e.target.value)}>
+                  <option value="Available">Available</option>
+                  <option value="On Job">On Job</option>
+                  <option value="On Leave">On Leave</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+              <button type="button" onClick={() => setEditingStaff(null)} className="px-4 py-2 rounded-xl text-slate-600 font-bold">Cancel</button>
+              <button type="submit" className="btn-primary px-5 py-2 rounded-xl font-extrabold">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* Assign Worker Modal */}
       {assigningBooking && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -758,7 +1319,7 @@ const ContractorDashboard = () => {
                 <option value="">Select Technician / Worker</option>
                 {staffList.map((t) => (
                   <option key={t.id} value={t.name}>
-                    {t.name} ({t.role})
+                    {t.name} ({t.role}) - {t.status || 'Available'}
                   </option>
                 ))}
               </select>

@@ -39,45 +39,61 @@ const Home = () => {
   const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
 
   
-  // Search & City selectors inside the Hero
-  const [selectedCity, setSelectedCity] = useState('');
-  const [selectedState, setSelectedState] = useState('');
+  // Search & Location selectors inside the Hero
+  const [selectedState, setSelectedState] = useState('Jharkhand');
+  const [selectedDistrict, setSelectedDistrict] = useState('Ranchi');
+  const [selectedLocality, setSelectedLocality] = useState('Lalpur');
   const [searchQuery, setSearchQuery] = useState('');
+  const [detectingGps, setDetectingGps] = useState(false);
 
   // Coverage Request Form States
-  const [reqCity, setReqCity] = useState('');
+  const [reqDistrict, setReqDistrict] = useState('');
+  const [reqLocality, setReqLocality] = useState('');
   const [reqState, setReqState] = useState('');
-  const [reqEmail, setReqEmail] = useState('');
+  const [reqPhone, setReqPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
 
+  const handleDetectLocation = async () => {
+    setDetectingGps(true);
+    try {
+      const loc = await detectCurrentLocation();
+      setSelectedState(loc.state || 'Jharkhand');
+      setSelectedDistrict(loc.district || 'Ranchi');
+      setSelectedLocality(loc.locality || 'Lalpur');
+      showToast('📍 Current location detected!', 'success');
+    } catch {
+      showToast('Could not access current location. You can select your district manually.', 'error');
+    } finally {
+      setDetectingGps(false);
+    }
+  };
+
   const handleRequestSubmit = async (e) => {
     e.preventDefault();
-    if (!reqCity.trim() || !reqState.trim() || !reqEmail.trim()) {
+    if (!reqDistrict.trim() || !reqLocality.trim() || !reqPhone.trim()) {
       showToast("Please fill in all fields.", 'error');
-      return;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(reqEmail.trim())) {
-      showToast("Please enter a valid email address.", 'error');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await submitCoverageRequest(reqCity.trim(), reqState.trim(), reqEmail.trim());
-      const isDup = res.error === 'duplicate' || (res.error && typeof res.error === 'object' && (res.error.code === '23505' || String(res.error.message || '').toLowerCase().includes('duplicate') || String(res.error.message || '').toLowerCase().includes('unique')));
+      const res = await submitCoverageRequest({
+        state: reqState.trim() || 'Jharkhand',
+        district: reqDistrict.trim(),
+        locality: reqLocality.trim(),
+        phone: reqPhone.trim(),
+        service_name: searchQuery.trim() || 'Home Services'
+      });
 
       if (res.success) {
         setIsSuccess(true);
-        setReqCity('');
-        setReqState('');
-        setReqEmail('');
-        showToast("Coverage request submitted successfully!", 'success');
-      } else if (isDup) {
-        showToast("You've already requested this city.", 'error');
+        setReqDistrict('');
+        setReqLocality('');
+        setReqPhone('');
+        showToast(res.message || "Coverage request submitted successfully!", 'success');
       } else {
-        showToast("Something went wrong. Please try again.", 'error');
+        showToast(res.error || "Failed to submit request.", 'error');
       }
     } catch {
       showToast("Failed to submit request.", 'error');
@@ -88,13 +104,12 @@ const Home = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // Open centralized 8-step booking flow
-    const matchedService = services.find(s => s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.id === searchQuery.toLowerCase());
-    openBookingModal({
-      serviceId: matchedService?.id || searchQuery.toLowerCase() || 'plumbing',
-      state: selectedState || 'Jharkhand',
-      city: selectedCity || 'Ranchi'
-    });
+    const matchedService = services.find(s => 
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      s.id === searchQuery.toLowerCase()
+    );
+    const serviceId = matchedService?.id || searchQuery.toLowerCase() || 'electrician';
+    navigate(`/book/${serviceId}?state=${encodeURIComponent(selectedState)}&district=${encodeURIComponent(selectedDistrict)}&locality=${encodeURIComponent(selectedLocality)}`);
   };
 
   // Animation variants
@@ -114,7 +129,7 @@ const Home = () => {
   return (
     <div className="bg-slate-50 min-h-screen">
       {/* Hero Section */}
-      <section className="relative py-20 lg:py-28 hero-shell overflow-hidden border-b border-slate-100">
+      <section className="relative py-16 lg:py-24 hero-shell overflow-hidden border-b border-slate-100">
         <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl -z-10"></div>
         <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-3xl -z-10"></div>
 
@@ -127,7 +142,7 @@ const Home = () => {
             transition={{ duration: 0.6 }}
           >
             <div className="section-label">
-              <ShieldCheck size={13} /> Official Marketplace Launched
+              <ShieldCheck size={13} /> Official Marketplace
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[0.95]">
@@ -147,45 +162,59 @@ const Home = () => {
               <span className="stat-pill"><Lock size={15} className="text-primary" /> Secure Booking</span>
             </div>
 
-            {/* Premium search & Select City controls combined */}
-            <form onSubmit={handleSearchSubmit} className="hero-panel p-2.5 rounded-[1.6rem] flex flex-col md:flex-row gap-2 max-w-2xl">
-              <div className="flex-1 flex items-center gap-2 px-3 border-b md:border-b-0 md:border-r border-slate-100 pb-2 md:pb-0">
+            {/* Premium search & Location controls */}
+            <form onSubmit={handleSearchSubmit} className="hero-panel p-3 rounded-[1.6rem] flex flex-col gap-3 max-w-2xl shadow-lg border border-slate-200/60 bg-white">
+              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100">
                 <Search size={18} className="text-slate-400 shrink-0" />
                 <input 
                   type="text" 
-                  placeholder="What service do you need?" 
+                  placeholder="What service do you need? (e.g. Electrician, Plumber, AC Repair)" 
                   className="w-full bg-transparent border-0 outline-none text-slate-800 text-sm font-semibold placeholder-slate-400 focus:ring-0"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <div className="flex-none md:w-[320px] flex items-center gap-2 px-2 pb-2 md:pb-0">
-                <HierarchicalLocationSelector
-                  selectedState={selectedState}
-                  selectedDistrict={selectedCity}
-                  onChange={(district, state) => {
-                    setSelectedCity(district);
-                    setSelectedState(state);
-                  }}
-                  statePlaceholder="State"
-                  districtPlaceholder="City"
-                  variant="borderless"
-                  layout="row"
-                  className="w-full"
-                />
+              <div className="flex flex-col sm:flex-row items-center gap-2">
+                <div className="flex-1 w-full">
+                  <HierarchicalLocationSelector
+                    selectedState={selectedState}
+                    selectedDistrict={selectedDistrict}
+                    selectedLocality={selectedLocality}
+                    onChange={({ state, district, locality }) => {
+                      setSelectedState(state);
+                      setSelectedDistrict(district);
+                      setSelectedLocality(locality);
+                    }}
+                    statePlaceholder="State"
+                    districtPlaceholder="District"
+                    localityPlaceholder="Locality"
+                    variant="borderless"
+                    layout="row"
+                    className="w-full"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handleDetectLocation}
+                    disabled={detectingGps}
+                    className="flex-1 sm:flex-none text-xs font-bold px-3 py-2.5 rounded-xl border border-slate-200 hover:border-primary text-slate-700 hover:text-primary flex items-center justify-center gap-1.5 transition-all bg-slate-50"
+                  >
+                    📍 {detectingGps ? 'Locating...' : 'Current Location'}
+                  </button>
+
+                  <button 
+                    type="submit" 
+                    className="btn-primary text-xs font-extrabold px-5 py-2.5 rounded-xl shrink-0 flex items-center justify-center gap-1.5 shadow-md"
+                  >
+                    Book Now
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
               </div>
-
-              <button 
-                type="submit" 
-                className="btn-primary text-sm px-6 py-3.5 rounded-xl shrink-0 flex items-center justify-center gap-1.5"
-              >
-                Book Now
-                <ArrowRight size={16} />
-              </button>
             </form>
-
-
           </motion.div>
 
           {/* Hero Right Media */}

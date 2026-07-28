@@ -78,6 +78,30 @@ export const createStaffMember = async (staffData) => {
   }
 };
 
+export const updateStaffMember = async (staffId, updates) => {
+  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+  if (!staffId) return { data: null, error: 'Staff ID is required for update' };
+
+  try {
+    const { data, error } = await supabase
+      .from('staff')
+      .update(updates)
+      .eq('id', staffId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Supabase UPDATE staff error:', error);
+      return { data: null, error: error.message };
+    }
+    return { data, error: null };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error('Exception updating staff:', err);
+    return { data: null, error: errMsg };
+  }
+};
+
 export const deleteStaffMember = async (staffId) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
   if (!staffId) return { data: null, error: 'Staff ID is required for deletion' };

@@ -218,26 +218,28 @@ export const createBroadcastNotification = async (notificationData, actor = {}) 
 
   try {
     const roleMap = {
-      'ALL': 'ALL',
-      'ALL USERS': 'ALL',
-      'ALL_USERS': 'ALL',
-      'CUSTOMERS ONLY': 'CUSTOMER',
-      'CUSTOMER': 'CUSTOMER',
-      'CUSTOMERS': 'CUSTOMER',
-      'WORKERS ONLY': 'WORKER',
-      'WORKER': 'WORKER',
-      'WORKERS': 'WORKER',
-      'CONTRACTORS ONLY': 'CONTRACTOR',
-      'CONTRACTOR': 'CONTRACTOR',
-      'CONTRACTORS': 'CONTRACTOR',
+      'ALL': 'all',
+      'ALL USERS': 'all',
+      'ALL_USERS': 'all',
+      'CUSTOMERS ONLY': 'customer',
+      'CUSTOMER': 'customer',
+      'CUSTOMERS': 'customer',
+      'WORKERS ONLY': 'worker',
+      'WORKER': 'worker',
+      'WORKERS': 'worker',
+      'CONTRACTORS ONLY': 'contractor',
+      'CONTRACTOR': 'contractor',
+      'CONTRACTORS': 'contractor',
     };
-    const rawRole = String(notificationData.target_role || notificationData.targetRole || 'ALL').trim().toUpperCase();
-    const normalizedTargetRole = roleMap[rawRole] || 'ALL';
+    const rawRole = String(notificationData.target_role || notificationData.targetRole || 'all').trim().toUpperCase();
+    const normalizedTargetRole = roleMap[rawRole] || 'all';
 
     const payload = {
       title: String(notificationData.title || '').trim(),
       message: String(notificationData.message || '').trim(),
       target_role: normalizedTargetRole,
+      created_by: actor?.id || null,
+      is_active: true,
       read: false,
     };
 

@@ -1,129 +1,133 @@
 import { useEffect } from 'react';
 import SearchableDropdown from './SearchableDropdown';
-import { STATES, getDistrictsForState } from '../data/locationData';
+import { STATES, getDistrictsForState, getLocalitiesForDistrict } from '../data/locationData';
 import { MapPin } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 
 const HierarchicalLocationSelector = ({
   selectedState = '',
   selectedDistrict = '',
-  onChange, // Callback when selection changes: (district, state) => void
+  selectedLocality = '',
+  onChange, // Callback when selection changes: ({ state, district, locality }) => void
   disabled = false,
   statePlaceholder = 'Select State',
-  districtPlaceholder = 'Select District/City',
+  districtPlaceholder = 'Select District',
+  localityPlaceholder = 'Select Locality',
   layout = 'row', // 'row' | 'col'
   className = '',
-  showAllOption = false, // Allows selecting "All States" or "All Districts"
   variant = 'boxed',
-  adminMode = false,
+  showLocality = true,
   id
 }) => {
-  const { states = [], cities = [] } = useApp();
+  const { states = [], districts = [] } = useApp();
 
   // Load from localStorage on mount if no initial props are provided
   useEffect(() => {
     if (!selectedState && !selectedDistrict) {
-      const savedState = localStorage.getItem('fixiva:last-state');
-      const savedDistrict = localStorage.getItem('fixiva:last-district');
-      if (savedState && onChange) {
+      const savedState = localStorage.getItem('fixiva:last-state') || 'Jharkhand';
+      const savedDistrict = localStorage.getItem('fixiva:last-district') || 'Ranchi';
+      const savedLocality = localStorage.getItem('fixiva:last-locality') || 'Lalpur';
+      if (onChange) {
         setTimeout(() => {
-          onChange(savedDistrict || '', savedState);
+          onChange({ state: savedState, district: savedDistrict, locality: savedLocality });
         }, 0);
       }
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleStateChange = (newState) => {
-    let finalState = newState;
-    if (newState === 'All States' || newState === 'All Operating Cities') {
-      finalState = '';
-    }
+    const finalState = newState || '';
     if (finalState) {
       localStorage.setItem('fixiva:last-state', finalState);
     } else {
       localStorage.removeItem('fixiva:last-state');
     }
     localStorage.removeItem('fixiva:last-district');
+    localStorage.removeItem('fixiva:last-locality');
     
+    // Auto-select first district for user convenience
+    const districtsForState = getDistrictsForState(finalState);
+    const defaultDist = districtsForState[0] || '';
+    const localities = defaultDist ? getLocalitiesForDistrict(defaultDist, finalState) : [];
+    const defaultLoc = localities[0]?.name || '';
+
     if (onChange) {
-      onChange('', finalState);
+      onChange({ state: finalState, district: defaultDist, locality: defaultLoc });
     }
   };
 
   const handleDistrictChange = (newDistrict) => {
-    let finalDistrict = newDistrict;
-    if (newDistrict === 'All Districts') {
-      finalDistrict = '';
-    }
+    const finalDistrict = newDistrict || '';
     if (finalDistrict) {
       localStorage.setItem('fixiva:last-district', finalDistrict);
     } else {
       localStorage.removeItem('fixiva:last-district');
     }
+    localStorage.removeItem('fixiva:last-locality');
+
+    const localities = finalDistrict ? getLocalitiesForDistrict(finalDistrict, selectedState) : [];
+    const defaultLoc = localities[0]?.name || '';
     
     if (onChange) {
-      onChange(finalDistrict, selectedState);
+      onChange({ state: selectedState, district: finalDistrict, locality: defaultLoc });
     }
   };
 
-  // Configure states options based on DB status and adminMode
-  const activeStates = (states && states.length > 0)
-    ? states.filter(s => adminMode || s.status !== 'Disabled')
-    : [];
-  
-  const stateNames = activeStates.map(s => s.name);
-  const stateOptions = stateNames.length > 0 ? stateNames : STATES;
-  const finalStateOptions = showAllOption 
-    ? ['All States', ...stateOptions] 
-    : stateOptions;
+  const handleLocalityChange = (newLocality) => {
+    const finalLocality = newLocality || '';
+    if (finalLocality) {
+      localStorage.setItem('fixiva:last-locality', finalLocality);
+    } else {
+      localStorage.removeItem('fixiva:last-locality');
+    }
 
-  // Configure districts options based on selected state, DB status, and adminMode
+    if (onChange) {
+      onChange({ state: selectedState, district: selectedDistrict, locality: finalLocality });
+    }
+  };
+
+  // State Options
+  const stateOptions = (states && states.length > 0)
+    ? states.filter(s => s.status !== 'Disabled').map(s => s.name)
+    : STATES;
+
+  // District Options
   let districtOptions = [];
   if (selectedState) {
-    const matchedState = states.find(s => s.name.toLowerCase() === selectedState.toLowerCase());
-    if (matchedState) {
-      const stateDistricts = cities.filter(c => 
-        c.state_id === matchedState.id && (adminMode || c.status !== 'Disabled')
-      );
-      districtOptions = stateDistricts.map(c => c.name);
-    } else {
-      // Fallback matching by region (state name text)
-      const stateDistricts = cities.filter(c => 
-        (c.region || '').toLowerCase() === selectedState.toLowerCase() && (adminMode || c.status !== 'Disabled')
-      );
-      districtOptions = stateDistricts.map(c => c.name);
+    districtOptions = getDistrictsForState(selectedState);
+    if (districtOptions.length === 0 && districts && districts.length > 0) {
+      districtOptions = districts
+        .filter(d => (d.state_name || '').toLowerCase() === selectedState.toLowerCase())
+        .map(d => d.name);
     }
   }
 
-  // Fallback to hardcoded list if database didn't return any districts for the state
-  let finalDistrictOptions = districtOptions;
-  if (selectedState && finalDistrictOptions.length === 0) {
-    finalDistrictOptions = getDistrictsForState(selectedState);
-  }
-
-  if (showAllOption && selectedState) {
-    finalDistrictOptions = ['All Districts', ...finalDistrictOptions];
+  // Locality Options
+  let localityOptions = [];
+  if (selectedDistrict) {
+    const localityObjs = getLocalitiesForDistrict(selectedDistrict, selectedState);
+    localityOptions = localityObjs.map(l => l.name);
   }
 
   return (
-    <div className={`flex ${layout === 'row' ? 'flex-col sm:flex-row gap-3' : 'flex-col gap-3'} ${className}`} id={id}>
-      <div className="flex-1 min-w-[140px] relative">
+    <div className={`flex ${layout === 'row' ? 'flex-col sm:flex-row gap-2.5' : 'flex-col gap-2.5'} ${className}`} id={id}>
+      {/* State Selector */}
+      <div className="flex-1 min-w-[130px] relative">
         <SearchableDropdown
-          options={finalStateOptions}
+          options={stateOptions}
           value={selectedState}
           onChange={handleStateChange}
           placeholder={statePlaceholder}
           disabled={disabled}
           icon={MapPin}
           variant={variant}
-          isStateDropdown={true}
-          totalStatesFromAPI={states.length}
-          totalStatesAfterFiltering={activeStates.length}
         />
       </div>
-      <div className="flex-1 min-w-[140px] relative">
+
+      {/* District Selector */}
+      <div className="flex-1 min-w-[130px] relative">
         <SearchableDropdown
-          options={finalDistrictOptions}
+          options={districtOptions}
           value={selectedDistrict}
           onChange={handleDistrictChange}
           placeholder={districtPlaceholder}
@@ -132,6 +136,21 @@ const HierarchicalLocationSelector = ({
           variant={variant}
         />
       </div>
+
+      {/* Locality Selector (Optional) */}
+      {showLocality && (
+        <div className="flex-1 min-w-[140px] relative">
+          <SearchableDropdown
+            options={localityOptions}
+            value={selectedLocality}
+            onChange={handleLocalityChange}
+            placeholder={localityPlaceholder}
+            disabled={disabled || !selectedDistrict}
+            icon={MapPin}
+            variant={variant}
+          />
+        </div>
+      )}
     </div>
   );
 };

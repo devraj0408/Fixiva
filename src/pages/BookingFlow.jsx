@@ -1,777 +1,707 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Navigate, Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Search,
-  Filter,
   Star,
   ShieldCheck,
   CheckCircle,
   MapPin,
   Clock,
-  Award,
-  Phone,
   User,
-  Briefcase,
   IndianRupee,
   Calendar,
   ArrowRight,
-  X,
-  ChevronRight,
   Sparkles,
-  SlidersHorizontal,
-  LocateFixed,
-  Building,
-  Check,
-  Package,
+  Phone,
   AlertTriangle,
-  Info
+  ChevronRight,
+  ArrowLeft,
+  Check
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import { detectCurrentLocation } from '../services/locationService';
+import { findAvailableProfessionals, createBooking } from '../services/bookingService';
+import { submitCoverageRequest } from '../services/coverageService';
 
 const BookingFlow = () => {
-  const { serviceId } = useParams();
+  const { serviceId: paramServiceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
 
   const {
-    services,
-    workers = [],
-    contractors = [],
-    reviews = [],
-    addBooking,
+    services = [],
     user,
     isAuthenticated,
-    showToast,
-    cities = [],
-    cityControl,
-    submitCoverageRequest,
-    openBookingModal
+    showToast
   } = useApp();
 
-  // Search & Filter state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedService, setSelectedService] = useState(serviceId || 'all');
-  const [selectedCity, setSelectedCity] = useState('');
-  const [experienceFilter, setExperienceFilter] = useState('all');
-  const [ratingFilter, setRatingFilter] = useState('all');
-  const [maxPriceFilter, setMaxPriceFilter] = useState(5000);
-  const [availabilityFilter, setAvailabilityFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('recommended');
+  // Parse URL query parameters
+  const queryParams = new URLSearchParams(location.search);
+  const initialServiceId = paramServiceId || queryParams.get('service') || 'electrician';
+  const initialParamState = queryParams.get('state') || 'Jharkhand';
+  const initialParamDistrict = queryParams.get('district') || 'Ranchi';
+  const initialParamLocality = queryParams.get('locality') || 'Lalpur';
 
-  // Location / Geolocation state
+  // Step state: 1: Service, 2: Location, 3: Match Pros, 4: Schedule & Contact, 5: Confirmation
+  const [step, setStep] = useState(2);
+  const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId);
+
+  // Location state
+  const [selectedState, setSelectedState] = useState(initialParamState);
+  const [selectedDistrict, setSelectedDistrict] = useState(initialParamDistrict);
+  const [selectedLocality, setSelectedLocality] = useState(initialParamLocality);
   const [userLat, setUserLat] = useState(null);
   const [userLng, setUserLng] = useState(null);
-  const [geoLoading, setGeoLoading] = useState(false);
-  const [geoMessage, setGeoMessage] = useState('');
+  const [detectingGps, setDetectingGps] = useState(false);
 
-  // Selected Worker & Drawer/Modal state
-  const [activeWorkerProfile, setActiveWorkerProfile] = useState(null);
-  const [bookingModalWorker, setBookingModalWorker] = useState(null);
+  // Matching Engine state
+  const [matchingLoading, setMatchingLoading] = useState(false);
+  const [isDistrictActiveStatus, setIsDistrictActiveStatus] = useState(true);
+  const [availablePros, setAvailablePros] = useState([]);
+  const [selectedPro, setSelectedPro] = useState(null);
 
-  // Booking Flow state
-  const [step, setStep] = useState(1); // 1: Service & City, 2: Select Worker, 3: Date & Time, 4: Address, 5: Review & Confirm
-  const [bookingDate, setBookingDate] = useState('');
+  // Service Unavailable & Coverage Request state
+  const [coverageRequested, setCoverageRequested] = useState(false);
+  const [coveragePhone, setCoveragePhone] = useState(user?.phone || '');
+  const [submittingCoverage, setSubmittingCoverage] = useState(false);
+
+  // Booking Details state
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
   const [bookingTimeSlot, setBookingTimeSlot] = useState('09:00 AM - 12:00 PM');
-  const [bookingAddress, setBookingAddress] = useState(user?.city ? `Main Road, ${user.city}` : '');
-  const [bookingNotes, setBookingNotes] = useState('');
   const [customerName, setCustomerName] = useState(user?.name || '');
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+  const [addressLine, setAddressLine] = useState('');
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
-  const [createdBookingId, setCreatedBookingId] = useState('');
-
-  // Coverage Request Modal State
-  const [coverageEmail, setCoverageEmail] = useState('');
-  const [isSubmittingCoverage, setIsSubmittingCoverage] = useState(false);
-  const [isCoverageSubmitted, setIsCoverageSubmitted] = useState(false);
+  const [createdBooking, setCreatedBooking] = useState(null);
 
   // Pre-fill user data
   useEffect(() => {
     if (user) {
-      setCustomerName(user.name || '');
-      setCustomerPhone(user.phone || '');
-      if (user.city && !selectedCity) setSelectedCity(user.city);
+      if (user.name) setCustomerName(user.name);
+      if (user.phone) {
+        setCustomerPhone(user.phone);
+        setCoveragePhone(user.phone);
+      }
     }
   }, [user]);
 
-  // Read URL query parameters
-  useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const cityFromUrl = queryParams.get('city');
-    const workerFromUrl = queryParams.get('workerId');
-
-    if (cityFromUrl) setSelectedCity(cityFromUrl);
-    if (workerFromUrl && workers.length > 0) {
-      const w = workers.find((item) => item.id === workerFromUrl);
-      if (w) setBookingModalWorker(w);
-    }
-  }, [location.search, workers]);
-
-  // Role validation
   const userRole = String(user?.role || '').trim().toLowerCase();
-  if (isAuthenticated && user && userRole !== 'customer') {
-    if (userRole === 'admin') return <Navigate to="/dashboard/admin" replace />;
-    if (userRole === 'worker') return <Navigate to="/worker-dashboard" replace />;
-    if (userRole === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
-  }
 
-  // Geolocation Handler
-  const handleDetectLocation = () => {
-    if (!navigator.geolocation) {
-      setGeoMessage('Geolocation is not supported in this browser.');
-      return;
+  // Active Service object
+  const activeService = services.find(s => s.id === selectedServiceId) || {
+    id: selectedServiceId,
+    name: selectedServiceId ? selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1) : 'Electrician',
+    base_price: 199,
+    platform_fee: 49
+  };
+
+  // Run Locality Matching Engine when step 3 or location/service changes
+  const runMatchingEngine = async () => {
+    setMatchingLoading(true);
+    setCoverageRequested(false);
+    try {
+      const res = await findAvailableProfessionals({
+        serviceId: selectedServiceId,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        userLat,
+        userLng
+      });
+
+      setIsDistrictActiveStatus(res.districtActive);
+      setAvailablePros(res.professionals || []);
+      if (res.professionals && res.professionals.length > 0) {
+        setSelectedPro(res.professionals[0]);
+      }
+    } catch {
+      showToast('Error matching nearby professionals', 'error');
+    } finally {
+      setMatchingLoading(false);
     }
-
-    setGeoLoading(true);
-    setGeoMessage('');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setUserLat(pos.coords.latitude);
-        setUserLng(pos.coords.longitude);
-        setGeoLoading(false);
-        setGeoMessage(`Location detected (${pos.coords.latitude.toFixed(2)}, ${pos.coords.longitude.toFixed(2)})`);
-        showToast('Current location detected successfully!', 'success');
-      },
-      (err) => {
-        setGeoLoading(false);
-        setGeoMessage('Unable to access device location. You can select your city manually.');
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
   };
 
-  // Distance calculator helper (Haversine formula in km)
-  const calculateDistance = (lat1, lon1, lat2, lon2) => {
-    if (!lat1 || !lon1 || !lat2 || !lon2) return null;
-    const R = 6371;
-    const dLat = ((lat2 - lat1) * Math.PI) / 180;
-    const dLon = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((lat1 * Math.PI) / 180) *
-        Math.cos((lat2 * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c * 10) / 10;
+  useEffect(() => {
+    runMatchingEngine();
+  }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality]);
+
+  // Handle GPS location detection (Optional)
+  const handleDetectGps = async () => {
+    setDetectingGps(true);
+    try {
+      const loc = await detectCurrentLocation();
+      setSelectedState(loc.state || 'Jharkhand');
+      setSelectedDistrict(loc.district || 'Ranchi');
+      setSelectedLocality(loc.locality || 'Lalpur');
+      setUserLat(loc.latitude);
+      setUserLng(loc.longitude);
+      showToast('📍 Current location auto-detected!', 'success');
+    } catch {
+      showToast('Location permission denied or unavailable. Please select manually.', 'error');
+    } finally {
+      setDetectingGps(false);
+    }
   };
 
-  // Coverage Request Handler
+  // Explicit Coverage Request Click
   const handleRequestCoverage = async () => {
-    const email = user?.email || coverageEmail;
-    if (!email || !email.includes('@')) {
-      showToast('Please enter a valid email address', 'error');
+    if (!coveragePhone.trim()) {
+      showToast('Please enter your mobile number.', 'error');
       return;
     }
-    setIsSubmittingCoverage(true);
-    const res = await submitCoverageRequest(selectedCity || 'Unknown', 'Jharkhand', email);
-    setIsSubmittingCoverage(false);
-    if (res.success) {
-      setIsCoverageSubmitted(true);
-      showToast('Coverage request submitted!', 'success');
-    } else {
-      showToast('Coverage request recorded.', 'info');
+    setSubmittingCoverage(true);
+    try {
+      const res = await submitCoverageRequest({
+        customer_id: user?.id,
+        customer_name: customerName || user?.name || 'Customer',
+        phone: coveragePhone.trim(),
+        email: user?.email || '',
+        service_id: activeService.id,
+        service_name: activeService.name,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        latitude: userLat,
+        longitude: userLng
+      });
+
+      if (res.success) {
+        setCoverageRequested(true);
+        showToast(res.message || 'Coverage request submitted! We will notify you when services launch.', 'success');
+      } else {
+        showToast(res.error || 'Failed to submit request.', 'error');
+      }
+    } catch {
+      showToast('Failed to submit coverage request.', 'error');
+    } finally {
+      setSubmittingCoverage(false);
     }
   };
 
-  // Filter & Sort Worker Pool
-  const filteredWorkers = useMemo(() => {
-    const list = (workers || []).filter((w) => {
-      // Search query filter
-      const q = searchQuery.toLowerCase();
-      const matchesSearch =
-        !q ||
-        (w.name || '').toLowerCase().includes(q) ||
-        (w.skills || '').toLowerCase().includes(q) ||
-        (w.city || '').toLowerCase().includes(q);
+  // Submit Final Booking
+  const handleConfirmBooking = async () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      showToast('Please fill in your name and phone number.', 'error');
+      return;
+    }
 
-      // Service filter
-      const matchesService =
-        selectedService === 'all' ||
-        !w.skills ||
-        w.skills.toLowerCase().includes(selectedService.toLowerCase()) ||
-        selectedService.toLowerCase().includes('clean') ||
-        selectedService.toLowerCase().includes('repair');
+    setBookingSubmitting(true);
+    try {
+      const res = await createBooking({
+        customer_id: user?.id,
+        worker_id: selectedPro?.id,
+        service_id: activeService.id,
+        service_name: activeService.name,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        address: addressLine ? `${addressLine}, ${selectedLocality}, ${selectedDistrict}` : `${selectedLocality}, ${selectedDistrict}, ${selectedState}`,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        worker_name: selectedPro?.name || 'Assigned Specialist',
+        worker_phone: selectedPro?.whatsapp || '',
+        price: activeService.base_price || 199,
+        platform_fee: activeService.platform_fee || 49,
+        booking_date: bookingDate
+      });
 
-      // City filter
-      const matchesCity =
-        !selectedCity ||
-        (w.city || '').toLowerCase().includes(selectedCity.toLowerCase()) ||
-        selectedCity.toLowerCase().includes((w.city || '').toLowerCase());
-
-      // Experience filter
-      const years = parseInt(w.experience) || 5;
-      const matchesExp =
-        experienceFilter === 'all' ||
-        (experienceFilter === '1-3' && years >= 1 && years <= 3) ||
-        (experienceFilter === '3-5' && years >= 3 && years <= 5) ||
-        (experienceFilter === '5+' && years >= 5);
-
-      // Rating filter
-      const rating = w.rating || 4.9;
-      const matchesRating =
-        ratingFilter === 'all' ||
-        (ratingFilter === '4.5+' && rating >= 4.5) ||
-        (ratingFilter === '4.0+' && rating >= 4.0);
-
-      // Price filter
-      const price = w.starting_price || w.hourly_rate || 299;
-      const matchesPrice = price <= maxPriceFilter;
-
-      // Availability filter
-      const matchesAvail =
-        availabilityFilter === 'all' || (w.status || 'Active').toLowerCase() === 'active';
-
-      return (
-        matchesSearch &&
-        matchesService &&
-        matchesCity &&
-        matchesExp &&
-        matchesRating &&
-        matchesPrice &&
-        matchesAvail
-      );
-    });
-
-    // Sorting logic
-    return [...list].sort((a, b) => {
-      if (sortBy === 'highest-rated') {
-        return (b.rating || 4.9) - (a.rating || 4.9);
+      if (res.data) {
+        setCreatedBooking(res.data);
+        setStep(5);
+        showToast('🎉 Service booked successfully!', 'success');
+      } else {
+        showToast(res.error || 'Failed to place booking.', 'error');
       }
-      if (sortBy === 'lowest-price') {
-        return (a.starting_price || a.hourly_rate || 299) - (b.starting_price || b.hourly_rate || 299);
-      }
-      if (sortBy === 'most-experienced') {
-        return (parseInt(b.experience) || 5) - (parseInt(a.experience) || 5);
-      }
-      if (sortBy === 'nearest' && userLat && userLng) {
-        const distA = calculateDistance(userLat, userLng, a.location_latitude, a.location_longitude) || 999;
-        const distB = calculateDistance(userLat, userLng, b.location_latitude, b.location_longitude) || 999;
-        return distA - distB;
-      }
-      // Recommended default: trust score & rating
-      return (b.trustScore || 98) - (a.trustScore || 98);
-    });
-  }, [
-    workers,
-    searchQuery,
-    selectedService,
-    selectedCity,
-    experienceFilter,
-    ratingFilter,
-    maxPriceFilter,
-    availabilityFilter,
-    sortBy,
-    userLat,
-    userLng
-  ]);
-
-
-
-  // Render Success Screen
-  if (bookingSuccess) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-        <div className="bg-white rounded-3xl border border-slate-200 p-8 sm:p-12 text-center shadow-sm space-y-6">
-          <div className="h-20 w-20 mx-auto rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
-            <CheckCircle size={44} />
-          </div>
-          <div className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-[0.2em] text-primary">Booking Submitted</span>
-            <h2 className="text-2xl sm:text-3xl font-black text-slate-900">Booking #{createdBookingId} Confirmed!</h2>
-            <p className="text-slate-500 text-sm max-w-md mx-auto font-medium">
-              Your service request has been transmitted to our verified specialist. You can track real-time progress on your dashboard.
-            </p>
-          </div>
-
-          {/* 7-Step Status Timeline Preview */}
-          <div className="bg-slate-50 p-6 rounded-3xl border border-slate-200 space-y-4 max-w-2xl mx-auto text-left">
-            <h4 className="text-xs font-black uppercase tracking-[0.15em] text-slate-500 text-center">Live Status Timeline</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 text-center">
-              {[
-                { label: 'Pending', active: true },
-                { label: 'Accepted', active: false },
-                { label: 'Assigned', active: false },
-                { label: 'On The Way', active: false },
-                { label: 'Work Started', active: false },
-                { label: 'Completed', active: false },
-                { label: 'Reviewed', active: false }
-              ].map((stepItem, idx) => (
-                <div key={idx} className="p-2 bg-white rounded-2xl border border-slate-200">
-                  <div className={`w-3 h-3 mx-auto rounded-full mb-1 ${stepItem.active ? 'bg-primary animate-pulse' : 'bg-slate-300'}`}></div>
-                  <span className={`text-[9px] font-extrabold uppercase block ${stepItem.active ? 'text-primary' : 'text-slate-400'}`}>
-                    {stepItem.label}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-4 justify-center pt-4">
-            <button
-              onClick={() => navigate('/dashboard/customer?tab=bookings')}
-              className="rounded-2xl bg-primary px-8 py-3.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
-            >
-              Go to Customer Dashboard
-            </button>
-            <button
-              onClick={() => {
-                setBookingSuccess(false);
-                setStep(1);
-              }}
-              className="rounded-2xl border border-slate-200 bg-white px-6 py-3.5 text-xs font-extrabold text-slate-700 shadow-sm hover:bg-slate-50 transition-all"
-            >
-              Book Another Service
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    } catch {
+      showToast('An error occurred while booking.', 'error');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
-      {/* Header Banner - Urban Company Style */}
-      <div className="rounded-3xl bg-slate-900 p-8 sm:p-10 text-white shadow-sm space-y-6 relative overflow-hidden">
-        <div className="absolute right-0 top-0 translate-x-12 -translate-y-12 w-64 h-64 bg-primary/20 rounded-full blur-3xl"></div>
-        <div className="relative z-10 max-w-2xl space-y-3">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-xs font-extrabold uppercase tracking-wider text-amber-400">
-            <Sparkles size={14} /> Urban Company Experience
-          </span>
-          <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-tight">
-            Book Verified Home Service Professionals
-          </h1>
-          <p className="text-slate-300 text-sm font-medium">
-            Background-checked electricians, plumbers, painters, and technicians available for instant booking in your city.
-          </p>
-        </div>
-
-        {/* Search & Location Bar */}
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-12 gap-3 pt-2">
-          <div className="md:col-span-6 relative">
-            <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by worker name, skill (e.g. Electrician, Plumbing), or city..."
-              className="h-12 w-full rounded-2xl bg-white/10 border border-white/20 pl-11 pr-4 text-xs font-bold text-white placeholder-slate-400 focus:bg-white focus:text-slate-900 focus:placeholder-slate-400 outline-none transition-all"
-            />
-          </div>
-
-          <div className="md:col-span-4 flex items-center gap-2 bg-white/10 border border-white/20 rounded-2xl px-4 h-12 text-xs font-bold text-white">
-            <MapPin size={16} className="text-amber-400 shrink-0" />
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              className="w-full bg-transparent text-white font-bold outline-none cursor-pointer [&>option]:text-slate-900"
-            >
-              <option value="">All Operating Cities</option>
-              {(cities.length > 0 ? cities : [{ id: 1, name: 'Ranchi' }, { id: 2, name: 'Patna' }, { id: 3, name: 'Jamshedpur' }]).map((c) => (
-                <option key={c.id || c.name} value={c.name}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="md:col-span-2">
-            <button
-              onClick={handleDetectLocation}
-              disabled={geoLoading}
-              className="h-12 w-full flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
-            >
-              <LocateFixed size={16} /> {geoLoading ? 'Detecting...' : 'Near Me'}
-            </button>
-          </div>
-        </div>
-        {geoMessage && <p className="text-[11px] font-semibold text-amber-300 relative z-10">{geoMessage}</p>}
-      </div>
-
-      {/* Main Content Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Sidebar Filter Controls */}
-        <aside className="lg:col-span-3 space-y-6">
-          <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <h3 className="text-sm font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
-                <SlidersHorizontal size={16} className="text-primary" /> Filter Professionals
-              </h3>
-              <button
-                onClick={() => {
-                  setSelectedService('all');
-                  setSelectedCity('');
-                  setExperienceFilter('all');
-                  setRatingFilter('all');
-                  setMaxPriceFilter(5000);
-                  setAvailabilityFilter('all');
-                  setSortBy('recommended');
-                }}
-                className="text-[11px] font-extrabold text-primary hover:underline"
-              >
-                Reset
-              </button>
+    <div className="bg-slate-50 min-h-screen py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        
+        {/* Top Header & Progress Stepper */}
+        <div className="mb-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+            <div>
+              <span className="text-[10px] font-black tracking-widest text-primary uppercase">Fixiva Dispatch</span>
+              <h1 className="text-2xl font-black text-slate-900">Book {activeService.name}</h1>
             </div>
 
-            {/* Service Category */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Service Category</label>
-              <select
-                value={selectedService}
-                onChange={(e) => setSelectedService(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-800 outline-none"
-              >
-                <option value="all">All Services</option>
-                {services.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+                Step {step} of 5
+              </span>
             </div>
+          </div>
 
-            {/* Experience */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Experience Level</label>
-              <div className="grid grid-cols-2 gap-1.5 text-xs font-bold">
-                {[
-                  { id: 'all', label: 'All' },
-                  { id: '1-3', label: '1-3 Yrs' },
-                  { id: '3-5', label: '3-5 Yrs' },
-                  { id: '5+', label: '5+ Yrs' }
-                ].map((exp) => (
+          {/* Stepper Steps */}
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              { id: 1, name: 'Service' },
+              { id: 2, name: 'Location' },
+              { id: 3, name: 'Match Pros' },
+              { id: 4, name: 'Details' },
+              { id: 5, name: 'Confirmed' }
+            ].map(s => (
+              <div 
+                key={s.id} 
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                  s.id <= step ? 'text-primary font-bold' : 'text-slate-400 font-medium'
+                }`}
+                onClick={() => s.id < step && setStep(s.id)}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border ${
+                  s.id < step ? 'bg-primary text-white border-primary' : s.id === step ? 'bg-primary/10 text-primary border-primary' : 'bg-slate-50 text-slate-400 border-slate-200'
+                }`}>
+                  {s.id < step ? <Check size={14} /> : s.id}
+                </div>
+                <span className="text-[11px] hidden sm:block">{s.name}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* STEP 1: SELECT SERVICE */}
+        {step === 1 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900 mb-4">Choose Required Service</h2>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {services.map(s => (
                   <button
-                    key={exp.id}
-                    onClick={() => setExperienceFilter(exp.id)}
-                    className={`py-2 px-2.5 rounded-xl border text-[11px] transition-all ${
-                      experienceFilter === exp.id
-                        ? 'bg-slate-900 border-slate-900 text-white'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                    key={s.id}
+                    onClick={() => {
+                      setSelectedServiceId(s.id);
+                      setStep(2);
+                    }}
+                    className={`p-4 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all ${
+                      selectedServiceId === s.id 
+                        ? 'border-primary bg-primary/5 text-slate-900 shadow-md ring-2 ring-primary/20'
+                        : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
                     }`}
                   >
-                    {exp.label}
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">
+                      <Sparkles size={20} />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-sm">{s.name}</h3>
+                      <span className="text-xs text-slate-500">Starting ₹{s.base_price || 199}</span>
+                    </div>
                   </button>
                 ))}
               </div>
             </div>
+          </motion.div>
+        )}
 
-            {/* Rating */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Minimum Rating</label>
-              <select
-                value={ratingFilter}
-                onChange={(e) => setRatingFilter(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs font-extrabold text-slate-800 outline-none"
-              >
-                <option value="all">Any Rating</option>
-                <option value="4.5+">4.5★ & Above (Top Rated)</option>
-                <option value="4.0+">4.0★ & Above</option>
-              </select>
-            </div>
-
-            {/* Price Slider */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-[10px] font-black text-slate-400 uppercase">Max Starting Price</span>
-                <span className="font-extrabold text-primary">₹{maxPriceFilter}</span>
+        {/* STEP 2: CHOOSE LOCATION */}
+        {step === 2 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="text-xl font-black text-slate-900">Select Service Location</h2>
+                <p className="text-xs text-slate-500 mt-1">We match verified experts available in your locality.</p>
               </div>
-              <input
-                type="range"
-                min="199"
-                max="5000"
-                step="100"
-                value={maxPriceFilter}
-                onChange={(e) => setMaxPriceFilter(Number(e.target.value))}
-                className="w-full accent-primary cursor-pointer"
-              />
-            </div>
 
-            {/* Availability */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Availability</label>
-              <button
-                onClick={() => setAvailabilityFilter(availabilityFilter === 'active' ? 'all' : 'active')}
-                className={`w-full py-2.5 px-3 rounded-xl border text-xs font-extrabold flex items-center justify-between transition-all ${
-                  availabilityFilter === 'active'
-                    ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                    : 'bg-slate-50 border-slate-200 text-slate-700'
-                }`}
-              >
-                <span className="flex items-center gap-1.5">
-                  <CheckCircle size={14} className="text-emerald-600" /> Available Today
-                </span>
-                {availabilityFilter === 'active' && <Check size={14} />}
-              </button>
-            </div>
-          </div>
-        </aside>
+              {/* Option A: Use Current Location */}
+              <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-md">
+                    📍
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">Option A: Use Current Location (Optional)</h3>
+                    <p className="text-xs text-slate-500">Auto-detect your State, District, and Locality instantly.</p>
+                  </div>
+                </div>
 
-        {/* Right Main Worker Listing */}
-        <main className="lg:col-span-9 space-y-6">
-          {/* Bar Control Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white rounded-3xl border border-slate-200 p-5 shadow-sm">
-            <div>
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">Available Professionals</h2>
-              <p className="text-xs text-slate-500 font-semibold">
-                Showing {filteredWorkers.length} verified specialists for hire
-              </p>
-            </div>
-
-            {/* Sort Dropdown */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-extrabold text-slate-400 uppercase">Sort By:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-                className="h-10 rounded-xl border border-slate-200 bg-slate-50 px-3 text-xs font-extrabold text-slate-800 outline-none cursor-pointer"
-              >
-                <option value="recommended">Recommended (Trust Score)</option>
-                <option value="highest-rated">Highest Rated ★</option>
-                <option value="lowest-price">Lowest Price</option>
-                <option value="most-experienced">Most Experienced</option>
-                {userLat && <option value="nearest">Nearest Location</option>}
-              </select>
-            </div>
-          </div>
-
-          {/* Workers Card Grid */}
-          {filteredWorkers.length === 0 ? (
-            <div className="py-20 text-center border-2 border-dashed border-slate-200 bg-white rounded-3xl space-y-4 shadow-sm">
-              <User size={48} className="mx-auto text-slate-300" />
-              <div className="space-y-1">
-                <h4 className="font-extrabold text-slate-800 text-sm">No Service Workers Match Your Filters</h4>
-                <p className="text-xs text-slate-400 font-semibold max-w-sm mx-auto">
-                  Try adjusting your search criteria, price range, or city location.
-                </p>
+                <button
+                  type="button"
+                  onClick={handleDetectGps}
+                  disabled={detectingGps}
+                  className="btn-primary text-xs px-4 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm"
+                >
+                  {detectingGps ? 'Detecting...' : 'Detect My Location'}
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  setSearchQuery('');
-                  setSelectedService('all');
-                  setSelectedCity('');
-                  setMaxPriceFilter(5000);
-                }}
-                className="inline-flex items-center gap-2 rounded-2xl bg-primary px-6 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700"
-              >
-                Reset Search Filters
-              </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {filteredWorkers.map((worker) => {
-                const isTrustVerified = (worker.trustScore ?? 100) >= 80;
-                const distanceKm =
-                  userLat && userLng
-                    ? calculateDistance(userLat, userLng, worker.location_latitude, worker.location_longitude)
-                    : null;
-                const skillsArr = (worker.skills || 'Electrical, Plumber, Home Maintenance')
-                  .split(',')
-                  .map((s) => s.trim())
-                  .filter(Boolean);
 
-                return (
-                  <div
-                    key={worker.id}
-                    className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-5"
+              {/* Option B: Manual Location Selection */}
+              <div className="space-y-4 pt-2">
+                <h3 className="text-sm font-bold text-slate-900">Option B: Manual Location Selection</h3>
+                
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedDistrict}
+                  selectedLocality={selectedLocality}
+                  onChange={({ state, district, locality }) => {
+                    setSelectedState(state);
+                    setSelectedDistrict(district);
+                    setSelectedLocality(locality);
+                  }}
+                  statePlaceholder="Select State"
+                  districtPlaceholder="Select District"
+                  localityPlaceholder="Select Locality"
+                  variant="boxed"
+                  layout="col"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-between items-center border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  disabled={!selectedDistrict || !selectedLocality}
+                  className="btn-primary text-xs px-6 py-3 rounded-xl flex items-center gap-1.5 shadow-md"
+                >
+                  Search Nearby Pros
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* STEP 3: LOCALITY MATCHING / RESULTS */}
+        {step === 3 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            
+            {/* Matching Engine Loading State */}
+            {matchingLoading && (
+              <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-100 space-y-4">
+                <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto"></div>
+                <h3 className="text-base font-bold text-slate-900">Matching Nearby Professionals...</h3>
+                <p className="text-xs text-slate-500">Checking active coverage and distance parameters for {selectedLocality}, {selectedDistrict}</p>
+              </div>
+            )}
+
+            {/* IF DISTRICT IS NOT ACTIVE: SERVICE UNAVAILABLE SCREEN */}
+            {!matchingLoading && !isDistrictActiveStatus && (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center shadow-sm border border-slate-100 space-y-6 max-w-2xl mx-auto">
+                <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto text-2xl">
+                  🚨
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-black text-slate-900">Fixiva is currently unavailable in your district.</h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                    We're expanding rapidly! Would you like us to launch Fixiva home services in <span className="font-bold text-slate-900">{selectedDistrict}</span>?
+                  </p>
+                </div>
+
+                {!coverageRequested ? (
+                  <div className="space-y-4 pt-2 max-w-md mx-auto">
+                    <input
+                      type="tel"
+                      placeholder="Enter mobile number for notification"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-primary"
+                      value={coveragePhone}
+                      onChange={(e) => setCoveragePhone(e.target.value)}
+                    />
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={handleRequestCoverage}
+                        disabled={submittingCoverage}
+                        className="btn-primary flex-1 text-xs py-3 rounded-xl shadow-md font-extrabold"
+                      >
+                        {submittingCoverage ? 'Submitting...' : 'Request Coverage'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        className="flex-1 text-xs py-3 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Change Location
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-100">
+                    ✔ Coverage requested! We will alert you when services launch in {selectedDistrict}.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* IF DISTRICT IS ACTIVE: DISPLAY MATCHED PROFESSIONALS */}
+            {!matchingLoading && isDistrictActiveStatus && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">District Active</span>
+                    <h2 className="text-lg font-extrabold text-slate-900 mt-1">Available Professionals near {selectedLocality}</h2>
+                    <p className="text-xs text-slate-500">Sorted by Nearest Distance → Rating → Completed Jobs → Availability</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-primary hover:underline"
                   >
-                    <div className="space-y-4">
-                      {/* Top Header Card */}
-                      <div className="flex justify-between items-start gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="relative">
-                            <div className="h-14 w-14 rounded-2xl bg-slate-900 text-white font-black text-base flex items-center justify-center uppercase shadow-md overflow-hidden">
-                              {worker.profile_photo_url ? (
-                                <img src={worker.profile_photo_url} alt={worker.name} className="h-full w-full object-cover" />
-                              ) : (
-                                (worker.name || 'W').charAt(0)
-                              )}
-                            </div>
-                            {isTrustVerified && (
-                              <div className="absolute -bottom-1 -right-1 bg-emerald-500 text-white p-1 rounded-full border-2 border-white" title="Fixiva Verified Specialist">
-                                <ShieldCheck size={12} />
-                              </div>
-                            )}
+                    Change Locality ({selectedLocality})
+                  </button>
+                </div>
+
+                {/* Professional Cards List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {availablePros.map(pro => (
+                    <div
+                      key={pro.id}
+                      onClick={() => setSelectedPro(pro)}
+                      className={`bg-white rounded-3xl p-5 border cursor-pointer transition-all flex flex-col justify-between space-y-4 ${
+                        selectedPro?.id === pro.id
+                          ? 'border-primary ring-2 ring-primary/20 shadow-lg'
+                          : 'border-slate-100 hover:border-slate-200 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={pro.profile_photo_url}
+                          alt={pro.name}
+                          className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shrink-0"
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-extrabold text-sm text-slate-900 truncate">{pro.name}</h3>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                              {pro.status}
+                            </span>
                           </div>
 
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="text-base font-black text-slate-900 leading-tight">{worker.name || 'Service Specialist'}</h3>
-                            </div>
-                            <p className="text-xs text-slate-500 font-bold mt-0.5 flex items-center gap-1">
-                              <Building size={13} className="text-slate-400" /> {worker.city || 'Ranchi'}
-                              {distanceKm !== null && <span className="text-primary font-black">• {distanceKm} km away</span>}
-                            </p>
+                          <p className="text-xs text-slate-500 font-medium">{pro.role}</p>
+
+                          <div className="flex items-center gap-3 text-xs mt-2 text-slate-600 font-semibold">
+                            <span className="flex items-center gap-1 text-amber-500 font-bold">
+                              <Star size={13} fill="currentColor" /> {pro.rating}
+                            </span>
+                            <span>•</span>
+                            <span>{pro.completed_jobs} Jobs</span>
+                            <span>•</span>
+                            <span>{pro.experience}</span>
                           </div>
                         </div>
-
-                        {/* Availability Pill */}
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider border border-emerald-200 flex items-center gap-1">
-                          <CheckCircle size={10} /> Active
-                        </span>
                       </div>
 
-                      {/* Stat Metrics Row */}
-                      <div className="grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-center">
-                        <div className="bg-slate-50 p-2 rounded-2xl">
-                          <span className="text-[9px] font-black text-slate-400 uppercase block">Trust Score</span>
-                          <span className="text-xs font-black text-emerald-700 mt-0.5 block">{worker.trustScore ?? 100}%</span>
-                        </div>
-                        <div className="bg-slate-50 p-2 rounded-2xl">
-                          <span className="text-[9px] font-black text-slate-400 uppercase block">Rating</span>
-                          <span className="text-xs font-black text-slate-900 mt-0.5 flex items-center justify-center gap-0.5">
-                            <Star size={12} className="text-amber-500 fill-amber-500" /> {worker.rating || 4.9}
+                      {/* Distance & ETA Info (No Exact Address Exposed!) */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-slate-700 flex items-center gap-1">
+                            📍 {pro.distance_km} km away
+                          </span>
+                          <span className="font-semibold text-slate-500 flex items-center gap-1">
+                            ⏱ ETA: {pro.eta_text}
                           </span>
                         </div>
-                        <div className="bg-slate-50 p-2 rounded-2xl">
-                          <span className="text-[9px] font-black text-slate-400 uppercase block">Completed</span>
-                          <span className="text-xs font-black text-slate-900 mt-0.5 block">{worker.completed_jobs || 128} Jobs</span>
-                        </div>
-                      </div>
 
-                      {/* Pricing Row */}
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-700">
-                        <span>Starting Price: <strong className="text-slate-900 font-black">₹{worker.starting_price || worker.hourly_rate || 299}</strong></span>
-                        <span>Visit Charge: <strong className="text-primary font-black">₹{worker.visit_charge || 149}</strong></span>
-                      </div>
-
-                      {/* Skills Badges */}
-                      <div>
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5">Skills & Expertise</span>
-                        <div className="flex flex-wrap gap-1.5">
-                          {skillsArr.slice(0, 3).map((sk, i) => (
-                            <span key={i} className="px-2.5 py-1 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg">
-                              {sk}
-                            </span>
-                          ))}
-                          {skillsArr.length > 3 && (
-                            <span className="px-2 py-1 bg-slate-100 text-slate-500 text-[10px] font-bold rounded-lg">
-                              +{skillsArr.length - 3} more
-                            </span>
-                          )}
-                        </div>
+                        <span className="font-black text-sm text-slate-900">
+                          ₹{pro.starting_price}
+                        </span>
                       </div>
                     </div>
-
-                    {/* Card Footer Actions */}
-                    <div className="grid grid-cols-2 gap-2 pt-2">
-                      <button
-                        onClick={() => setActiveWorkerProfile(worker)}
-                        className="w-full flex items-center justify-center gap-1 rounded-2xl border border-slate-200 bg-white py-2.5 text-xs font-extrabold text-slate-700 hover:bg-slate-50 transition-all"
-                      >
-                        <User size={14} /> Profile
-                      </button>
-                      <button
-                        onClick={() => {
-                          openBookingModal({ workerObj: worker, serviceId: selectedService, city: selectedCity });
-                        }}
-                        className="w-full flex items-center justify-center gap-1 rounded-2xl bg-primary py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
-                      >
-                        <Briefcase size={14} /> Hire Now
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </main>
-      </div>
-
-      {/* Detailed Worker Profile Drawer/Modal */}
-      {activeWorkerProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-2xl w-full border border-slate-200 shadow-2xl space-y-6 my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <div className="flex items-center gap-4">
-                <div className="h-16 w-16 rounded-2xl bg-slate-900 text-white font-black text-xl flex items-center justify-center uppercase shadow-md">
-                  {(activeWorkerProfile.name || 'W').charAt(0)}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xl font-black text-slate-900">{activeWorkerProfile.name}</h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-black text-[10px]">Verified</span>
-                  </div>
-                  <p className="text-xs text-slate-500 font-bold">{activeWorkerProfile.skills || 'Home Repair Specialist'}</p>
-                </div>
-              </div>
-              <button onClick={() => setActiveWorkerProfile(null)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl hover:bg-slate-100">
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Worker Details Tab Content */}
-            <div className="space-y-5 text-xs font-semibold text-slate-600">
-              <div>
-                <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider mb-1">About Professional</h4>
-                <p className="leading-relaxed text-slate-600">
-                  {activeWorkerProfile.name} is a background-checked Fixiva partner specializing in high-quality home service delivery with an overall trust rating of {activeWorkerProfile.trustScore || 98}%.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase block">Trust Score</span>
-                  <span className="text-sm font-black text-emerald-700 mt-0.5 block">{activeWorkerProfile.trustScore || 98}%</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase block">Rating</span>
-                  <span className="text-sm font-black text-slate-900 mt-0.5 block">4.9 ★</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase block">Experience</span>
-                  <span className="text-sm font-black text-slate-900 mt-0.5 block">{activeWorkerProfile.experience || '6+ Years'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-black text-slate-400 uppercase block">Completed</span>
-                  <span className="text-sm font-black text-slate-900 mt-0.5 block">128 Jobs</span>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider mb-2">Verified Certifications</h4>
-                <div className="flex flex-wrap gap-2">
-                  {['Fixiva Verified Partner', 'Background Verified', 'ISO Safety Compliant'].map((cert, idx) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-50 text-primary border border-blue-100 rounded-xl font-extrabold text-[11px] flex items-center gap-1">
-                      <ShieldCheck size={12} /> {cert}
-                    </span>
                   ))}
                 </div>
+
+                <div className="pt-4 flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                  >
+                    <ArrowLeft size={14} /> Change Location
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(4)}
+                    disabled={!selectedPro}
+                    className="btn-primary text-xs px-6 py-3 rounded-xl flex items-center gap-1.5 shadow-md"
+                  >
+                    Proceed with {selectedPro?.name || 'Selected Pro'}
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* STEP 4: SCHEDULE & CONTACT DETAILS */}
+        {step === 4 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="text-xl font-black text-slate-900">Booking & Contact Details</h2>
+                <p className="text-xs text-slate-500 mt-1">Provide schedule and service address in {selectedLocality}, {selectedDistrict}.</p>
               </div>
 
-              <div>
-                <h4 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider mb-2">Pricing Structure</h4>
-                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-bold">Standard Inspection Visit Charge:</span>
-                    <span className="font-black text-slate-900">₹{activeWorkerProfile.visit_charge || 149}</span>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Schedule & Time */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">1. Preferred Schedule</h3>
+                  
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={bookingDate}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                    />
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500 font-bold">Service Hourly Rate:</span>
-                    <span className="font-black text-slate-900">₹{activeWorkerProfile.hourly_rate || 299}/hr</span>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Time Slot</label>
+                    <select
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={bookingTimeSlot}
+                      onChange={(e) => setBookingTimeSlot(e.target.value)}
+                    >
+                      <option value="09:00 AM - 12:00 PM">09:00 AM - 12:00 PM (Morning)</option>
+                      <option value="12:00 PM - 03:00 PM">12:00 PM - 03:00 PM (Afternoon)</option>
+                      <option value="03:00 PM - 06:00 PM">03:00 PM - 06:00 PM (Evening)</option>
+                      <option value="06:00 PM - 09:00 PM">06:00 PM - 09:00 PM (Night)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Contact & Address */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">2. Customer Info & Address</h3>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="Your Name"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">House / Flat No / Street Address</label>
+                    <input
+                      type="text"
+                      placeholder={`e.g. House #42, Main Road near Landmark`}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={addressLine}
+                      onChange={(e) => setAddressLine(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
-              <button onClick={() => setActiveWorkerProfile(null)} className="rounded-2xl border border-slate-200 px-5 py-2.5 text-xs font-extrabold text-slate-600 hover:bg-slate-50">
-                Close Profile
-              </button>
+              {/* Order Price Summary */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
+                <div>
+                  <span className="font-extrabold text-slate-900">{activeService.name} Service Charge</span>
+                  <p className="text-slate-500 font-medium">Assigned Pro: {selectedPro?.name}</p>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-base font-black text-slate-900">₹{(activeService.base_price || 199) + (activeService.platform_fee || 49)}</span>
+                  <p className="text-[10px] text-slate-400">Includes ₹{activeService.platform_fee || 49} Platform Fee</p>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-between items-center border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmBooking}
+                  disabled={bookingSubmitting}
+                  className="btn-primary text-xs px-8 py-3 rounded-xl flex items-center gap-1.5 shadow-md font-black"
+                >
+                  {bookingSubmitting ? 'Confirming...' : 'Confirm & Book Service'}
+                  <CheckCircle size={15} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* STEP 5: CONFIRMATION & RECEIPT */}
+        {step === 5 && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6 max-w-xl mx-auto">
+            <div className="bg-white rounded-3xl p-8 text-center shadow-lg border border-slate-100 space-y-6">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto text-3xl shadow-sm">
+                🎉
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Booking Confirmed</span>
+                <h2 className="text-2xl font-black text-slate-900">Your Booking is Placed!</h2>
+                <p className="text-xs text-slate-500 font-medium">Booking ID: <span className="font-bold text-slate-900">{createdBooking?.id}</span></p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-left text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Service</span>
+                  <span className="font-extrabold text-slate-900">{createdBooking?.service_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Assigned Specialist</span>
+                  <span className="font-extrabold text-slate-900">{createdBooking?.worker_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Location</span>
+                  <span className="font-extrabold text-slate-900">{selectedLocality}, {selectedDistrict}</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                  <span className="text-slate-700 font-extrabold">Total Payable</span>
+                  <span className="font-black text-slate-900 text-sm">₹{createdBooking?.price ? Number(createdBooking.price) + Number(createdBooking.platform_fee || 49) : 248}</span>
+                </div>
+              </div>
+
               <button
-                onClick={() => {
-                  openBookingModal({ workerObj: activeWorkerProfile, serviceId: selectedService, city: selectedCity });
-                  setActiveWorkerProfile(null);
-                }}
-                className="rounded-2xl bg-primary px-6 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700"
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="btn-primary w-full text-xs py-3 rounded-xl font-bold shadow-md"
               >
-                Book Worker Now
+                Go to Dashboard
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
+
+      </div>
     </div>
   );
 };

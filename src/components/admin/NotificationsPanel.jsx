@@ -14,7 +14,7 @@ const NotificationsPanel = () => {
 
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [form, setForm] = useState({ title: '', message: '', target_role: 'ALL' });
+  const [form, setForm] = useState({ title: '', message: '', target_role: 'all' });
 
   const filtered = filterItems(notifications, search, ['title', 'message', 'target_role']);
   const paginated = paginateItems(filtered, page, 6);
@@ -26,11 +26,18 @@ const NotificationsPanel = () => {
       return;
     }
 
-    await createBroadcastNotification({
-      ...form,
-      target_role: form.target_role ? form.target_role.toUpperCase() : 'ALL',
+    const { error } = await createBroadcastNotification({
+      title: form.title.trim(),
+      message: form.message.trim(),
+      target_role: (form.target_role || 'all').toLowerCase(),
     });
-    setForm({ title: '', message: '', target_role: 'ALL' });
+
+    if (!error) {
+      showToast('Broadcast alert sent successfully!', 'success');
+      setForm({ title: '', message: '', target_role: 'all' });
+    } else {
+      showToast(`Failed to send broadcast: ${error}`, 'error');
+    }
   };
 
   return (
@@ -105,10 +112,10 @@ const NotificationsPanel = () => {
               onChange={(e) => setForm({ ...form, target_role: e.target.value })}
               className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
             >
-              <option value="ALL">All Users (Customers, Workers, Contractors)</option>
-              <option value="CUSTOMER">Customers Only</option>
-              <option value="WORKER">Workers Only</option>
-              <option value="CONTRACTOR">Contractors Only</option>
+              <option value="all">All Users (Customers, Workers, Contractors)</option>
+              <option value="customer">Customers Only</option>
+              <option value="worker">Workers Only</option>
+              <option value="contractor">Contractors Only</option>
             </select>
           </div>
 
