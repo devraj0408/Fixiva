@@ -186,9 +186,16 @@ const SearchableDropdown = ({
             size={16} 
           />
         )}
-        <span className={value ? 'text-slate-800' : 'text-slate-400'}>
-          {value || placeholder}
-        </span>
+        {(() => {
+          const displayValue = typeof value === 'object' && value !== null 
+            ? (value.name || value.district || value.state || value.locality || '') 
+            : String(value || '');
+          return (
+            <span className={displayValue ? 'text-slate-800' : 'text-slate-400'}>
+              {displayValue || placeholder}
+            </span>
+          );
+        })()}
         <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 

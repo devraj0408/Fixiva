@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon, Search, ShieldCheck,
-  ArrowRight, Star, Filter, RotateCcw
+  ArrowRight, Star, Filter, RotateCcw, X, MapPin, Mail
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { scrollToFeatureContent } from '../components/ScrollToTop';
@@ -51,6 +51,13 @@ const Services = () => {
   const [activeCategory, setActiveCategory] = useState('all');
   const [maxPrice, setMaxPrice] = useState(3000);
 
+  // Modal State for Coverage Request
+  const [coverageModalService, setCoverageModalService] = useState(null);
+  const [coverageFormCity, setCoverageFormCity] = useState('');
+  const [coverageFormState, setCoverageFormState] = useState('');
+  const [coverageFormContact, setCoverageFormContact] = useState('');
+  const [isSubmittingCoverage, setIsSubmittingCoverage] = useState(false);
+
   // Sync with query params changes (e.g. from Hero)
   useEffect(() => {
     setSearchTerm(queryParams.get('search') || '');
@@ -74,28 +81,81 @@ const Services = () => {
   const handleCardRequestCoverage = async (e, serviceName, serviceId) => {
     e.preventDefault();
     e.stopPropagation();
-    const email = user?.email;
-    if (!email) {
-      const userEmail = prompt("Please enter your email to request coverage:");
-      if (!userEmail || !userEmail.includes('@')) {
-        showToast("Please enter a valid email address.", 'error');
-        return;
-      }
-      const res = await submitCoverageRequest(selectedCity, selectedState || matchedCity?.region || '', userEmail);
-      if (res.success || res.error === 'duplicate') {
-        setSubmittedCoverages(prev => [...prev, serviceId]);
-        showToast("Coverage request submitted successfully!", 'success');
-      } else {
+
+    const cityToUse = selectedCity || '';
+    const stateToUse = selectedState || matchedCity?.region || 'Jharkhand';
+    const emailToUse = user?.email || '';
+
+    // If both city and email are available, submit directly
+    if (cityToUse && emailToUse) {
+      setIsSubmittingCoverage(true);
+      try {
+        const res = await submitCoverageRequest({
+          customer_id: user?.id,
+          customer_name: user?.user_metadata?.full_name || user?.name || user?.email?.split('@')[0] || 'Customer',
+          email: emailToUse,
+          phone: user?.phone || emailToUse,
+          service_id: serviceId,
+          service_name: serviceName,
+          district: cityToUse,
+          state: stateToUse
+        });
+
+        if (res.success || res.error === 'duplicate') {
+          setSubmittedCoverages(prev => [...prev, serviceId]);
+          showToast(res.message || "Coverage request submitted successfully!", 'success');
+        } else {
+          showToast(res.error || "Failed to request coverage.", 'error');
+        }
+      } catch {
         showToast("Failed to request coverage.", 'error');
+      } finally {
+        setIsSubmittingCoverage(false);
       }
     } else {
-      const res = await submitCoverageRequest(selectedCity, selectedState || matchedCity?.region || '', email);
+      // Open coverage modal to collect missing city or contact email/phone
+      setCoverageFormCity(cityToUse);
+      setCoverageFormState(stateToUse);
+      setCoverageFormContact(emailToUse);
+      setCoverageModalService({ id: serviceId, name: serviceName });
+    }
+  };
+
+  const submitCoverageModal = async (e) => {
+    e.preventDefault();
+    if (!coverageFormCity.trim()) {
+      showToast("Please enter your city/district.", 'error');
+      return;
+    }
+    if (!coverageFormContact.trim()) {
+      showToast("Please enter your email or phone number.", 'error');
+      return;
+    }
+
+    setIsSubmittingCoverage(true);
+    try {
+      const res = await submitCoverageRequest({
+        customer_id: user?.id,
+        customer_name: user?.user_metadata?.full_name || user?.name || coverageFormContact.split('@')[0] || 'Customer',
+        email: coverageFormContact.includes('@') ? coverageFormContact.trim() : (user?.email || ''),
+        phone: coverageFormContact.trim(),
+        service_id: coverageModalService.id,
+        service_name: coverageModalService.name,
+        district: coverageFormCity.trim(),
+        state: coverageFormState.trim() || 'Jharkhand'
+      });
+
       if (res.success || res.error === 'duplicate') {
-        setSubmittedCoverages(prev => [...prev, serviceId]);
-        showToast("Coverage request submitted successfully!", 'success');
+        setSubmittedCoverages(prev => [...prev, coverageModalService.id]);
+        showToast(res.message || "Coverage request submitted successfully!", 'success');
+        setCoverageModalService(null);
       } else {
-        showToast("Failed to request coverage.", 'error');
+        showToast(res.error || "Failed to request coverage.", 'error');
       }
+    } catch {
+      showToast("Failed to request coverage.", 'error');
+    } finally {
+      setIsSubmittingCoverage(false);
     }
   };
 
@@ -183,9 +243,9 @@ const Services = () => {
                 <HierarchicalLocationSelector
                   selectedState={selectedState}
                   selectedDistrict={selectedCity}
-                  onChange={(district, state) => {
-                    setSelectedCity(district);
-                    setSelectedState(state);
+                  onChange={({ state, district }) => {
+                    setSelectedCity(district || '');
+                    setSelectedState(state || '');
                   }}
                   statePlaceholder="All States"
                   districtPlaceholder="All Districts"
@@ -376,6 +436,105 @@ const Services = () => {
 
         </div>
       </div>
+
+      {/* Coverage Request Modal */}
+      <AnimatePresence>
+        {coverageModalService && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-slate-100 relative"
+            >
+              <button
+                onClick={() => setCoverageModalService(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="space-y-1 text-left">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">
+                  🚀 Expansion Request
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  Request Coverage for {coverageModalService.name}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  We are expanding rapidly! Let us know where you need service so we can notify you as soon as we launch.
+                </p>
+              </div>
+
+              <form onSubmit={submitCoverageModal} className="space-y-4 pt-1">
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    City / District <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Ranchi, Dhanbad, Bokaro"
+                      required
+                      value={coverageFormCity}
+                      onChange={(e) => setCoverageFormCity(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jharkhand"
+                    value={coverageFormState}
+                    onChange={(e) => setCoverageFormState(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Email or Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="you@example.com or 9876543210"
+                      required
+                      value={coverageFormContact}
+                      onChange={(e) => setCoverageFormContact(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCoverageModalService(null)}
+                    className="w-1/3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCoverage}
+                    className="w-2/3 btn-primary py-2.5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isSubmittingCoverage ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

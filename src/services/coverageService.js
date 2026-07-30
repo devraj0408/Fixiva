@@ -271,12 +271,12 @@ export const submitCoverageRequest = async (arg1, arg2, arg3) => {
   let longitude;
 
   if (typeof arg1 === 'object' && arg1 !== null) {
-    customer_id = arg1.customer_id || null;
-    customer_name = arg1.customer_name || '';
+    customer_id = arg1.customer_id || arg1.customerId || null;
+    customer_name = arg1.customer_name || arg1.customerName || '';
     phone = arg1.phone || arg1.email || '';
     email = arg1.email || '';
-    service_id = arg1.service_id || '';
-    service_name = arg1.service_name || 'General Home Services';
+    service_id = arg1.service_id || arg1.serviceId || '';
+    service_name = arg1.service_name || arg1.serviceName || 'General Home Services';
     state = arg1.state || arg1.region || 'Jharkhand';
     district = arg1.district || arg1.city || '';
     locality = arg1.locality || arg1.area || '';
