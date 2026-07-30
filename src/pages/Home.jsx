@@ -9,6 +9,7 @@ import {
 import { useApp } from '../context/AuthContext';
 import { useCms } from '../context/CmsContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import { detectCurrentLocation } from '../services/locationService';
 
 const IconMap = {
   zap: Zap,
@@ -32,7 +33,7 @@ const IconMap = {
 };
 
 const Home = () => {
-  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest, openBookingModal } = useApp();
+  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
   const { reviews: cmsReviews } = useCms();
   const navigate = useNavigate();
 

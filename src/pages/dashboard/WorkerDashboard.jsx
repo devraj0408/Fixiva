@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -16,10 +16,7 @@ import {
   MapPin,
   Phone,
   PhoneOff,
-  User,
-  ShieldCheck,
   CheckSquare,
-  HelpCircle,
   Sparkles
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
@@ -31,8 +28,7 @@ const WorkerDashboard = () => {
     bookings,
     updateBookingStatus,
     refreshData,
-    tickets,
-    addTicket,
+    reviews: allReviews = [],
     updateUserProfile,
     logout,
     showToast,
@@ -45,11 +41,6 @@ const WorkerDashboard = () => {
   const tabParam = searchParams.get('tab');
 
   const activeTab = tabParam || 'overview';
-
-  // Support & Profile states
-  const [ticketSubject, setTicketSubject] = useState('');
-  const [ticketMessage, setTicketMessage] = useState('');
-  const [ticketLoading, setTicketLoading] = useState(false);
 
   const [skills, setSkills] = useState(user?.skills || '');
   const [experience, setExperience] = useState(user?.experience || '');
@@ -64,12 +55,14 @@ const WorkerDashboard = () => {
 
   useEffect(() => {
     if (user) {
-      setSkills(user.skills || '');
-      setExperience(user.experience || '');
-      setWhatsapp(user.whatsapp || '');
-      setHourlyRate(user.hourly_rate || '');
-      setVisitCharge(user.visit_charge || '');
-      setAvailabilityStatus(user.status || 'Active');
+      queueMicrotask(() => {
+        setSkills(user.skills || '');
+        setExperience(user.experience || '');
+        setWhatsapp(user.whatsapp || '');
+        setHourlyRate(user.hourly_rate || '');
+        setVisitCharge(user.visit_charge || '');
+        setAvailabilityStatus(user.status || 'Active');
+      });
     }
   }, [user]);
 
@@ -93,7 +86,7 @@ const WorkerDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const processed = data.map((n) => ({
           ...n,
@@ -104,10 +97,12 @@ const WorkerDashboard = () => {
     } catch (err) {
       console.error('Exception fetching worker notifications:', err);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
-    fetchNotifications();
+    queueMicrotask(() => {
+      fetchNotifications();
+    });
 
     if (!user?.id || !supabase) return;
 
@@ -136,35 +131,31 @@ const WorkerDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const newReadIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
         try {
           localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
-        } catch {}
+        } catch (e) { void e; }
 
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        queueMicrotask(() => {
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        });
       }
     }
-  }, [activeTab, user?.id, notifications.length]);
-
-  const userRole = String(user?.role || '').trim().toLowerCase();
+  }, [activeTab, user?.id, notifications]);
 
   // Filter jobs for this worker
   const myJobs = useMemo(() => {
     return (bookings || []).filter((b) => b.worker_id === user?.id || (b.worker_name && b.worker_name.toLowerCase() === (user?.name || '').toLowerCase()));
-  }, [bookings, user?.id, user?.name]);
-
-  const myTickets = useMemo(() => {
-    return (tickets || []).filter((t) => t.user_id === user?.id);
-  }, [tickets, user?.id]);
+  }, [bookings, user]);
 
   // Fetch worker specific reviews
   const workerReviews = useMemo(() => {
     return (allReviews || []).filter(
       (r) => r.worker_id === user?.id || (r.workerName && r.workerName.toLowerCase() === (user?.name || '').toLowerCase())
     );
-  }, [allReviews, user?.id, user?.name]);
+  }, [allReviews, user]);
 
   const averageWorkerRating = useMemo(() => {
     if (workerReviews.length === 0) return 5.0;
@@ -322,15 +313,6 @@ const WorkerDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const getInitials = (name) => {
-    if (!name) return 'W';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   };
 
   // Sidebar Items matching exact prompt requirement

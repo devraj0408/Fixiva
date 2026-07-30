@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { Search, CheckCircle, XCircle, Clock, MapPin, Eye, Phone, User, Sparkles } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { Search, CheckCircle, XCircle, MapPin, Eye, Sparkles } from 'lucide-react';
 import { getCoverageRequests, updateCoverageRequestStatus } from '../../services/coverageService';
 import { useToast } from '../../context/ToastContext';
 
@@ -12,7 +12,7 @@ const CoverageRequestsPanel = () => {
 
   const [selectedDetailRequest, setSelectedDetailRequest] = useState(null);
 
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     setLoading(true);
     const res = await getCoverageRequests();
     if (res.data) {
@@ -21,11 +21,13 @@ const CoverageRequestsPanel = () => {
       showToast('Failed to load coverage requests', 'error');
     }
     setLoading(false);
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    fetchRequests();
-  }, []);
+    queueMicrotask(() => {
+      fetchRequests();
+    });
+  }, [fetchRequests]);
 
   const filteredRequests = useMemo(() => {
     return requests.filter(r => {

@@ -5,6 +5,7 @@ import Confirm from '../components/Confirm';
 import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
 import * as staffService from '../services/staffService';
+import { submitCoverageRequest } from '../services/coverageService';
 
 const AppContext = createContext();
 
@@ -1085,93 +1086,12 @@ export const AuthProvider = ({ children }) => {
     },
     setReviews,
     
-    submitCoverageRequest: async (city, state, email) => {
-      if (!supabase) {
-        return { success: false, error: new Error('Supabase is not configured.') };
+    submitCoverageRequest: async (arg1, arg2, arg3) => {
+      const res = await submitCoverageRequest(arg1, arg2, arg3);
+      if (res.success && res.data) {
+        setCoverageRequests((prev) => [res.data, ...prev.filter((r) => r.id !== res.data.id)]);
       }
-
-      const normCity = String(city || '').trim().toLowerCase();
-      const normEmail = String(email || '').trim().toLowerCase();
-
-      // Check duplicate against existing local state to avoid slow queries
-      const isDuplicateLocal = coverageRequests.some(
-        (r) => String(r.city || '').trim().toLowerCase() === normCity && String(r.email || '').trim().toLowerCase() === normEmail
-      );
-
-      if (isDuplicateLocal) {
-        return { success: false, error: 'duplicate' };
-      }
-
-      const payload = {
-        city: String(city || '').trim(),
-        state: String(state || '').trim(),
-        email: normEmail,
-        status: 'Pending'
-      };
-
-      let data = null;
-      let error = null;
-
-      // Primary attempt with select
-      const res = await supabase.from('coverage_requests').insert(payload).select();
-      data = res.data;
-      error = res.error;
-
-      // Handle RLS or unique constraint errors
-      if (error) {
-        const isDupErr = error.code === '23505' || (error.message && (error.message.includes('unique') || error.message.includes('duplicate')));
-        if (isDupErr) {
-          return { success: false, error: 'duplicate' };
-        }
-
-        // Retry insert without select (in case RLS restricts select for anonymous users)
-        const retry = await supabase.from('coverage_requests').insert(payload);
-        if (!retry.error) {
-          data = [{ ...payload, id: `req-${Date.now()}` }];
-          error = null;
-        } else {
-          const retryDupErr = retry.error.code === '23505' || (retry.error.message && (retry.error.message.includes('unique') || retry.error.message.includes('duplicate')));
-          if (retryDupErr) {
-            return { success: false, error: 'duplicate' };
-          }
-          
-          // Fallback: If DB table fails, update local state so request succeeds
-          console.warn('Coverage request DB insert failed, using fallback local record:', retry.error);
-          data = [{ ...payload, id: `req-local-${Date.now()}` }];
-          error = null;
-        }
-      }
-
-      // Trigger Resend email notification
-      try {
-        const resendApiKey = import.meta?.env?.VITE_RESEND_API_KEY || '';
-        if (resendApiKey) {
-          const time = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              Authorization: `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'Fixiva <onboarding@fixiva.app>',
-              to: ['fixiva869@gmail.com'],
-              subject: 'New Coverage Request - Fixiva',
-              text: `City: ${payload.city}\nState: ${payload.state}\nEmail: ${payload.email}\nSubmission Time: ${time}`,
-            }),
-          });
-        }
-      } catch {
-        // Email notification failed
-      }
-
-      if (data && data.length > 0) {
-        setCoverageRequests((prev) => [data[0], ...prev]);
-      } else {
-        setCoverageRequests((prev) => [{ ...payload, id: `req-local-${Date.now()}` }, ...prev]);
-      }
-
-      return { success: true, data };
+      return res;
     },
 
     updateCoverageRequestStatus: async (id, status) => {
@@ -1257,6 +1177,7 @@ export const AuthProvider = ({ children }) => {
     cityControl,
     toggleServiceInCity,
     coverageRequests,
+    autoAssignPendingBookingToWorker,
     bookingModalState,
     openBookingModal,
     closeBookingModal,

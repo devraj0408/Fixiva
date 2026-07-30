@@ -91,22 +91,30 @@ const HierarchicalLocationSelector = ({
     ? states.filter(s => s.status !== 'Disabled').map(s => s.name)
     : STATES;
 
-  // District Options
+  // District & Locality Options
+  const safeSelectedState = typeof selectedState === 'object' && selectedState !== null
+    ? String(selectedState.state || selectedState.name || '')
+    : String(selectedState || '');
+
+  const safeSelectedDistrict = typeof selectedDistrict === 'object' && selectedDistrict !== null
+    ? String(selectedDistrict.district || selectedDistrict.name || '')
+    : String(selectedDistrict || '');
+
   let districtOptions = [];
-  if (selectedState) {
-    districtOptions = getDistrictsForState(selectedState);
+  if (safeSelectedState) {
+    districtOptions = getDistrictsForState(safeSelectedState);
     if (districtOptions.length === 0 && districts && districts.length > 0) {
       districtOptions = districts
-        .filter(d => (d.state_name || '').toLowerCase() === selectedState.toLowerCase())
-        .map(d => d.name);
+        .filter(d => d && String(d.state_name || '').toLowerCase() === safeSelectedState.toLowerCase())
+        .map(d => typeof d === 'object' ? d.name : String(d));
     }
   }
 
   // Locality Options
   let localityOptions = [];
-  if (selectedDistrict) {
-    const localityObjs = getLocalitiesForDistrict(selectedDistrict, selectedState);
-    localityOptions = localityObjs.map(l => l.name);
+  if (safeSelectedDistrict) {
+    const localityObjs = getLocalitiesForDistrict(safeSelectedDistrict, safeSelectedState);
+    localityOptions = Array.isArray(localityObjs) ? localityObjs.map(l => typeof l === 'object' ? l.name : String(l)) : [];
   }
 
   return (

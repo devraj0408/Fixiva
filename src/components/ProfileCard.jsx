@@ -1,4 +1,4 @@
-import { ShieldCheck, Settings, User } from 'lucide-react';
+import { ShieldCheck, Settings } from 'lucide-react';
 
 const ProfileCard = ({ user, role = 'customer', isOnline = true, onEditProfile }) => {
   const getBadgeInfo = () => {

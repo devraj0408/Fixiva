@@ -7,7 +7,6 @@ import {
   MapPin,
   MessageCircle,
   Settings,
-  ShieldCheck,
   Users,
   LogOut,
   IndianRupee,

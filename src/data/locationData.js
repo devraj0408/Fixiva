@@ -193,17 +193,50 @@ export const LOCATION_DATA = [
 export const STATES = LOCATION_DATA.map(item => item.state).sort();
 
 export const getDistrictsForState = (stateName) => {
-  if (!stateName) return [];
-  const found = LOCATION_DATA.find(item => item.state.toLowerCase() === stateName.toLowerCase());
-  return found ? found.districts.map(d => d.name).sort() : [];
+  const safeStateName = typeof stateName === 'object' && stateName !== null
+    ? String(stateName.state || stateName.name || '')
+    : String(stateName || '');
+  if (!safeStateName) return [];
+  const found = LOCATION_DATA.find(item => item && String(item.state || '').toLowerCase() === safeStateName.toLowerCase());
+  return found && Array.isArray(found.districts)
+    ? found.districts.map(d => typeof d === 'object' ? d.name : String(d)).filter(Boolean).sort()
+    : [];
+};
+
+export const getAllStaticDistricts = () => {
+  const result = [];
+  let idCounter = 100;
+  for (const stateObj of LOCATION_DATA) {
+    if (!stateObj || !Array.isArray(stateObj.districts)) continue;
+    for (const distObj of stateObj.districts) {
+      if (!distObj) continue;
+      result.push({
+        id: idCounter++,
+        name: typeof distObj === 'object' ? distObj.name : String(distObj),
+        state_name: stateObj.state,
+        status: 'Active',
+        coverage_radius_km: 15
+      });
+    }
+  }
+  return result;
 };
 
 export const getLocalitiesForDistrict = (districtName, stateName = '') => {
-  if (!districtName) return [];
+  const safeDistrictName = typeof districtName === 'object' && districtName !== null
+    ? String(districtName.district || districtName.name || '')
+    : String(districtName || '');
+
+  const safeStateName = typeof stateName === 'object' && stateName !== null
+    ? String(stateName.state || stateName.name || '')
+    : String(stateName || '');
+
+  if (!safeDistrictName) return [];
 
   for (const stateObj of LOCATION_DATA) {
-    if (stateName && stateObj.state.toLowerCase() !== stateName.toLowerCase()) continue;
-    const dist = stateObj.districts.find(d => d.name.toLowerCase() === districtName.toLowerCase());
+    if (!stateObj || !Array.isArray(stateObj.districts)) continue;
+    if (safeStateName && String(stateObj.state || '').toLowerCase() !== safeStateName.toLowerCase()) continue;
+    const dist = stateObj.districts.find(d => d && String(d.name || d || '').toLowerCase() === safeDistrictName.toLowerCase());
     if (dist && dist.localities) {
       return dist.localities;
     }

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import { getStaffByContractor, createStaffMember, updateStaffMember, deleteStaffMember } from '../../services/staffService';
@@ -14,13 +14,10 @@ import {
   Building,
   LogOut,
   Clock,
-  CheckCircle,
+  Calendar,
   Plus,
   Trash2,
-  User,
-  MapPin,
   X,
-  Search,
   Edit2,
   Send,
   Headphones,
@@ -28,7 +25,6 @@ import {
   Check
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
-import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
 
 const ContractorDashboard = () => {
   const {
@@ -103,11 +99,13 @@ const ContractorDashboard = () => {
       setStaffList(data || []);
     }
     setIsLoadingStaff(false);
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
     if (user?.id) {
-      loadContractorStaff();
+      queueMicrotask(() => {
+        loadContractorStaff();
+      });
     }
   }, [user?.id, loadContractorStaff]);
 
@@ -134,23 +132,27 @@ const ContractorDashboard = () => {
   // Sync profile form states
   useEffect(() => {
     if (user) {
-      setCompanyName(user.company || user.name || '');
-      setOwnerName(user.owner_name || user.name || '');
-      setGstNumber(user.gst || '');
-      setContractorCity(user.district || user.city || 'Ranchi');
-      setServicesOffered(user.services_offered || 'Electrician, Plumbing, AC Repair, Cleaning');
-      setCoverageArea(user.coverage_area || 'Jharkhand - Ranchi District');
-      setLogoUrl(user.profile_photo_url || '');
+      queueMicrotask(() => {
+        setCompanyName(user.company || user.name || '');
+        setOwnerName(user.owner_name || user.name || '');
+        setGstNumber(user.gst || '');
+        setContractorCity(user.district || user.city || 'Ranchi');
+        setServicesOffered(user.services_offered || 'Electrician, Plumbing, AC Repair, Cleaning');
+        setCoverageArea(user.coverage_area || 'Jharkhand - Ranchi District');
+        setLogoUrl(user.profile_photo_url || '');
+      });
     }
   }, [user]);
 
   // Fetch Contractor Reviews
   useEffect(() => {
     if (!user?.id) return;
-    const filtered = (allReviews || []).filter(
-      r => r.contractor_id === user.id || r.worker_id === user.id || (user.company && (r.serviceType || '').toLowerCase().includes((user.company || '').toLowerCase()))
-    );
-    setContractorReviews(filtered);
+    queueMicrotask(() => {
+      const filtered = (allReviews || []).filter(
+        r => r.contractor_id === user.id || r.worker_id === user.id || (user.company && (r.serviceType || '').toLowerCase().includes((user.company || '').toLowerCase()))
+      );
+      setContractorReviews(filtered);
+    });
   }, [allReviews, user?.id, user?.company]);
 
   // Fetch Notifications & Realtime Subscription
@@ -173,7 +175,7 @@ const ContractorDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const processed = data.map((n) => ({
           ...n,
@@ -184,10 +186,12 @@ const ContractorDashboard = () => {
     } catch (err) {
       console.error('Exception fetching contractor notifications:', err);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
-    fetchNotifications();
+    queueMicrotask(() => {
+      fetchNotifications();
+    });
 
     if (!user?.id || !supabase) return;
 
@@ -216,22 +220,26 @@ const ContractorDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const newReadIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
         try {
           localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
-        } catch {}
+        } catch (e) { void e; }
 
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        queueMicrotask(() => {
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        });
       }
     }
-  }, [activeTab, user?.id, notifications.length]);
+  }, [activeTab, user?.id, notifications]);
 
   // Realtime Support Tickets Sync for Contractor
   useEffect(() => {
-    const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
-    setLiveTickets(userTickets);
+    queueMicrotask(() => {
+      const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
+      setLiveTickets(userTickets);
+    });
   }, [tickets, user?.id]);
 
   useEffect(() => {
@@ -265,8 +273,6 @@ const ContractorDashboard = () => {
     }
   }, [liveTickets, activeTab]);
 
-  const userRole = String(user?.role || '').trim().toLowerCase();
-
   // Filter contractor bookings (Contractor specific or matching district)
   const contractorBookings = useMemo(() => {
     const userCityLower = (user?.district || user?.city || '').toLowerCase();
@@ -281,7 +287,7 @@ const ContractorDashboard = () => {
 
       return isAssignedToContractor || isNamedWorker || isNearbyUnassigned;
     });
-  }, [bookings, user?.id, user?.company, user?.name, user?.district, user?.city]);
+  }, [bookings, user]);
 
   const pendingRequests = useMemo(() => {
     return contractorBookings.filter((b) => ['Pending', 'New Request'].includes(b.status));
@@ -295,6 +301,14 @@ const ContractorDashboard = () => {
 
   const completedJobs = useMemo(() => {
     return contractorBookings.filter((b) => ['Completed', 'Reviewed'].includes(b.status));
+  }, [contractorBookings]);
+
+  const todaysJobsCount = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return contractorBookings.filter((b) => {
+      const bDate = b.booking_date || b.preferred_date || b.created_at;
+      return bDate && new Date(bDate).toISOString().split('T')[0] === todayStr;
+    }).length;
   }, [contractorBookings]);
 
   // Earnings Breakdown Calculation
@@ -373,7 +387,7 @@ const ContractorDashboard = () => {
         trust_score: 98
       };
 
-      const { data, error } = await createStaffMember(payload);
+      const { error } = await createStaffMember(payload);
 
       if (error) {
         console.error('Supabase staff creation error:', error);
@@ -540,15 +554,6 @@ const ContractorDashboard = () => {
   const handleLogout = () => {
     logout();
     navigate('/login');
-  };
-
-  const getInitials = (name) => {
-    if (!name) return 'C';
-    const parts = name.trim().split(/\s+/);
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-    }
-    return name.slice(0, 2).toUpperCase();
   };
 
   // Sidebar Items

@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { MapPin, Search, Edit2, Check, X, Shield, Plus, Building, Layers, Eye } from 'lucide-react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { MapPin, Search, Edit2, X, Plus } from 'lucide-react';
 import { getDistrictCoverageList, updateDistrictStatus } from '../../services/coverageService';
 import { createDistrict } from '../../services/locationService';
 import { useToast } from '../../context/ToastContext';
@@ -23,7 +23,7 @@ const CoveragePanel = () => {
   const [newStateName, setNewStateName] = useState('Jharkhand');
   const [adding, setAdding] = useState(false);
 
-  const fetchCoverage = async () => {
+  const fetchCoverage = useCallback(async () => {
     setLoading(true);
     const res = await getDistrictCoverageList();
     if (res.data) {
@@ -32,11 +32,13 @@ const CoveragePanel = () => {
       showToast('Failed to load district coverage', 'error');
     }
     setLoading(false);
-  };
+  }, [showToast]);
 
   useEffect(() => {
-    fetchCoverage();
-  }, []);
+    queueMicrotask(() => {
+      fetchCoverage();
+    });
+  }, [fetchCoverage]);
 
   // Filtered Districts
   const filteredDistricts = useMemo(() => {

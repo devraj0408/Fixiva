@@ -1,21 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useParams, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  Search,
   Star,
-  ShieldCheck,
   CheckCircle,
-  MapPin,
-  Clock,
-  User,
-  IndianRupee,
-  Calendar,
   ArrowRight,
   Sparkles,
-  Phone,
-  AlertTriangle,
-  ChevronRight,
   ArrowLeft,
   Check
 } from 'lucide-react';
@@ -33,7 +23,6 @@ const BookingFlow = () => {
   const {
     services = [],
     user,
-    isAuthenticated,
     showToast
   } = useApp();
 
@@ -79,15 +68,15 @@ const BookingFlow = () => {
   // Pre-fill user data
   useEffect(() => {
     if (user) {
-      if (user.name) setCustomerName(user.name);
-      if (user.phone) {
-        setCustomerPhone(user.phone);
-        setCoveragePhone(user.phone);
-      }
+      queueMicrotask(() => {
+        if (user.name) setCustomerName(user.name);
+        if (user.phone) {
+          setCustomerPhone(user.phone);
+          setCoveragePhone(user.phone);
+        }
+      });
     }
   }, [user]);
-
-  const userRole = String(user?.role || '').trim().toLowerCase();
 
   // Active Service object
   const activeService = services.find(s => s.id === selectedServiceId) || {
@@ -98,7 +87,7 @@ const BookingFlow = () => {
   };
 
   // Run Locality Matching Engine when step 3 or location/service changes
-  const runMatchingEngine = async () => {
+  const runMatchingEngine = useCallback(async () => {
     setMatchingLoading(true);
     setCoverageRequested(false);
     try {
@@ -121,11 +110,13 @@ const BookingFlow = () => {
     } finally {
       setMatchingLoading(false);
     }
-  };
+  }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality, userLat, userLng, showToast]);
 
   useEffect(() => {
-    runMatchingEngine();
-  }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality]);
+    queueMicrotask(() => {
+      runMatchingEngine();
+    });
+  }, [runMatchingEngine]);
 
   // Handle GPS location detection (Optional)
   const handleDetectGps = async () => {

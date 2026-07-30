@@ -26,9 +26,10 @@ const SearchableDropdown = ({
   const optionsListRef = useRef(null);
 
   // Filter options based on search query
-  const filteredOptions = options.filter(option =>
-    String(option).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredOptions = options.filter(option => {
+    const text = typeof option === 'object' && option !== null ? String(option.name || option.label || '') : String(option || '');
+    return text.toLowerCase().includes((searchQuery || '').toLowerCase());
+  });
 
   const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
 

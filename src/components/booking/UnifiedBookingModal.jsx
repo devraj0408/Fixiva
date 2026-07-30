@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Sparkles, Star, MapPin, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
+import { X, ArrowRight } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
 import { findAvailableProfessionals, createBooking } from '../../services/bookingService';
 import { submitCoverageRequest } from '../../services/coverageService';
-import { detectCurrentLocation } from '../../services/locationService';
 
 const UnifiedBookingModal = () => {
   const { bookingModalState, closeBookingModal, services = [], user, showToast } = useApp();
   const { isOpen, initialData = {} } = bookingModalState;
 
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
   const [step, setStep] = useState(1);
   const [serviceId, setServiceId] = useState('electrician');
   const [selectedState, setSelectedState] = useState('Jharkhand');
@@ -27,17 +27,18 @@ const UnifiedBookingModal = () => {
   const [submitting, setSubmitting] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      setStep(1);
-      if (initialData.serviceId) setServiceId(initialData.serviceId);
-      if (initialData.state) setSelectedState(initialData.state);
-      if (initialData.district || initialData.city) setSelectedDistrict(initialData.district || initialData.city);
-      if (initialData.locality) setSelectedLocality(initialData.locality);
-      if (user?.name) setCustomerName(user.name);
-      if (user?.phone) setCustomerPhone(user.phone);
-    }
-  }, [isOpen, initialData, user]);
+  if (isOpen && !prevIsOpen) {
+    setPrevIsOpen(true);
+    setStep(1);
+    if (initialData.serviceId) setServiceId(initialData.serviceId);
+    if (initialData.state) setSelectedState(initialData.state);
+    if (initialData.district || initialData.city) setSelectedDistrict(initialData.district || initialData.city);
+    if (initialData.locality) setSelectedLocality(initialData.locality);
+    if (user?.name) setCustomerName(user.name);
+    if (user?.phone) setCustomerPhone(user.phone);
+  } else if (!isOpen && prevIsOpen) {
+    setPrevIsOpen(false);
+  }
 
   if (!isOpen) return null;
 

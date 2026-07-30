@@ -1,13 +1,28 @@
-import { useState } from 'react';
+import { useMemo } from 'react';
 import { useCms } from '../../context/CmsContext';
+
+const DEFAULT_SETTINGS = {
+  maintenanceMode: false,
+  enableCoupons: true,
+  enableOffers: true,
+  enableReviews: true,
+  enableOnlinePayments: false,
+  enableCashPayments: true,
+  enableWorkerLiveTracking: true,
+  emergencyBookingEnabled: true,
+};
 
 const SettingsPanel = () => {
   const { settings, updateSettings } = useCms();
-  const [form, setForm] = useState(settings || {});
+
+  const currentSettings = useMemo(() => ({
+    ...DEFAULT_SETTINGS,
+    ...(settings || {}),
+  }), [settings]);
 
   const handleToggle = (key) => {
-    const updated = { ...form, [key]: !form[key] };
-    setForm(updated);
+    const currentValue = currentSettings[key] !== false;
+    const updated = { ...currentSettings, [key]: !currentValue };
     updateSettings(updated);
   };
 
@@ -36,7 +51,7 @@ const SettingsPanel = () => {
 
         <div className="grid gap-4 md:grid-cols-2">
           {featureFlags.map(({ key, label, desc }) => {
-            const isEnabled = form[key] !== false;
+            const isEnabled = currentSettings[key] !== false;
             return (
               <div key={key} className="flex items-start justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                 <div className="space-y-1">
@@ -47,7 +62,9 @@ const SettingsPanel = () => {
                 <button
                   type="button"
                   onClick={() => handleToggle(key)}
-                  className={`rounded-full px-3 py-1 text-xs font-black uppercase transition-all ${isEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}
+                  className={`rounded-full px-3 py-1 text-xs font-black uppercase transition-all cursor-pointer ${
+                    isEnabled ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
                 >
                   {isEnabled ? 'ENABLED' : 'DISABLED'}
                 </button>

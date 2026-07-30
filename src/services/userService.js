@@ -16,11 +16,16 @@ export const getCustomers = async () => {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
-      .eq('role', 'customer')
       .order('created_at', { ascending: false });
 
     if (error) return { data: [], error: error.message };
-    return { data: data || [], error: null };
+
+    const customers = (data || []).filter((p) => {
+      const role = String(p.role || '').trim().toLowerCase();
+      return role === 'customer' || role === 'user' || role === 'client' || (!role && p.email);
+    });
+
+    return { data: customers, error: null };
   } catch (err) {
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }

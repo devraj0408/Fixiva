@@ -64,7 +64,7 @@ export const findAvailableProfessionals = async ({
         const wLng = Number(w.location_longitude || 85.3200);
         const distKm = calculateDistanceInKm(targetLat, targetLng, wLat, wLng) || 2.4;
 
-        let etaText = '20 - 30 mins';
+        let etaText;
         if (distKm <= 3) etaText = '15 - 25 mins';
         else if (distKm <= 7) etaText = '25 - 35 mins';
         else if (distKm <= 12) etaText = '35 - 50 mins';
@@ -103,7 +103,7 @@ export const findAvailableProfessionals = async ({
         const cLng = Number(c.location_longitude || 85.3400);
         const distKm = calculateDistanceInKm(targetLat, targetLng, cLat, cLng) || 3.1;
 
-        let etaText = '25 - 35 mins';
+        let etaText;
         if (distKm <= 3) etaText = '15 - 25 mins';
         else if (distKm <= 7) etaText = '25 - 35 mins';
         else etaText = '35 - 50 mins';
@@ -354,21 +354,43 @@ export const assignWorkerToBooking = async (bookingId, worker, actor = {}) => {
 // BACKWARD COMPATIBILITY EXPORTS FOR CMS
 // ==========================================
 
-export const getSystemSettings = () => ({
-  maintenanceMode: false,
-  enableCoupons: true,
-  enableOffers: true,
-  enableReviews: true,
-  enableWallet: false,
-  enableOnlinePayments: false,
-  enableCashPayments: true,
-  enableNotifications: true,
-  enableReferrals: false,
-  enableWorkerLiveTracking: true,
-  defaultServiceRadiusKm: 15,
-  defaultPlatformFee: 49,
-  emergencyBookingEnabled: true,
-});
+const SETTINGS_KEY = 'fixiva_system_settings';
+
+export const getSystemSettings = () => {
+  const defaults = {
+    maintenanceMode: false,
+    enableCoupons: true,
+    enableOffers: true,
+    enableReviews: true,
+    enableWallet: false,
+    enableOnlinePayments: false,
+    enableCashPayments: true,
+    enableNotifications: true,
+    enableReferrals: false,
+    enableWorkerLiveTracking: true,
+    defaultServiceRadiusKm: 15,
+    defaultPlatformFee: 49,
+    emergencyBookingEnabled: true,
+  };
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults;
+  } catch (e) {
+    void e;
+    return defaults;
+  }
+};
+
+export const updateSystemSettings = (updates) => {
+  try {
+    const current = getSystemSettings();
+    const updated = { ...current, ...updates };
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+    return { data: updated, error: null };
+  } catch (err) {
+    return { data: null, error: String(err) };
+  }
+};
 
 export const getPayments = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
@@ -380,7 +402,7 @@ export const getPayments = async () => {
   }
 };
 
-export const updatePaymentStatus = async (id, status, actor = {}) => {
+export const updatePaymentStatus = async (id, status) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
   try {
     const { data, error } = await supabase.from('payments').update({ status }).eq('id', id).select().maybeSingle();
@@ -400,7 +422,7 @@ export const getSupportTickets = async () => {
   }
 };
 
-export const updateTicketStatus = async (id, status, adminReply = '', actor = {}) => {
+export const updateTicketStatus = async (id, status, adminReply = '') => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
   try {
     const { data, error } = await supabase.from('support_tickets').update({ status, admin_reply: adminReply }).eq('id', id).select().maybeSingle();

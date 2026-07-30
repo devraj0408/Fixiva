@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock, MapPin, Navigation, Play, Check, Star, ShieldCheck, UserCheck } from 'lucide-react';
+import { Check } from 'lucide-react';
 
 const STAGES = [
   { id: 'created', label: 'Booking Created', statuses: ['NEW', 'LEAD SENT', 'Pending', 'New Request'] },

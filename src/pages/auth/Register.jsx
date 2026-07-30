@@ -401,9 +401,13 @@ const Register = () => {
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operating City</label>
                     <HierarchicalLocationSelector
-                      selectedState={formData.state}
-                      selectedDistrict={formData.city}
-                      onChange={(district, state) => setFormData({ ...formData, city: district, state: state })}
+                      selectedState={typeof formData.state === 'string' ? formData.state : (formData.state?.state || '')}
+                      selectedDistrict={typeof formData.city === 'string' ? formData.city : (formData.city?.district || '')}
+                      onChange={({ state, district }) => setFormData((prev) => ({
+                        ...prev,
+                        state: String(state || ''),
+                        city: String(district || '')
+                      }))}
                       statePlaceholder="Select State"
                       districtPlaceholder="Select City"
                       layout="row"

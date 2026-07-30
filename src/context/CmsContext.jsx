@@ -63,18 +63,20 @@ export const CmsProvider = ({ children }) => {
   const actor = { id: user?.id || null, email: user?.email || '' };
 
   useEffect(() => {
-    if (Array.isArray(authBookings)) {
-      setBookings(authBookings);
-    }
-    if (Array.isArray(authWorkers)) {
-      setWorkers(authWorkers);
-    }
-    if (Array.isArray(authContractors)) {
-      setContractors(authContractors);
-    }
-    if (Array.isArray(authProfiles)) {
-      setCustomers(authProfiles.filter((p) => p.role === 'customer'));
-    }
+    queueMicrotask(() => {
+      if (Array.isArray(authBookings)) {
+        setBookings(authBookings);
+      }
+      if (Array.isArray(authWorkers)) {
+        setWorkers(authWorkers);
+      }
+      if (Array.isArray(authContractors)) {
+        setContractors(authContractors);
+      }
+      if (Array.isArray(authProfiles)) {
+        setCustomers(authProfiles.filter((p) => p.role === 'customer'));
+      }
+    });
   }, [authBookings, authWorkers, authContractors, authProfiles]);
 
   const refreshCmsData = useCallback(async () => {
@@ -192,17 +194,122 @@ export const CmsProvider = ({ children }) => {
   const handleDeleteArea = async (id) => { const res = await locationService.deleteArea(id, actor); if (res.success) { showToast('Area deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
 
   // Phase 2 Action Handlers
-  const handleCreateBanner = async (data) => { const res = await contentService.createBanner(data, actor); if (!res.error) { showToast('Banner created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateBanner = async (id, updates) => { const res = await contentService.updateBanner(id, updates, actor); if (!res.error) { showToast('Banner updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteBanner = async (id) => { const res = await contentService.deleteBanner(id, actor); if (res.success) { showToast('Banner deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateBanner = async (data) => {
+    const res = await contentService.createBanner(data, actor);
+    if (!res.error && res.data) {
+      setBanners((prev) => [res.data, ...prev.filter((b) => b.id !== res.data.id && b.title !== res.data.title)]);
+      showToast('Banner created successfully.', 'success');
+      await refreshCmsData();
+    } else if (!res.error) {
+      showToast('Banner created successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error creating banner: ' + res.error, 'error');
+    }
+    return res;
+  };
 
-  const handleCreateOffer = async (data) => { const res = await contentService.createOffer(data, actor); if (!res.error) { showToast('Offer created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateOffer = async (id, updates) => { const res = await contentService.updateOffer(id, updates, actor); if (!res.error) { showToast('Offer updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteOffer = async (id) => { const res = await contentService.deleteOffer(id, actor); if (res.success) { showToast('Offer deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleUpdateBanner = async (id, updates) => {
+    const res = await contentService.updateBanner(id, updates, actor);
+    if (!res.error) {
+      setBanners((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+      showToast('Banner updated successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error updating banner: ' + res.error, 'error');
+    }
+    return res;
+  };
 
-  const handleCreateFaq = async (data) => { const res = await contentService.createFaq(data, actor); if (!res.error) { showToast('FAQ added.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateFaq = async (id, updates) => { const res = await contentService.updateFaq(id, updates, actor); if (!res.error) { showToast('FAQ updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteFaq = async (id) => { const res = await contentService.deleteFaq(id, actor); if (res.success) { showToast('FAQ deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleDeleteBanner = async (id) => {
+    const res = await contentService.deleteBanner(id, actor);
+    if (res.success || !res.error) {
+      setBanners((prev) => prev.filter((b) => b.id !== id));
+      showToast('Banner deleted successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error deleting banner: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleCreateOffer = async (data) => {
+    const res = await contentService.createOffer(data, actor);
+    if (!res.error && res.data) {
+      setOffers((prev) => [res.data, ...prev.filter((o) => o.id !== res.data.id && o.title !== res.data.title)]);
+      showToast('Offer created successfully.', 'success');
+      await refreshCmsData();
+    } else if (!res.error) {
+      showToast('Offer created successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error creating offer: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleUpdateOffer = async (id, updates) => {
+    const res = await contentService.updateOffer(id, updates, actor);
+    if (!res.error) {
+      setOffers((prev) => prev.map((o) => (o.id === id ? { ...o, ...updates } : o)));
+      showToast('Offer updated successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error updating offer: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleDeleteOffer = async (id) => {
+    const res = await contentService.deleteOffer(id, actor);
+    if (res.success || !res.error) {
+      setOffers((prev) => prev.filter((o) => o.id !== id));
+      showToast('Offer deleted successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error deleting offer: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleCreateFaq = async (data) => {
+    const res = await contentService.createFaq(data, actor);
+    if (!res.error && res.data) {
+      setFaqs((prev) => [res.data, ...prev.filter((f) => f.id !== res.data.id && f.question !== res.data.question)]);
+      showToast('FAQ added successfully.', 'success');
+      await refreshCmsData();
+    } else if (!res.error) {
+      showToast('FAQ added successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error adding FAQ: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleUpdateFaq = async (id, updates) => {
+    const res = await contentService.updateFaq(id, updates, actor);
+    if (!res.error) {
+      setFaqs((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
+      showToast('FAQ updated successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error updating FAQ: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleDeleteFaq = async (id) => {
+    const res = await contentService.deleteFaq(id, actor);
+    if (res.success || !res.error) {
+      setFaqs((prev) => prev.filter((f) => f.id !== id));
+      showToast('FAQ deleted successfully.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error deleting FAQ: ' + res.error, 'error');
+    }
+    return res;
+  };
 
   const handleCreateCoupon = async (data) => {
     const res = await marketingService.createCoupon(data, actor);
@@ -277,7 +384,11 @@ export const CmsProvider = ({ children }) => {
   };
 
   const handleUpdateSettings = (newSettings) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }));
+    setSettings((prev) => {
+      const merged = { ...prev, ...newSettings };
+      bookingService.updateSystemSettings(merged);
+      return merged;
+    });
     showToast('System feature flags updated.', 'success');
   };
 

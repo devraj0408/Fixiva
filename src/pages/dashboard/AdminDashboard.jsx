@@ -1,7 +1,8 @@
 import React, { useMemo, Suspense } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Briefcase, CheckCircle, Clock, FileText, MessageCircle, ShieldCheck, Users } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
+import { useCms } from '../../context/CmsContext';
 import AdminShell from '../../components/admin/AdminShell';
 
 const DashboardOverview = React.lazy(() => import('../../components/admin/DashboardOverview'));
@@ -45,6 +46,8 @@ const AdminDashboard = () => {
     logout,
   } = useApp();
 
+  const { customers: cmsCustomers = [] } = useCms();
+
   const navigate = useNavigate();
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
@@ -53,14 +56,19 @@ const AdminDashboard = () => {
   const activeTab = tabParam || 'overview';
 
   const stats = useMemo(() => {
-    const customers = (profiles || []).filter((person) => person.role === 'customer').length;
+    const profileCustomersCount = (profiles || []).filter((person) => {
+      const r = String(person.role || '').trim().toLowerCase();
+      return r === 'customer' || r === 'user' || r === 'client' || (!r && person.email);
+    }).length;
+
+    const customersCount = Math.max(profileCustomersCount, (cmsCustomers || []).length);
     const workersCount = (workers || []).filter((worker) => !worker.isContractor).length;
     const contractorsCount = (contractors || []).length;
     const pendingBookings = (bookings || []).filter((booking) => booking.status === 'New Request').length;
     const completedBookings = (bookings || []).filter((booking) => booking.status === 'Completed').length;
 
     return [
-      { label: 'Customers', value: customers, icon: Users, tone: 'bg-sky-100 text-sky-700' },
+      { label: 'Customers', value: customersCount, icon: Users, tone: 'bg-sky-100 text-sky-700' },
       { label: 'Workers', value: workersCount, icon: Briefcase, tone: 'bg-amber-100 text-amber-700' },
       { label: 'Contractors', value: contractorsCount, icon: ShieldCheck, tone: 'bg-emerald-100 text-emerald-700' },
       { label: 'Bookings', value: (bookings || []).length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
@@ -68,15 +76,13 @@ const AdminDashboard = () => {
       { label: 'Completed', value: completedBookings, icon: CheckCircle, tone: 'bg-emerald-100 text-emerald-700' },
       { label: 'Support', value: (tickets || []).length, icon: MessageCircle, tone: 'bg-violet-100 text-violet-700' },
     ];
-  }, [bookings, contractors, profiles, tickets, workers]);
+  }, [bookings, cmsCustomers, contractors, profiles, tickets, workers]);
 
   const recentActivity = useMemo(() => {
     return [...(bookings || [])]
       .sort((a, b) => new Date(b.created_at || b.booking_date || b.preferred_date || 0) - new Date(a.created_at || a.booking_date || a.preferred_date || 0))
       .slice(0, 5);
   }, [bookings]);
-
-  const userRole = String(user?.role || '').trim().toLowerCase();
 
   const handleTabChange = (nextTab) => {
     navigate(`${location.pathname}?tab=${nextTab}`);

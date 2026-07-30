@@ -1,5 +1,5 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
-import { useNavigate, useLocation, Navigate } from 'react-router-dom';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
 import {
@@ -7,29 +7,17 @@ import {
   FileText,
   Building,
   Star,
-  MessageCircle,
   Bell,
   Settings,
   LogOut,
-  Clock,
-  CheckCircle,
-  AlertTriangle,
-  Phone,
-  Plus,
-  Search,
   Heart,
-  Calendar,
   X,
-  Briefcase,
-  Check,
   User,
   ShieldCheck,
   MapPin,
   Sparkles,
   Send,
-  ArrowRight,
-  Headphones,
-  Home as HomeIcon
+  Headphones
 } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
 import ProfileCard from '../../components/ProfileCard';
@@ -41,7 +29,6 @@ const CustomerDashboard = () => {
     bookings = [],
     contractors = [],
     workers = [],
-    services = [],
     updateBookingStatus,
     reviews = [],
     addReview,
@@ -49,9 +36,7 @@ const CustomerDashboard = () => {
     addTicket,
     updateUserProfile,
     logout,
-    showToast,
-    confirm,
-    openBookingModal
+    showToast
   } = useApp();
 
   const navigate = useNavigate();
@@ -76,13 +61,12 @@ const CustomerDashboard = () => {
   const chatBottomRef = useRef(null);
 
   // Search & Filter States
-  const [contractorSearch, setContractorSearch] = useState('');
-  const [workerSearch, setWorkerSearch] = useState('');
   const [savedContractorIds, setSavedContractorIds] = useState(() => {
     try {
       const stored = localStorage.getItem(`fixiva_saved_contractors_${user?.id}`);
       return stored ? JSON.parse(stored) : [];
-    } catch {
+    } catch (e) {
+      void e;
       return [];
     }
   });
@@ -110,18 +94,22 @@ const CustomerDashboard = () => {
 
   useEffect(() => {
     if (user) {
-      setProfileName(user.name || '');
-      setProfilePhone(user.phone || '');
-      setProfileState(user.state || 'Jharkhand');
-      setProfileDistrict(user.district || user.city || 'Ranchi');
-      setProfileLocality(user.locality || 'Lalpur');
+      queueMicrotask(() => {
+        setProfileName(user.name || '');
+        setProfilePhone(user.phone || '');
+        setProfileState(user.state || 'Jharkhand');
+        setProfileDistrict(user.district || user.city || 'Ranchi');
+        setProfileLocality(user.locality || 'Lalpur');
+      });
     }
   }, [user]);
 
   // Realtime Support Tickets Sync
   useEffect(() => {
-    const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
-    setLiveTickets(userTickets);
+    queueMicrotask(() => {
+      const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
+      setLiveTickets(userTickets);
+    });
   }, [tickets, user?.id]);
 
   useEffect(() => {
@@ -175,7 +163,7 @@ const CustomerDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const processed = data.map((n) => ({
           ...n,
@@ -186,10 +174,12 @@ const CustomerDashboard = () => {
     } catch (err) {
       console.error('Exception fetching customer notifications:', err);
     }
-  }, [user?.id]);
+  }, [user]);
 
   useEffect(() => {
-    fetchNotifications();
+    queueMicrotask(() => {
+      fetchNotifications();
+    });
 
     if (!user?.id || !supabase) return;
 
@@ -218,17 +208,19 @@ const CustomerDashboard = () => {
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
-        } catch {}
+        } catch (e) { void e; }
 
         const newReadIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
         try {
           localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
-        } catch {}
+        } catch (e) { void e; }
 
-        setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        queueMicrotask(() => {
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        });
       }
     }
-  }, [activeTab, user?.id, notifications.length]);
+  }, [activeTab, user?.id, notifications]);
 
   // Filtered Customer Bookings
   const myBookings = useMemo(() => {
@@ -240,11 +232,6 @@ const CustomerDashboard = () => {
     return myBookings.filter((b) =>
       ['Pending', 'New Request', 'Accepted', 'Assigned', 'Confirmed', 'Worker Assigned', 'On The Way', 'Work Started', 'In Progress'].includes(b.status)
     );
-  }, [myBookings]);
-
-  // Completed Services
-  const completedServices = useMemo(() => {
-    return myBookings.filter((b) => ['Completed', 'Reviewed'].includes(b.status));
   }, [myBookings]);
 
   // Saved Contractors
@@ -268,7 +255,7 @@ const CustomerDashboard = () => {
     setSavedAddresses(updated);
     try {
       localStorage.setItem(`fixiva_saved_addresses_${user?.id}`, JSON.stringify(updated));
-    } catch {}
+    } catch (err) { void err; }
     setNewAddrLocality('');
     setShowAddAddrModal(false);
     showToast('Address saved successfully!', 'success');
@@ -287,7 +274,7 @@ const CustomerDashboard = () => {
     setSavedContractorIds(updated);
     try {
       localStorage.setItem(`fixiva_saved_contractors_${user?.id}`, JSON.stringify(updated));
-    } catch {}
+    } catch (err) { void err; }
   };
 
   // Profile Update Submit
@@ -336,14 +323,6 @@ const CustomerDashboard = () => {
     } else {
       showToast('Failed to send message', 'error');
     }
-  };
-
-  // Report No-Show
-  const handleReportNoShow = async (bookingId) => {
-    const ok = await confirm('Report Worker No-Show? Fixiva Admin will take immediate action.');
-    if (!ok) return;
-    await updateBookingStatus(bookingId, 'Worker No Show');
-    showToast('Reported. We are assigning a new specialist or will contact you shortly.', 'success');
   };
 
   // Review Submit
@@ -842,7 +821,6 @@ const CustomerDashboard = () => {
                           <button
                             onClick={() => {
                               setReviewingBooking(b);
-                              setShowReviewModal(true);
                             }}
                             className="flex-1 py-2 px-3 bg-amber-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-1 shadow-sm hover:bg-amber-600"
                           >

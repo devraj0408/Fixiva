@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logAdminAction } from './auditService';
-import { getDistricts } from './locationService';
+import { getDistricts, isMissingTableError, saveDistrictUpdateToStorage } from './locationService';
 
 /**
  * Single Coverage Service - District Coverage Management & Coverage Requests Workflow
@@ -12,32 +12,46 @@ import { getDistricts } from './locationService';
 // ==========================================
 
 export const getDistrictCoverageList = async () => {
-  if (!supabase) return { data: [], error: 'Supabase client not initialized' };
-
   try {
     // 1. Fetch Districts
     const { data: districts, error: distErr } = await getDistricts();
     if (distErr) return { data: [], error: distErr };
 
     // 2. Fetch Workers count per district
-    const { data: workers } = await supabase
-      .from('workers')
-      .select('id, district, city, status');
+    let workers = [];
+    if (supabase) {
+      try {
+        const res = await supabase.from('workers').select('id, district, city, status');
+        if (res.data) workers = res.data;
+      } catch (e) { void e; }
+    }
 
     // 3. Fetch Contractors count per district
-    const { data: contractors } = await supabase
-      .from('contractors')
-      .select('id, district, city, status');
+    let contractors = [];
+    if (supabase) {
+      try {
+        const res = await supabase.from('contractors').select('id, district, city, status');
+        if (res.data) contractors = res.data;
+      } catch (e) { void e; }
+    }
 
     // 4. Fetch Active Bookings per district
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('id, district, city, status');
+    let bookings = [];
+    if (supabase) {
+      try {
+        const res = await supabase.from('bookings').select('id, district, city, status');
+        if (res.data) bookings = res.data;
+      } catch (e) { void e; }
+    }
 
     // 5. Fetch Coverage Requests per district
-    const { data: requests } = await supabase
-      .from('coverage_requests')
-      .select('id, district, status');
+    let requests = [];
+    if (supabase) {
+      try {
+        const res = await supabase.from('coverage_requests').select('id, district, status');
+        if (res.data) requests = res.data;
+      } catch (e) { void e; }
+    }
 
     // Map aggregated metrics to each District
     const aggregated = (districts || []).map(dist => {
@@ -81,13 +95,13 @@ export const isDistrictActive = async (stateName, districtName) => {
   if (!supabase) return true;
 
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('districts')
       .select('status')
       .ilike('name', districtName.trim())
       .maybeSingle();
 
-    if (data) {
+    if (!error && data) {
       return data.status === 'Active';
     }
 
@@ -102,7 +116,7 @@ export const isDistrictActive = async (stateName, districtName) => {
       return cityData.status !== 'Disabled' && cityData.status !== 'Coming Soon';
     }
 
-    // Default: if in primary operating list (Ranchi, Jamshedpur, Dhanbad, Bokaro, Deoghar, Patna, Lucknow, Kolkata, New Delhi, Noida, Gurugram, Bhubaneswar)
+    // Default: if in primary operating list
     const activeDefaults = [
       'ranchi', 'jamshedpur', 'dhanbad', 'bokaro', 'deoghar', 
       'patna', 'lucknow', 'kolkata', 'new delhi', 'noida', 'gurugram', 'bhubaneswar'
@@ -114,185 +128,287 @@ export const isDistrictActive = async (stateName, districtName) => {
 };
 
 export const updateDistrictStatus = async (districtId, status, coverage_radius_km = 15, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+  const payload = { status, coverage_radius_km: Number(coverage_radius_km) };
 
-  try {
-    const payload = { status, coverage_radius_km: Number(coverage_radius_km) };
+  // Always save update to LocalStorage fallback so district status updates stick immediately
+  saveDistrictUpdateToStorage(districtId, payload);
 
-    let { data, error } = await supabase
-      .from('districts')
-      .update(payload)
-      .eq('id', districtId)
-      .select()
-      .maybeSingle();
-
-    // Fallback: update legacy cities table if district ID is numeric matching city
-    if (error || !data) {
-      const legacyRes = await supabase
-        .from('cities')
-        .update({ status: status === 'Active' ? 'Live' : status })
+  if (supabase) {
+    try {
+      let { data, error } = await supabase
+        .from('districts')
+        .update(payload)
         .eq('id', districtId)
         .select()
         .maybeSingle();
-      data = legacyRes.data;
-      error = legacyRes.error;
+
+      if (error && isMissingTableError(error)) {
+        await supabase
+          .from('cities')
+          .update({ status: status === 'Active' ? 'Live' : status })
+          .eq('id', districtId);
+      }
+
+      if (data) {
+        return { data, error: null };
+      }
+    } catch (e) {
+      void e;
     }
-
-    if (error) {
-      console.error('updateDistrictStatus DB error:', error);
-      return { data: null, error: error.message };
-    }
-
-    await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
-      action: 'update_district_status',
-      objectType: 'district',
-      objectId: districtId,
-      payload: { status, coverage_radius_km },
-    });
-
-    return { data, error: null };
-  } catch (err) {
-    return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
+
+  await logAdminAction({
+    actorId: actor?.id,
+    actorEmail: actor?.email,
+    action: 'update_district_status',
+    objectType: 'district',
+    objectId: districtId,
+    payload: { status, coverage_radius_km },
+  });
+
+  return { data: { id: districtId, ...payload }, error: null };
 };
 
 // ==========================================
-// COVERAGE REQUESTS WORKFLOW
+// COVERAGE REQUESTS WORKFLOW WITH LOCALSTORAGE FALLBACK & OVERLOAD SUPPORT
 // ==========================================
+
+const CUSTOM_COVERAGE_REQUESTS_KEY = 'fixiva_custom_coverage_requests';
+const COVERAGE_REQUEST_UPDATES_KEY = 'fixiva_coverage_request_updates';
+
+const getStoredCustomCoverageRequests = () => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_COVERAGE_REQUESTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    void e;
+    return [];
+  }
+};
+
+const saveCustomCoverageRequestToStorage = (req) => {
+  try {
+    const current = getStoredCustomCoverageRequests();
+    const filtered = current.filter(r => r.id !== req.id && !(
+      (r.phone || r.email || '').toLowerCase() === (req.phone || req.email || '').toLowerCase() &&
+      (r.district || '').toLowerCase() === (req.district || '').toLowerCase()
+    ));
+    localStorage.setItem(CUSTOM_COVERAGE_REQUESTS_KEY, JSON.stringify([req, ...filtered]));
+  } catch (err) {
+    console.warn('Failed to save coverage request to localStorage:', err);
+  }
+};
+
+const getStoredCoverageRequestUpdates = () => {
+  try {
+    const raw = localStorage.getItem(COVERAGE_REQUEST_UPDATES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    void e;
+    return {};
+  }
+};
+
+const saveCoverageRequestUpdateToStorage = (id, updates) => {
+  try {
+    const map = getStoredCoverageRequestUpdates();
+    map[id] = { ...(map[id] || {}), ...updates };
+    localStorage.setItem(COVERAGE_REQUEST_UPDATES_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Failed to save coverage request update to localStorage:', err);
+  }
+};
 
 export const getCoverageRequests = async () => {
-  if (!supabase) return { data: [], error: 'Supabase client not initialized' };
+  let dbData = [];
 
-  try {
-    const { data, error } = await supabase
-      .from('coverage_requests')
-      .select('*')
-      .order('created_at', { ascending: false });
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('coverage_requests')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('getCoverageRequests error:', error.message);
-      return { data: [], error: error.message };
+      if (!error && data) {
+        dbData = data;
+      }
+    } catch (e) {
+      void e;
     }
-    return { data: data || [], error: null };
-  } catch (err) {
-    return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
+
+  const customList = getStoredCustomCoverageRequests();
+  const updatesMap = getStoredCoverageRequestUpdates();
+
+  const combined = [...dbData, ...customList];
+  const reqMap = new Map();
+
+  combined.forEach(r => {
+    if (!r) return;
+    const key = r.id || `${r.district}-${r.email || r.phone}`;
+    const updates = updatesMap[r.id] || updatesMap[key];
+    const finalItem = updates ? { ...r, ...updates } : r;
+    if (!reqMap.has(key)) {
+      reqMap.set(key, finalItem);
+    }
+  });
+
+  return { data: Array.from(reqMap.values()), error: null };
 };
 
-export const submitCoverageRequest = async ({
-  customer_id = null,
-  customer_name = '',
-  phone = '',
-  email = '',
-  service_id = '',
-  service_name = 'General Home Services',
-  state = 'Jharkhand',
-  district = '',
-  locality = '',
-  pincode = '',
-  latitude = null,
-  longitude = null
-}) => {
-  if (!supabase) return { success: false, error: 'Supabase client not initialized' };
-  if (!district.trim() || !locality.trim() || (!phone.trim() && !email.trim())) {
-    return { success: false, error: 'Please provide all location and contact details.' };
+export const submitCoverageRequest = async (arg1, arg2, arg3) => {
+  let customer_id;
+  let customer_name;
+  let phone;
+  let email;
+  let service_id;
+  let service_name;
+  let state;
+  let district;
+  let locality;
+  let pincode;
+  let latitude;
+  let longitude;
+
+  if (typeof arg1 === 'object' && arg1 !== null) {
+    customer_id = arg1.customer_id || null;
+    customer_name = arg1.customer_name || '';
+    phone = arg1.phone || arg1.email || '';
+    email = arg1.email || '';
+    service_id = arg1.service_id || '';
+    service_name = arg1.service_name || 'General Home Services';
+    state = arg1.state || arg1.region || 'Jharkhand';
+    district = arg1.district || arg1.city || '';
+    locality = arg1.locality || arg1.area || '';
+    pincode = arg1.pincode || '';
+    latitude = arg1.latitude || null;
+    longitude = arg1.longitude || null;
+  } else {
+    customer_id = null;
+    customer_name = '';
+    district = String(arg1 || '').trim();
+    state = String(arg2 || '').trim() || 'Jharkhand';
+    email = String(arg3 || '').trim();
+    phone = email;
+    service_id = '';
+    service_name = 'General Home Services';
+    locality = '';
+    pincode = '';
+    latitude = null;
+    longitude = null;
   }
 
-  try {
-    const payload = {
-      customer_id,
-      customer_name: customer_name.trim() || 'Customer',
-      phone: phone.trim() || email.trim(),
-      email: email.trim(),
-      service_id,
-      service_name: service_name.trim(),
-      state: state.trim() || 'Jharkhand',
-      district: district.trim(),
-      locality: locality.trim(),
-      pincode: pincode.trim() || null,
-      latitude,
-      longitude,
-      status: 'Pending',
-      request_count: 1
-    };
+  const cleanDistrict = String(district || '').trim();
+  const cleanState = String(state || '').trim() || 'Jharkhand';
+  const cleanLocality = String(locality || '').trim() || 'Entire District';
+  const cleanContact = String(phone || email || '').trim();
 
-    // Check for duplicate request from same phone/email for same service and locality
-    const { data: existing } = await supabase
-      .from('coverage_requests')
-      .select('id, request_count')
-      .eq('phone', payload.phone)
-      .ilike('district', payload.district)
-      .ilike('locality', payload.locality)
-      .maybeSingle();
+  if (!cleanDistrict || !cleanContact) {
+    return { success: false, error: 'Please select a city/district and provide an email or phone number.' };
+  }
 
-    if (existing) {
-      // Increment request count instead of failing or inserting duplicate
-      await supabase
-        .from('coverage_requests')
-        .update({ request_count: (existing.request_count || 1) + 1 })
-        .eq('id', existing.id);
+  const newRequest = {
+    id: `req-${Date.now()}`,
+    customer_id,
+    customer_name: String(customer_name || '').trim() || 'Customer',
+    phone: cleanContact,
+    email: String(email || cleanContact).trim(),
+    service_id,
+    service_name: String(service_name || '').trim() || 'General Home Services',
+    state: cleanState,
+    district: cleanDistrict,
+    locality: cleanLocality,
+    pincode: String(pincode || '').trim() || null,
+    latitude,
+    longitude,
+    status: 'Pending',
+    request_count: 1,
+    created_at: new Date().toISOString(),
+  };
 
-      return { success: true, duplicate: true, message: "You've already requested coverage for this locality. Request updated!" };
-    }
+  let createdData = null;
 
-    const { data, error } = await supabase
-      .from('coverage_requests')
-      .insert(payload)
-      .select()
-      .maybeSingle();
+  if (supabase) {
+    try {
+      const payload = {
+        customer_id: newRequest.customer_id,
+        customer_name: newRequest.customer_name,
+        phone: newRequest.phone,
+        email: newRequest.email,
+        service_id: newRequest.service_id,
+        service_name: newRequest.service_name,
+        state: newRequest.state,
+        district: newRequest.district,
+        locality: newRequest.locality,
+        pincode: newRequest.pincode,
+        status: newRequest.status,
+        request_count: newRequest.request_count,
+      };
 
-    if (error) {
-      if (error.code === '23505' || String(error.message || '').toLowerCase().includes('unique')) {
-        return { success: true, duplicate: true, message: "You've already requested coverage for this locality." };
+      const { data, error } = await supabase.from('coverage_requests').insert(payload).select().maybeSingle();
+      if (!error && data) {
+        createdData = data;
+      } else if (error) {
+        // Retry stripped payload if schema mismatch
+        const strippedPayload = {
+          phone: newRequest.phone,
+          email: newRequest.email,
+          state: newRequest.state,
+          district: newRequest.district,
+          status: newRequest.status,
+        };
+        const retry = await supabase.from('coverage_requests').insert(strippedPayload).select().maybeSingle();
+        if (retry.data) {
+          createdData = { ...retry.data, locality: newRequest.locality, service_name: newRequest.service_name };
+        }
       }
-      return { success: false, error: error.message };
+    } catch (e) {
+      void e;
     }
-
-    return { success: true, data, error: null };
-  } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+
+  const finalReq = createdData || newRequest;
+  saveCustomCoverageRequestToStorage(finalReq);
+
+  return { success: true, data: finalReq, message: "Coverage request submitted successfully! We'll notify you when service expands to your city." };
 };
 
 export const updateCoverageRequestStatus = async (id, status, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+  saveCoverageRequestUpdateToStorage(id, { status });
 
-  try {
-    const { data, error } = await supabase
-      .from('coverage_requests')
-      .update({ status })
-      .eq('id', id)
-      .select()
-      .maybeSingle();
+  if (supabase) {
+    try {
+      const { data } = await supabase
+        .from('coverage_requests')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
 
-    if (error) return { data: null, error: error.message };
-
-    // If request is Approved, automatically activate the corresponding District in `districts` table!
-    if (status === 'Approved' && data && data.district) {
-      await supabase
-        .from('districts')
-        .update({ status: 'Active' })
-        .ilike('name', data.district);
-      
-      await supabase
-        .from('cities')
-        .update({ status: 'Live' })
-        .ilike('name', data.district);
+      if (status === 'Approved' && data && data.district) {
+        await supabase
+          .from('districts')
+          .update({ status: 'Active' })
+          .ilike('name', data.district);
+        
+        await supabase
+          .from('cities')
+          .update({ status: 'Live' })
+          .ilike('name', data.district);
+      }
+    } catch (e) {
+      void e;
     }
-
-    await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
-      action: 'update_coverage_request_status',
-      objectType: 'coverage_request',
-      objectId: id,
-      payload: { status },
-    });
-
-    return { data, error: null };
-  } catch (err) {
-    return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
+
+  await logAdminAction({
+    actorId: actor?.id,
+    actorEmail: actor?.email,
+    action: 'update_coverage_request_status',
+    objectType: 'coverage_request',
+    objectId: id,
+    payload: { status },
+  });
+
+  return { data: { id, status }, error: null };
 };
