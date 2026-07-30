@@ -292,6 +292,8 @@ const CustomerDashboard = () => {
     setProfileUpdating(false);
     if (!error) {
       showToast('Profile updated successfully!', 'success');
+    } else {
+      showToast('Failed to update profile: ' + (error?.message || 'Unknown error'), 'error');
     }
   };
 

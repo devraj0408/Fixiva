@@ -306,7 +306,7 @@ const WorkerDashboard = () => {
       showToast('Profile and pricing updated successfully!', 'success');
       if (refreshData) refreshData();
     } else {
-      showToast('Failed to update profile: ' + error.message, 'error');
+      showToast('Failed to update profile: ' + (error?.message || String(error || 'Unknown error')), 'error');
     }
   };
 
