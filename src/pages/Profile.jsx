@@ -20,9 +20,17 @@ const Profile = () => {
         <div className="bg-white rounded-3xl border border-slate-100 p-8 sm:p-10 shadow-xl shadow-slate-100/50 space-y-8 animate-fade-in">
           
           <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-100">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md">
-              {getInitials(user?.name)}
-            </div>
+            {user?.profile_photo_url ? (
+              <img
+                src={user.profile_photo_url}
+                alt={user?.name || 'User Profile'}
+                className="h-16 w-16 rounded-full object-cover shadow-md"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md">
+                {getInitials(user?.name)}
+              </div>
+            )}
             <div className="text-center sm:text-left space-y-1">
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user?.name || 'Fixiva Member'}</h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role} Account</p>

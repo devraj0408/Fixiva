@@ -56,9 +56,17 @@ const AdminShell = ({ user, activeTab, onTabChange, onLogout, children }) => {
         <aside className="lg:col-span-3 space-y-4">
           <div className="rounded-3xl bg-slate-900 p-5 text-white shadow-sm">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-black uppercase">
-                {(user?.name || 'A').charAt(0)}
-              </div>
+              {user?.profile_photo_url ? (
+                <img
+                  src={user.profile_photo_url}
+                  alt={user?.name || 'Admin'}
+                  className="h-12 w-12 rounded-2xl object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10 text-sm font-black uppercase">
+                  {(user?.name || 'A').charAt(0)}
+                </div>
+              )}
               <div>
                 <p className="text-sm font-black">{user?.name || 'Operations Desk'}</p>
                 <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">

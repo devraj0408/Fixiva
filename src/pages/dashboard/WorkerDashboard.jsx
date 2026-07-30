@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { supabase } from '../../lib/supabaseClient';
@@ -17,10 +17,12 @@ import {
   Phone,
   PhoneOff,
   CheckSquare,
-  Sparkles
+  Sparkles,
+  Camera
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
+import { uploadImage } from '../../services/storageService';
 
 const WorkerDashboard = () => {
   const {
@@ -48,7 +50,11 @@ const WorkerDashboard = () => {
   const [hourlyRate, setHourlyRate] = useState(user?.hourly_rate || '');
   const [visitCharge, setVisitCharge] = useState(user?.visit_charge || '');
   const [availabilityStatus, setAvailabilityStatus] = useState(user?.status || 'Active');
+  const [workerName, setWorkerName] = useState(user?.name || '');
   const [profileLoading, setProfileLoading] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState(user?.profile_photo_url || '');
+  const photoFileInputRef = useRef(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -62,6 +68,8 @@ const WorkerDashboard = () => {
         setHourlyRate(user.hourly_rate || '');
         setVisitCharge(user.visit_charge || '');
         setAvailabilityStatus(user.status || 'Active');
+        setWorkerName(user.name || '');
+        setPhotoUrl(user.profile_photo_url || '');
       });
     }
   }, [user]);
@@ -291,15 +299,55 @@ const WorkerDashboard = () => {
     }
   };
 
+  // Profile Photo Upload Handlers
+  const handlePhotoFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const { success, url, error } = await uploadImage(file, 'cms-assets', 'worker-photos');
+      if (success && url) {
+        setPhotoUrl(url);
+        const { error: profileErr } = await updateUserProfile({ profile_photo_url: url });
+        if (!profileErr) {
+          showToast('Profile photo updated & picture changed successfully!', 'success');
+          if (refreshData) await refreshData();
+        } else {
+          showToast('Photo uploaded but updating profile failed.', 'error');
+        }
+      } else {
+        showToast(`Image upload failed: ${error || 'Unknown error'}`, 'error');
+      }
+    } catch (err) {
+      console.error('Photo upload error:', err);
+      showToast('An error occurred during photo upload.', 'error');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    setPhotoUrl('');
+    const { error } = await updateUserProfile({ profile_photo_url: '' });
+    if (!error) {
+      showToast('Profile photo removed.', 'info');
+      if (refreshData) await refreshData();
+    }
+  };
+
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
     setProfileLoading(true);
     const { error } = await updateUserProfile({
+      name: workerName,
       skills,
       experience,
       whatsapp,
       hourly_rate: Number(hourlyRate) || 0,
-      visit_charge: Number(visitCharge) || 0
+      visit_charge: Number(visitCharge) || 0,
+      profile_photo_url: photoUrl
     });
     setProfileLoading(false);
     if (!error) {
@@ -788,6 +836,75 @@ const WorkerDashboard = () => {
             </div>
 
             <form onSubmit={handleUpdateProfile} className="bg-slate-50 border border-slate-200 p-8 rounded-3xl space-y-4 text-xs font-semibold">
+              {/* Profile Photo Upload */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Profile Photo</label>
+                <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
+                  <div className="relative group shrink-0">
+                    <img
+                      src={photoUrl || user?.profile_photo_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80'}
+                      alt="Profile Avatar"
+                      className="w-20 h-20 rounded-full object-cover border-2 border-slate-100 shadow-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => photoFileInputRef.current?.click()}
+                      className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-all flex flex-col items-center justify-center text-white text-[10px] font-black gap-1 cursor-pointer"
+                    >
+                      <Camera size={18} /> Change
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 text-center sm:text-left flex-1 w-full">
+                    <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
+                      <button
+                        type="button"
+                        disabled={isUploadingPhoto}
+                        onClick={() => photoFileInputRef.current?.click()}
+                        className="px-4 py-2.5 bg-primary text-white rounded-xl font-extrabold text-xs hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-sm disabled:opacity-50 cursor-pointer"
+                      >
+                        {isUploadingPhoto ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Uploading Photo...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Camera size={15} />
+                            <span>Upload from Gallery or Camera</span>
+                          </>
+                        )}
+                      </button>
+
+                      {(photoUrl || user?.profile_photo_url) && (
+                        <button
+                          type="button"
+                          onClick={handleRemovePhoto}
+                          className="px-3 py-2.5 text-slate-500 hover:text-red-600 rounded-xl font-bold text-xs transition-all border border-slate-200 hover:bg-red-50 cursor-pointer"
+                        >
+                          Remove Photo
+                        </button>
+                      )}
+                    </div>
+
+                    <p className="text-[11px] text-slate-400 font-medium">
+                      Tap above to snap a photo with your camera or choose an image from your device gallery.
+                    </p>
+
+                    <input
+                      ref={photoFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoFileChange}
+                      className="hidden"
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase">Worker Full Name</label>
+                <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={workerName} onChange={(e) => setWorkerName(e.target.value)} placeholder="e.g. Rahul Sharma" required />
+              </div>
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase">Primary Skills</label>
                 <input className="w-full h-11 px-4 bg-white border border-slate-200 rounded-2xl outline-none" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="e.g. Electrician, AC Repair" required />

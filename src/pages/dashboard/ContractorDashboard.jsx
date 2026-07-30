@@ -89,7 +89,13 @@ const ContractorDashboard = () => {
       const { success, url, error } = await uploadImage(file, 'cms-assets', 'contractor-logos');
       if (success && url) {
         setLogoUrl(url);
-        showToast('Company photo selected! Click "Save Company Profile" to apply changes.', 'success');
+        const { error: profileErr } = await updateUserProfile({ profile_photo_url: url });
+        if (!profileErr) {
+          showToast('Company photo updated & profile picture changed successfully!', 'success');
+          if (refreshData) await refreshData();
+        } else {
+          showToast('Photo selected but profile update failed.', 'error');
+        }
       } else {
         showToast(`Image upload failed: ${error || 'Unknown error'}`, 'error');
       }
@@ -99,6 +105,15 @@ const ContractorDashboard = () => {
     } finally {
       setIsUploadingLogo(false);
       if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    setLogoUrl('');
+    const { error } = await updateUserProfile({ profile_photo_url: '' });
+    if (!error) {
+      showToast('Company photo removed.', 'info');
+      if (refreshData) await refreshData();
     }
   };
 
@@ -1096,7 +1111,7 @@ const ContractorDashboard = () => {
                       {logoUrl && (
                         <button
                           type="button"
-                          onClick={() => setLogoUrl('')}
+                          onClick={handleRemoveLogo}
                           className="px-3 py-2.5 text-slate-500 hover:text-red-600 rounded-xl font-bold text-xs transition-all border border-slate-200 hover:bg-red-50 cursor-pointer"
                         >
                           Remove Photo

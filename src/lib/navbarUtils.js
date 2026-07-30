@@ -3,9 +3,10 @@ export const normalizeNavbarUser = (user = null) => {
 
   return {
     id: safeUser.id ?? null,
-    name: safeUser.name || '',
+    name: safeUser.company || safeUser.name || '',
     role: safeUser.role || 'guest',
     email: safeUser.email || '',
+    profile_photo_url: safeUser.profile_photo_url || safeUser.avatarUrl || null,
   };
 };
 

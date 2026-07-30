@@ -178,9 +178,17 @@ const Navbar = () => {
                     to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                     className="flex items-center gap-2 group"
                   >
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-xs flex items-center justify-center uppercase tracking-wider shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all">
-                      {getInitials(normalizedUser.name)}
-                    </div>
+                    {normalizedUser.profile_photo_url ? (
+                      <img
+                        src={normalizedUser.profile_photo_url}
+                        alt={normalizedUser.name}
+                        className="h-9 w-9 rounded-full object-cover shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all"
+                      />
+                    ) : (
+                      <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-xs flex items-center justify-center uppercase tracking-wider shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all">
+                        {getInitials(normalizedUser.name)}
+                      </div>
+                    )}
                     <div className="flex flex-col">
                       <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-primary transition-all">
                         {normalizedUser.name || 'User'}
@@ -275,9 +283,17 @@ const Navbar = () => {
               ) : (
                 <>
                   <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl mb-4">
-                    <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
-                      {getInitials(normalizedUser.name)}
-                    </div>
+                    {normalizedUser.profile_photo_url ? (
+                      <img
+                        src={normalizedUser.profile_photo_url}
+                        alt={normalizedUser.name}
+                        className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 ring-slate-200"
+                      />
+                    ) : (
+                      <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
+                        {getInitials(normalizedUser.name)}
+                      </div>
+                    )}
                     <div>
                       <h4 className="text-sm font-bold text-slate-800 leading-tight">{normalizedUser.name || 'User'}</h4>
                       <p className="text-[10px] text-slate-400 capitalize font-medium">{normalizedUser.role || 'guest'}</p>

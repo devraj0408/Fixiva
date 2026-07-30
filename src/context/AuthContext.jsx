@@ -247,6 +247,15 @@ export const AuthProvider = ({ children }) => {
       }
 
       let userData = { ...profile };
+      // Merge local general profile overrides
+      try {
+        const savedProfileLocal = localStorage.getItem(`fixiva_profile_${userId}`);
+        if (savedProfileLocal) {
+          const parsed = JSON.parse(savedProfileLocal);
+          userData = { ...userData, ...parsed };
+        }
+      } catch (e) { void e; }
+
       const normalizedRole = String(userData.role || '').trim().toLowerCase();
       const regExtra = activeRegistrationData?.extra || {};
 
@@ -269,6 +278,14 @@ export const AuthProvider = ({ children }) => {
           const { data: createdWorker } = await supabase.from('workers').insert(newWorker).select().maybeSingle();
           workerData = createdWorker || newWorker;
         }
+        try {
+          const savedWorkerLocal = localStorage.getItem(`fixiva_worker_profile_${userId}`);
+          if (savedWorkerLocal) {
+            const parsed = JSON.parse(savedWorkerLocal);
+            workerData = { ...workerData, ...parsed };
+          }
+        } catch (e) { void e; }
+
         userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
       } else if (normalizedRole === 'contractor') {
         let { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
@@ -1006,6 +1023,7 @@ export const AuthProvider = ({ children }) => {
     if (updates.name !== undefined) profileUpdates.name = updates.name;
     if (updates.phone !== undefined) profileUpdates.phone = updates.phone;
     if (updates.city !== undefined) profileUpdates.city = updates.city;
+    if (updates.profile_photo_url !== undefined) profileUpdates.profile_photo_url = updates.profile_photo_url;
 
     let updateErr = null;
 
@@ -1016,6 +1034,7 @@ export const AuthProvider = ({ children }) => {
           // Retry profile update without optional city column if profiles table lacks it
           const cleanProfileUpdates = { ...profileUpdates };
           delete cleanProfileUpdates.city;
+          delete cleanProfileUpdates.profile_photo_url;
           if (Object.keys(cleanProfileUpdates).length > 0) {
             const { error: pErrClean } = await supabase.from('profiles').update(cleanProfileUpdates).eq('id', user.id);
             pErr = pErrClean;
@@ -1026,15 +1045,25 @@ export const AuthProvider = ({ children }) => {
         if (pErr) updateErr = pErr;
       }
 
+      // Cache local profile overrides for general profile
+      try {
+        const key = `fixiva_profile_${user.id}`;
+        const existing = localStorage.getItem(key);
+        const parsed = existing ? JSON.parse(existing) : {};
+        localStorage.setItem(key, JSON.stringify({ ...parsed, ...updates }));
+      } catch (e) { void e; }
+
       const role = String(user.role || '').toLowerCase();
       if (role === 'worker') {
         const workerUpdates = {};
+        if (updates.name !== undefined) workerUpdates.name = updates.name;
         if (updates.skills !== undefined) workerUpdates.skills = updates.skills;
         if (updates.experience !== undefined) workerUpdates.experience = updates.experience;
         if (updates.whatsapp !== undefined) workerUpdates.whatsapp = updates.whatsapp;
         if (updates.hourly_rate !== undefined) workerUpdates.hourly_rate = updates.hourly_rate;
         if (updates.visit_charge !== undefined) workerUpdates.visit_charge = updates.visit_charge;
         if (updates.city !== undefined) workerUpdates.city = updates.city;
+        if (updates.profile_photo_url !== undefined) workerUpdates.profile_photo_url = updates.profile_photo_url;
 
         if (supabase && Object.keys(workerUpdates).length > 0) {
           let currentPayload = { id: user.id, ...workerUpdates };
@@ -1063,6 +1092,13 @@ export const AuthProvider = ({ children }) => {
           }
           if (wErr && !updateErr) updateErr = wErr;
         }
+        // Cache local worker profile overrides
+        try {
+          const key = `fixiva_worker_profile_${user.id}`;
+          const existing = localStorage.getItem(key);
+          const parsed = existing ? JSON.parse(existing) : {};
+          localStorage.setItem(key, JSON.stringify({ ...parsed, ...updates }));
+        } catch (e) { void e; }
       } else if (role === 'contractor') {
         const contractorUpdates = {};
         if (updates.company !== undefined) contractorUpdates.company = updates.company;
@@ -1116,6 +1152,7 @@ export const AuthProvider = ({ children }) => {
 
       // Always update local React state so UI updates immediately
       setUser((prev) => (prev ? { ...prev, ...updates } : prev));
+      setWorkers((prev) => prev.map((w) => (w.id === user.id ? { ...w, ...updates } : w)));
       setContractors((prev) => {
         const exists = prev.some((c) => c.id === user.id);
         if (exists) {
