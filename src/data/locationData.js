@@ -61,6 +61,16 @@ export const LOCATION_DATA = [
           { name: "Babadham Temple Area", pincode: "814112", lat: 24.4920, lng: 86.7000 },
           { name: "Jasidih", pincode: "814142", lat: 24.5200, lng: 86.6500 }
         ]
+      },
+      {
+        name: "Dumka",
+        localities: [
+          { name: "Civil Lines", pincode: "814101", lat: 24.2680, lng: 87.2480 },
+          { name: "Main Road", pincode: "814101", lat: 24.2690, lng: 87.2500 },
+          { name: "Dudhani", pincode: "814101", lat: 24.2650, lng: 87.2550 },
+          { name: "Rasikpur", pincode: "814101", lat: 24.2720, lng: 87.2430 },
+          { name: "Tower Chowk", pincode: "814101", lat: 24.2670, lng: 87.2490 }
+        ]
       }
     ]
   },
@@ -192,15 +202,74 @@ export const LOCATION_DATA = [
 
 export const STATES = LOCATION_DATA.map(item => item.state).sort();
 
-export const getDistrictsForState = (stateName) => {
+export const getDistrictsForState = (stateName, extraDistricts = []) => {
   const safeStateName = typeof stateName === 'object' && stateName !== null
     ? String(stateName.state || stateName.name || '')
     : String(stateName || '');
   if (!safeStateName) return [];
+
+  // Base static districts
   const found = LOCATION_DATA.find(item => item && String(item.state || '').toLowerCase() === safeStateName.toLowerCase());
-  return found && Array.isArray(found.districts)
-    ? found.districts.map(d => typeof d === 'object' ? d.name : String(d)).filter(Boolean).sort()
+  const staticNames = found && Array.isArray(found.districts)
+    ? found.districts.map(d => typeof d === 'object' ? d.name : String(d)).filter(Boolean)
     : [];
+
+  // Retrieve custom created districts from localStorage
+  let customDistricts = [];
+  try {
+    const raw = localStorage.getItem('fixiva_custom_districts');
+    if (raw) customDistricts = JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+
+  // Retrieve district updates from localStorage
+  let districtUpdates = {};
+  try {
+    const raw = localStorage.getItem('fixiva_district_updates');
+    if (raw) districtUpdates = JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+
+  const resultMap = new Map();
+
+  // Add static districts if active
+  staticNames.forEach(name => {
+    const update = districtUpdates[name];
+    if (update && update.status === 'Disabled') return;
+    resultMap.set(name.toLowerCase(), name);
+  });
+
+  // Add custom districts matching the target state if active
+  customDistricts.forEach(d => {
+    if (!d || !d.name) return;
+    const dState = String(d.state_name || d.state || '').toLowerCase();
+    if (dState === safeStateName.toLowerCase()) {
+      const update = districtUpdates[d.id] || districtUpdates[d.name];
+      const status = update?.status || d.status || 'Active';
+      if (status !== 'Disabled') {
+        resultMap.set(d.name.toLowerCase(), d.name);
+      }
+    }
+  });
+
+  // Add extra passed-in districts
+  if (Array.isArray(extraDistricts)) {
+    extraDistricts.forEach(d => {
+      if (!d) return;
+      const dName = typeof d === 'object' ? d.name : String(d);
+      const dState = typeof d === 'object' ? (d.state_name || d.state || '') : '';
+      if (dName && (!dState || dState.toLowerCase() === safeStateName.toLowerCase())) {
+        const update = districtUpdates[dName];
+        if (!update || update.status !== 'Disabled') {
+          resultMap.set(dName.toLowerCase(), dName);
+        }
+      }
+    });
+  }
+
+  return Array.from(resultMap.values()).sort();
 };
 
 export const getAllStaticDistricts = () => {
@@ -222,6 +291,55 @@ export const getAllStaticDistricts = () => {
   return result;
 };
 
+export const getAllStaticAreas = (districtsList = []) => {
+  const result = [];
+  let counter = 1;
+
+  const districtMap = new Map();
+  if (Array.isArray(districtsList)) {
+    districtsList.forEach(d => {
+      if (d && d.name) {
+        districtMap.set(d.name.toLowerCase(), d);
+      }
+    });
+  }
+
+  for (const stateObj of LOCATION_DATA) {
+    if (!stateObj || !Array.isArray(stateObj.districts)) continue;
+    const stateName = stateObj.state;
+
+    for (const distObj of stateObj.districts) {
+      if (!distObj || !Array.isArray(distObj.localities)) continue;
+      const districtName = typeof distObj === 'object' ? distObj.name : String(distObj);
+      const matchedDist = districtMap.get(districtName.toLowerCase());
+      const cityId = matchedDist ? matchedDist.id : `dist-${districtName.toLowerCase()}`;
+
+      for (const locObj of distObj.localities) {
+        if (!locObj) continue;
+        const locName = typeof locObj === 'object' ? locObj.name : String(locObj);
+        const pincode = typeof locObj === 'object' ? (locObj.pincode || '') : '';
+        const lat = typeof locObj === 'object' ? locObj.lat : null;
+        const lng = typeof locObj === 'object' ? locObj.lng : null;
+
+        result.push({
+          id: `static-area-${counter++}`,
+          name: locName,
+          city_id: cityId,
+          district_name: districtName,
+          state_name: stateName,
+          pincode: pincode,
+          status: 'Active',
+          lat,
+          lng,
+          is_static: true,
+        });
+      }
+    }
+  }
+
+  return result;
+};
+
 export const getLocalitiesForDistrict = (districtName, stateName = '') => {
   const safeDistrictName = typeof districtName === 'object' && districtName !== null
     ? String(districtName.district || districtName.name || '')
@@ -233,13 +351,89 @@ export const getLocalitiesForDistrict = (districtName, stateName = '') => {
 
   if (!safeDistrictName) return [];
 
+  // Base static localities
+  let baseLocalities = [];
   for (const stateObj of LOCATION_DATA) {
     if (!stateObj || !Array.isArray(stateObj.districts)) continue;
     if (safeStateName && String(stateObj.state || '').toLowerCase() !== safeStateName.toLowerCase()) continue;
     const dist = stateObj.districts.find(d => d && String(d.name || d || '').toLowerCase() === safeDistrictName.toLowerCase());
-    if (dist && dist.localities) {
-      return dist.localities;
+    if (dist && Array.isArray(dist.localities)) {
+      baseLocalities = dist.localities;
+      break;
     }
+  }
+
+  // Retrieve custom created areas from localStorage
+  let customAreas = [];
+  try {
+    const raw = localStorage.getItem('fixiva_custom_areas');
+    if (raw) customAreas = JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+
+  // Retrieve deleted areas from localStorage
+  let deletedAreas = [];
+  try {
+    const raw = localStorage.getItem('fixiva_deleted_areas');
+    if (raw) deletedAreas = JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+  const deletedSet = new Set(deletedAreas.map(d => String(d).toLowerCase()));
+
+  // Apply updates map from localStorage
+  let areaUpdates = {};
+  try {
+    const raw = localStorage.getItem('fixiva_area_updates');
+    if (raw) areaUpdates = JSON.parse(raw);
+  } catch (e) {
+    void e;
+  }
+
+  const resultMap = new Map();
+
+  baseLocalities.forEach(loc => {
+    const name = typeof loc === 'object' ? loc.name : String(loc);
+    if (!name) return;
+    if (deletedSet.has(name.toLowerCase())) return;
+
+    const locObj = typeof loc === 'object' ? { ...loc } : { name };
+    const update = areaUpdates[name] || areaUpdates[locObj.name];
+    if (update) {
+      Object.assign(locObj, update);
+    }
+    if (locObj.status === 'Disabled') return;
+
+    resultMap.set(name.toLowerCase(), locObj);
+  });
+
+  customAreas.forEach(area => {
+    if (!area || !area.name) return;
+    const matchesDistrict =
+      String(area.district_name || '').toLowerCase() === safeDistrictName.toLowerCase() ||
+      String(area.city_name || '').toLowerCase() === safeDistrictName.toLowerCase() ||
+      String(area.city_id || '').toLowerCase() === safeDistrictName.toLowerCase();
+    if (!matchesDistrict) return;
+
+    const isIdDeleted = deletedSet.has(String(area.id).toLowerCase());
+    const isNameDeleted = deletedSet.has(String(area.name).toLowerCase());
+    if (isIdDeleted || isNameDeleted) return;
+
+    const update = areaUpdates[area.id] || areaUpdates[area.name];
+    const finalArea = update ? { ...area, ...update } : area;
+    if (finalArea.status === 'Disabled') return;
+
+    resultMap.set(area.name.toLowerCase(), {
+      name: finalArea.name,
+      pincode: finalArea.pincode || '',
+      lat: finalArea.lat || null,
+      lng: finalArea.lng || null,
+    });
+  });
+
+  if (resultMap.size > 0) {
+    return Array.from(resultMap.values());
   }
 
   // Generic default fallback localities if none defined

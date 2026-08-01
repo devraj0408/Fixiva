@@ -22,7 +22,14 @@ const AreasPanel = () => {
 
   const filtered = filterItems(areas, search, ['name', 'pincode']).filter((item) => {
     if (selectedCityId === 'All') return true;
-    return String(item.city_id) === String(selectedCityId);
+    const selectedCity = cities.find((c) => String(c.id) === String(selectedCityId));
+    const targetCityName = selectedCity ? selectedCity.name : selectedCityId;
+    return (
+      String(item.city_id) === String(selectedCityId) ||
+      (item.district_name && String(item.district_name).toLowerCase() === String(targetCityName).toLowerCase()) ||
+      (item.city_name && String(item.city_name).toLowerCase() === String(targetCityName).toLowerCase()) ||
+      (item.city_id && String(item.city_id).toLowerCase() === String(targetCityName).toLowerCase())
+    );
   });
 
   const paginated = paginateItems(filtered, page, 8);
@@ -33,15 +40,26 @@ const AreasPanel = () => {
       showToast('Area locality name is required.', 'error');
       return;
     }
-
-    if (editingArea) {
-      await updateArea(editingArea.id, form);
-      setEditingArea(null);
-    } else {
-      await createArea(form);
+    if (!form.city_id) {
+      showToast('Please select a city mapping for the locality.', 'error');
+      return;
     }
 
-    setForm({ name: '', city_id: cities[0]?.id || '', pincode: '', status: 'Active' });
+    const matchedCity = cities.find((c) => String(c.id) === String(form.city_id));
+    const payload = {
+      ...form,
+      district_name: matchedCity ? matchedCity.name : '',
+      state_name: matchedCity ? (matchedCity.state_name || matchedCity.region || matchedCity.state || 'Jharkhand') : 'Jharkhand',
+    };
+
+    if (editingArea) {
+      await updateArea(editingArea.id, payload);
+      setEditingArea(null);
+    } else {
+      await createArea(payload);
+    }
+
+    setForm({ name: '', city_id: form.city_id || cities[0]?.id || '', pincode: '', status: 'Active' });
   };
 
   const handleEdit = (area) => {
@@ -78,7 +96,11 @@ const AreasPanel = () => {
             <select
               value={selectedCityId}
               onChange={(e) => {
-                setSelectedCityId(e.target.value);
+                const val = e.target.value;
+                setSelectedCityId(val);
+                if (val !== 'All') {
+                  setForm((prev) => ({ ...prev, city_id: val }));
+                }
                 setPage(1);
               }}
               className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-semibold bg-white"
@@ -99,7 +121,11 @@ const AreasPanel = () => {
               </div>
             ) : (
               paginated.data.map((area) => {
-                const matchedCity = cities.find((c) => String(c.id) === String(area.city_id));
+                const matchedCity = cities.find(
+                  (c) =>
+                    String(c.id) === String(area.city_id) ||
+                    String(c.name).toLowerCase() === String(area.district_name || area.city_name || area.city_id).toLowerCase()
+                );
                 return (
                   <div key={area.id || area.name} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
                     <div className="flex items-center gap-3">
@@ -115,7 +141,9 @@ const AreasPanel = () => {
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-slate-500">City: {matchedCity?.name || 'Unmapped'}</p>
+                        <p className="text-xs text-slate-500">
+                          City: {matchedCity?.name || area.district_name || area.city_name || 'Unmapped'}
+                        </p>
                       </div>
                     </div>
 
@@ -195,7 +223,7 @@ const AreasPanel = () => {
               <option value="">Select City</option>
               {cities.map((city) => (
                 <option key={city.id} value={city.id}>
-                  {city.name} ({city.region})
+                  {city.name} ({city.state_name || city.region || city.state || 'Jharkhand'})
                 </option>
               ))}
             </select>

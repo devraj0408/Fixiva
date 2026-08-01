@@ -102,12 +102,7 @@ const HierarchicalLocationSelector = ({
 
   let districtOptions = [];
   if (safeSelectedState) {
-    districtOptions = getDistrictsForState(safeSelectedState);
-    if (districtOptions.length === 0 && districts && districts.length > 0) {
-      districtOptions = districts
-        .filter(d => d && String(d.state_name || '').toLowerCase() === safeSelectedState.toLowerCase())
-        .map(d => typeof d === 'object' ? d.name : String(d));
-    }
+    districtOptions = getDistrictsForState(safeSelectedState, districts);
   }
 
   // Locality Options

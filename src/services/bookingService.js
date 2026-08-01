@@ -24,8 +24,8 @@ export const findAvailableProfessionals = async ({
     return { districtActive: true, professionals: [], message: 'Please select a district.' };
   }
 
-  // 1. Check District Status
-  const active = await isDistrictActive(state, district);
+  // 1. Check District Status for specific service
+  const active = await isDistrictActive(state, district, serviceId);
   if (!active) {
     return {
       districtActive: false,

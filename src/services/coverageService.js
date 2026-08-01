@@ -176,8 +176,50 @@ export const getDistrictCoverageList = async (customData = null) => {
   }
 };
 
-export const isDistrictActive = async (stateName, districtName) => {
+export const isDistrictActive = async (stateName, districtName, serviceId = null) => {
   if (!districtName) return false;
+
+  const cleanName = districtName.trim().toLowerCase();
+
+  // Check stored service city control from localStorage
+  if (serviceId) {
+    try {
+      const cityControl = JSON.parse(localStorage.getItem('fixiva_city_control') || '{}');
+      const cKeys = [cleanName, `dist-${cleanName}`, districtName];
+      const sKeys = [serviceId, String(serviceId).toLowerCase()];
+
+      for (const cKey of cKeys) {
+        if (cityControl[cKey]) {
+          for (const sKey of sKeys) {
+            if (cityControl[cKey][sKey] !== undefined) {
+              return cityControl[cKey][sKey] === true;
+            }
+          }
+        }
+      }
+    } catch (e) { void e; }
+  }
+
+  // Check stored local district updates first
+  try {
+    const updatesMap = JSON.parse(localStorage.getItem('fixiva_district_updates') || '{}');
+    const update = Object.values(updatesMap).find(u => 
+      u && (String(u.name || '').toLowerCase() === cleanName || String(u.id || '').toLowerCase() === cleanName)
+    );
+    if (update && update.status) {
+      return update.status === 'Active';
+    }
+  } catch (e) { void e; }
+
+  // Check custom created districts from localStorage
+  try {
+    const customList = JSON.parse(localStorage.getItem('fixiva_custom_districts') || '[]');
+    const matchedCustom = customList.find(d => String(d.name || '').trim().toLowerCase() === cleanName);
+    if (matchedCustom) {
+      return matchedCustom.status === 'Active';
+    }
+  } catch (e) { void e; }
+
   if (!supabase) return true;
 
   try {
@@ -204,10 +246,10 @@ export const isDistrictActive = async (stateName, districtName) => {
 
     // Default: if in primary operating list
     const activeDefaults = [
-      'ranchi', 'jamshedpur', 'dhanbad', 'bokaro', 'deoghar', 
+      'ranchi', 'jamshedpur', 'dhanbad', 'bokaro', 'deoghar', 'dumka',
       'patna', 'lucknow', 'kolkata', 'new delhi', 'noida', 'gurugram', 'bhubaneswar'
     ];
-    return activeDefaults.includes(districtName.toLowerCase());
+    return activeDefaults.includes(cleanName);
   } catch {
     return true;
   }

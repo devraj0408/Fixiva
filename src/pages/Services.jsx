@@ -35,7 +35,7 @@ const IconMap = {
 
 
 const Services = () => {
-  const { services, cities, cityControl, submitCoverageRequest, showToast, user, openBookingModal } = useApp();
+  const { services, cities, districts = [], cityControl, submitCoverageRequest, showToast, user, openBookingModal } = useApp();
   const location = useLocation();
   const [submittedCoverages, setSubmittedCoverages] = useState([]);
   const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
@@ -65,17 +65,56 @@ const Services = () => {
     setSelectedState(queryParams.get('state') || '');
   }, [location.search, queryParams]);
 
-  const matchedCity = cities.find(c => (c.name || '').trim().toLowerCase() === (selectedCity || '').trim().toLowerCase());
-  
   const isServiceAvailable = (serviceId) => {
     if (!selectedCity) return true;
-    return !!(
-      matchedCity && (
-        cityControl && cityControl[matchedCity.id]
-          ? cityControl[matchedCity.id][serviceId] === true
-          : [1, 2, 3, 4, 5].includes(matchedCity.id)
-      )
-    );
+
+    const safeCity = String(selectedCity).trim().toLowerCase();
+    const cityList = (cities && cities.length > 0) ? cities : (districts || []);
+
+    const matchedCity = cityList.find(c => {
+      if (!c) return false;
+      const cName = String(c.name || '').trim().toLowerCase();
+      return cName === safeCity || safeCity.includes(cName) || cName.includes(safeCity);
+    });
+
+    if (matchedCity && (matchedCity.status === 'Disabled' || matchedCity.status === 'Coming Soon')) {
+      return false;
+    }
+
+    if (cityControl && Object.keys(cityControl).length > 0) {
+      const matchedService = (services || []).find(
+        (s) => String(s.id) === String(serviceId) || String(s.name).toLowerCase() === String(serviceId).toLowerCase()
+      );
+
+      const cityKeysToTry = [
+        matchedCity?.id,
+        matchedCity?.name,
+        selectedCity,
+        safeCity,
+        `dist-${safeCity}`
+      ].filter(Boolean);
+
+      const serviceKeysToTry = [
+        serviceId,
+        String(serviceId).toLowerCase(),
+        matchedService?.id,
+        matchedService?.name,
+        matchedService?.name ? String(matchedService.name).toLowerCase() : null
+      ].filter(Boolean);
+
+      for (const cKey of cityKeysToTry) {
+        if (cityControl[cKey]) {
+          for (const sKey of serviceKeysToTry) {
+            if (cityControl[cKey][sKey] !== undefined) {
+              return cityControl[cKey][sKey] === true;
+            }
+          }
+        }
+      }
+    }
+
+    // Default: Available for active districts unless explicitly disabled
+    return true;
   };
 
   const handleCardRequestCoverage = async (e, serviceName, serviceId) => {

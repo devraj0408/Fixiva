@@ -194,7 +194,9 @@ const CoveragePanel = () => {
                           <MapPin size={16} />
                         </div>
                         <div>
-                          <span className="font-extrabold text-slate-900 text-sm block">{dist.name} District</span>
+                          <span className="font-extrabold text-slate-900 text-sm block">
+                            {String(dist.name || '').toLowerCase().endsWith('district') ? dist.name : `${dist.name} District`}
+                          </span>
                           <span className="text-[11px] text-slate-400">{dist.state_name}</span>
                         </div>
                       </div>

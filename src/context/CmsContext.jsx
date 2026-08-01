@@ -189,9 +189,41 @@ export const CmsProvider = ({ children }) => {
   const handleUpdateCity = async (id, updates) => { const res = await locationService.updateCity(id, updates, actor); if (!res.error) { showToast('City updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleDeleteCity = async (id) => { const res = await locationService.deleteCity(id, actor); if (res.success) { showToast('City deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
 
-  const handleCreateArea = async (data) => { const res = await locationService.createArea(data, actor); if (!res.error) { showToast('Area added.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateArea = async (id, updates) => { const res = await locationService.updateArea(id, updates, actor); if (!res.error) { showToast('Area updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteArea = async (id) => { const res = await locationService.deleteArea(id, actor); if (res.success) { showToast('Area deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateArea = async (data) => {
+    const res = await locationService.createArea(data, actor);
+    if (!res.error) {
+      if (res.data) {
+        setAreas((prev) => [res.data, ...prev.filter((a) => String(a.id) !== String(res.data.id))]);
+      }
+      showToast('Area locality added.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+  const handleUpdateArea = async (id, updates) => {
+    const res = await locationService.updateArea(id, updates, actor);
+    if (!res.error) {
+      setAreas((prev) => prev.map((a) => (String(a.id) === String(id) ? { ...a, ...updates } : a)));
+      showToast('Area locality updated.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+  const handleDeleteArea = async (id) => {
+    const res = await locationService.deleteArea(id, actor);
+    if (res.success) {
+      setAreas((prev) => prev.filter((a) => String(a.id) !== String(id)));
+      showToast('Area locality deleted.', 'success');
+      await refreshCmsData();
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
 
   // Phase 2 Action Handlers
   const handleCreateBanner = async (data) => {

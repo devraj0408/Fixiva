@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logAdminAction } from './auditService';
-import { STATES, getDistrictsForState, getAllStaticDistricts, getLocalitiesForDistrict } from '../data/locationData';
+import { STATES, getDistrictsForState, getAllStaticDistricts, getAllStaticAreas, getLocalitiesForDistrict } from '../data/locationData';
 
 /**
  * Unified Location Service - States, Districts & Geolocation Operations
@@ -353,6 +353,234 @@ export const saveRecentLocation = (locationObj) => {
 };
 
 // ==========================================
+// AREA LOCALITIES CRUD & PERSISTENCE
+// ==========================================
+
+const CUSTOM_AREAS_KEY = 'fixiva_custom_areas';
+const AREA_UPDATES_KEY = 'fixiva_area_updates';
+const DELETED_AREAS_KEY = 'fixiva_deleted_areas';
+
+export const getStoredCustomAreas = () => {
+  try {
+    const raw = localStorage.getItem(CUSTOM_AREAS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    void e;
+    return [];
+  }
+};
+
+export const saveCustomAreaToStorage = (area) => {
+  try {
+    const list = getStoredCustomAreas();
+    const updated = [
+      area,
+      ...list.filter(a => String(a.id) !== String(area.id) && (a.name || '').toLowerCase() !== (area.name || '').toLowerCase())
+    ];
+    localStorage.setItem(CUSTOM_AREAS_KEY, JSON.stringify(updated));
+  } catch (err) {
+    console.warn('Failed to save custom area to localStorage:', err);
+  }
+};
+
+export const getStoredAreaUpdates = () => {
+  try {
+    const raw = localStorage.getItem(AREA_UPDATES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch (e) {
+    void e;
+    return {};
+  }
+};
+
+export const saveAreaUpdateToStorage = (id, updates) => {
+  try {
+    const map = getStoredAreaUpdates();
+    map[id] = { ...(map[id] || {}), ...updates };
+    localStorage.setItem(AREA_UPDATES_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Failed to save area update to localStorage:', err);
+  }
+};
+
+export const getStoredDeletedAreas = () => {
+  try {
+    const raw = localStorage.getItem(DELETED_AREAS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    void e;
+    return [];
+  }
+};
+
+export const saveDeletedAreaToStorage = (id, areaName = '') => {
+  try {
+    const list = getStoredDeletedAreas();
+    const updated = Array.from(new Set([...list, String(id), String(areaName).toLowerCase()].filter(Boolean)));
+    localStorage.setItem(DELETED_AREAS_KEY, JSON.stringify(updated));
+
+    // Also purge from custom areas list if present
+    const customList = getStoredCustomAreas();
+    const filteredCustom = customList.filter(
+      a => String(a.id) !== String(id) && (a.name || '').toLowerCase() !== String(areaName).toLowerCase()
+    );
+    localStorage.setItem(CUSTOM_AREAS_KEY, JSON.stringify(filteredCustom));
+  } catch (err) {
+    console.warn('Failed to save deleted area to localStorage:', err);
+  }
+};
+
+export const getAreas = async () => {
+  let dbAreas = [];
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('areas').select('*').order('name', { ascending: true });
+      if (!error && data && data.length > 0) {
+        dbAreas = data;
+      }
+    } catch (e) {
+      void e;
+    }
+  }
+
+  const { data: districts } = await getDistricts();
+  const staticAreas = getAllStaticAreas(districts || []);
+  const customAreas = getStoredCustomAreas();
+
+  const areaMap = new Map();
+
+  [...staticAreas, ...dbAreas, ...customAreas].forEach(area => {
+    if (!area || !area.name) return;
+    const key = `${String(area.name).toLowerCase()}_${String(area.city_id || area.district_name || '').toLowerCase()}`;
+    areaMap.set(key, area);
+  });
+
+  const updatesMap = getStoredAreaUpdates();
+  const deletedList = getStoredDeletedAreas();
+  const deletedSet = new Set(deletedList.map(d => String(d).toLowerCase()));
+
+  const merged = Array.from(areaMap.values())
+    .map(area => {
+      const update = updatesMap[area.id] || updatesMap[area.name];
+      if (update) {
+        return { ...area, ...update };
+      }
+      return area;
+    })
+    .filter(area => {
+      if (!area || !area.name) return false;
+      const isIdDeleted = deletedSet.has(String(area.id).toLowerCase());
+      const isNameDeleted = deletedSet.has(String(area.name).toLowerCase());
+      return !isIdDeleted && !isNameDeleted;
+    });
+
+  return { data: merged, error: null };
+};
+
+export const createArea = async (areaData, actor = {}) => {
+  const { data: districts } = await getDistricts();
+  const matchedCity = (districts || []).find(
+    d => String(d.id) === String(areaData.city_id) || String(d.name).toLowerCase() === String(areaData.city_id || areaData.district_name || '').toLowerCase()
+  );
+
+  const payload = {
+    id: `area-${Date.now()}`,
+    name: String(areaData.name || '').trim(),
+    city_id: areaData.city_id || matchedCity?.id || `dist-${Date.now()}`,
+    district_name: matchedCity ? matchedCity.name : String(areaData.district_name || '').trim(),
+    state_name: matchedCity ? (matchedCity.state_name || 'Jharkhand') : String(areaData.state_name || 'Jharkhand').trim(),
+    pincode: String(areaData.pincode || '').trim(),
+    status: String(areaData.status || 'Active').trim(),
+  };
+
+  let dbResult = null;
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('areas').insert(payload).select().maybeSingle();
+      if (!error && data) {
+        dbResult = data;
+      }
+    } catch (e) {
+      void e;
+    }
+  }
+
+  saveCustomAreaToStorage(payload);
+
+  await logAdminAction({
+    actorId: actor?.id,
+    actorEmail: actor?.email,
+    action: 'create',
+    objectType: 'area',
+    objectId: dbResult?.id || payload.id,
+    payload: areaData,
+  });
+
+  return { data: dbResult || payload, error: null };
+};
+
+export const updateArea = async (id, updates, actor = {}) => {
+  saveAreaUpdateToStorage(id, updates);
+
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('areas').update(updates).eq('id', id).select().maybeSingle();
+      if (data) {
+        return { data, error: null };
+      }
+    } catch (e) {
+      void e;
+    }
+  }
+
+  await logAdminAction({
+    actorId: actor?.id,
+    actorEmail: actor?.email,
+    action: 'update',
+    objectType: 'area',
+    objectId: id,
+    payload: updates,
+  });
+
+  return { data: { id, ...updates }, error: null };
+};
+
+export const deleteArea = async (id, actor = {}) => {
+  let areaName = '';
+  try {
+    const { data: currentAreas } = await getAreas();
+    const targetArea = (currentAreas || []).find(a => String(a.id) === String(id));
+    if (targetArea) {
+      areaName = targetArea.name;
+    }
+  } catch (e) {
+    void e;
+  }
+
+  saveDeletedAreaToStorage(id, areaName);
+
+  if (supabase) {
+    try {
+      await supabase.from('areas').delete().eq('id', id);
+    } catch (e) {
+      void e;
+    }
+  }
+
+  await logAdminAction({
+    actorId: actor?.id,
+    actorEmail: actor?.email,
+    action: 'delete',
+    objectType: 'area',
+    objectId: id,
+    payload: { deleted: true },
+  });
+
+  return { success: true, error: null };
+};
+
+// ==========================================
 // BACKWARD COMPATIBILITY ALIAS EXPORTS FOR CMS
 // ==========================================
 
@@ -360,11 +588,6 @@ export const getCities = getDistricts;
 export const createCity = createDistrict;
 export const updateCity = updateDistrict;
 export const deleteCity = deleteDistrict;
-
-export const getAreas = async () => ({ data: [], error: null });
-export const createArea = async (data) => ({ data, error: null });
-export const updateArea = async (id, updates) => ({ data: { id, ...updates }, error: null });
-export const deleteArea = async () => ({ success: true, error: null });
 
 export const getCoverageRequests = async () => {
   const { getCoverageRequests: getCoverageRequestsFromCoverageService } = await import('./coverageService');

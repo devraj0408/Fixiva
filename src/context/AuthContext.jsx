@@ -6,6 +6,7 @@ import { useToast } from './ToastContext';
 import { supabase } from '../lib/supabaseClient';
 import * as staffService from '../services/staffService';
 import { submitCoverageRequest } from '../services/coverageService';
+import { getDistricts } from '../services/locationService';
 
 const AppContext = createContext();
 
@@ -56,6 +57,7 @@ export const AuthProvider = ({ children }) => {
   const [services, setServices] = useState([]);
   const [cities, setCities] = useState([]);
   const [states, setStates] = useState([]);
+  const [districts, setDistricts] = useState([]);
   const [coverageRequests, setCoverageRequests] = useState([]);
   const [cityControl, setCityControl] = useState({});
   const [serviceSupportsCategory, setServiceSupportsCategory] = useState(true);
@@ -105,7 +107,8 @@ export const AuthProvider = ({ children }) => {
       return [];
     };
 
-    const [bk, wk, ct, pr, rv, tk, sv, cs, st] = await Promise.all([
+    const [{ data: distList }, bk, wk, ct, pr, rv, tk, sv, cs, st] = await Promise.all([
+      getDistricts(),
       fetchWithFallback('bookings'),
       fetchWithFallback('workers'),
       fetchWithFallback('contractors'),
@@ -124,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     setProfiles(pr || []);
     setTickets(tk || []);
     setServices(sv || []);
+    setDistricts(distList || []);
     setCities([]);
     setStates([]);
     setCoverageRequests([]);
@@ -138,7 +142,16 @@ export const AuthProvider = ({ children }) => {
     });
     setReviews(processedReviews);
 
-    const cityMap = {};
+    const storedCityControl = (() => {
+      try {
+        const raw = localStorage.getItem('fixiva_city_control');
+        return raw ? JSON.parse(raw) : {};
+      } catch {
+        return {};
+      }
+    })();
+
+    const cityMap = { ...storedCityControl };
     (cs || []).forEach(({ city_id, service_id, enabled }) => {
       if (!cityMap[city_id]) cityMap[city_id] = {};
       cityMap[city_id][service_id] = enabled;
@@ -877,16 +890,61 @@ export const AuthProvider = ({ children }) => {
   };
 
   const toggleServiceInCity = async (cityId, serviceId, enabled) => {
-    const { error } = await supabase
-      .from('city_services')
-      .upsert({ city_id: cityId, service_id: serviceId, enabled }, { onConflict: 'city_id,service_id' });
-    if (!error) {
-      setCityControl((prev) => ({
-        ...prev,
-        [cityId]: { ...(prev[cityId] || {}), [serviceId]: enabled },
-      }));
+    const cIdKey = String(cityId);
+    const sIdKey = String(serviceId);
+
+    setCityControl((prev) => {
+      const stored = { ...(prev || {}) };
+
+      const matchedCity = (districts || []).find(
+        (d) => String(d.id) === cIdKey || String(d.name).toLowerCase() === cIdKey.toLowerCase()
+      );
+
+      const cityKeys = [cIdKey];
+      if (matchedCity?.name) {
+        cityKeys.push(String(matchedCity.name).toLowerCase());
+        cityKeys.push(matchedCity.name);
+      }
+
+      const matchedService = (services || []).find(
+        (s) => String(s.id) === sIdKey || String(s.name).toLowerCase() === sIdKey.toLowerCase()
+      );
+
+      const serviceKeys = [sIdKey];
+      if (matchedService?.name) {
+        serviceKeys.push(String(matchedService.name).toLowerCase());
+        serviceKeys.push(matchedService.name);
+      }
+      if (matchedService?.id) {
+        serviceKeys.push(String(matchedService.id));
+      }
+
+      cityKeys.forEach((ck) => {
+        if (!stored[ck]) stored[ck] = {};
+        serviceKeys.forEach((sk) => {
+          stored[ck][sk] = enabled;
+        });
+      });
+
+      try {
+        localStorage.setItem('fixiva_city_control', JSON.stringify(stored));
+      } catch (e) {
+        void e;
+      }
+
+      return stored;
+    });
+
+    if (supabase) {
+      try {
+        await supabase
+          .from('city_services')
+          .upsert({ city_id: cityId, service_id: serviceId, enabled }, { onConflict: 'city_id,service_id' });
+      } catch (e) {
+        void e;
+      }
     }
-    return { error };
+    return { error: null };
   };
 
   const sanitizeRecord = (record) => {
@@ -1253,6 +1311,7 @@ export const AuthProvider = ({ children }) => {
     services,
     cities,
     states,
+    districts,
     addState: async (name) => {
       const { data, error } = await supabase.from('states').insert({ name, status: 'Live', display_order: 0 }).select();
       if (!error) await fetchMarketplaceData();
