@@ -11,70 +11,156 @@ import { getDistricts, isMissingTableError, saveDistrictUpdateToStorage } from '
 // DISTRICT COVERAGE MANAGEMENT
 // ==========================================
 
-export const getDistrictCoverageList = async () => {
+const isMatchForDistrict = (item, distName) => {
+  if (!item || !distName) return false;
+
+  const target = String(distName).toLowerCase().replace(/\s+district$/i, '').trim();
+  if (!target) return false;
+
+  const fields = [
+    item.district,
+    item.city,
+    item.locality,
+    item.coverage_area,
+    item.address,
+    item.location,
+    item.preferred_location
+  ];
+
+  return fields.some(field => {
+    if (!field || typeof field !== 'string') return false;
+    const str = field.toLowerCase().trim();
+    if (!str) return false;
+
+    const cleanField = str.replace(/\s+district$/i, '').trim();
+
+    return (
+      cleanField === target ||
+      cleanField.includes(target) ||
+      target.includes(cleanField)
+    );
+  });
+};
+
+export const getDistrictCoverageList = async (customData = null) => {
   try {
     // 1. Fetch Districts
     const { data: districts, error: distErr } = await getDistricts();
     if (distErr) return { data: [], error: distErr };
 
-    // 2. Fetch Workers count per district
-    let workers = [];
-    if (supabase) {
-      try {
-        const res = await supabase.from('workers').select('id, district, city, status');
-        if (res.data) workers = res.data;
-      } catch (e) { void e; }
+    // 2. Fetch Customers count per district
+    let customers = customData?.customers || [];
+    if (!customData || customers.length === 0) {
+      if (supabase) {
+        try {
+          const res = await supabase.from('profiles').select('*');
+          if (res.data && res.data.length > 0) {
+            customers = res.data.filter(p => {
+              const role = String(p.role || '').trim().toLowerCase();
+              return role === 'customer' || role === 'user' || role === 'client' || (!role && p.id);
+            });
+          }
+        } catch (e) { void e; }
+      }
     }
 
-    // 3. Fetch Contractors count per district
-    let contractors = [];
-    if (supabase) {
-      try {
-        const res = await supabase.from('contractors').select('id, district, city, status');
-        if (res.data) contractors = res.data;
-      } catch (e) { void e; }
+    // 3. Fetch Workers count per district
+    let workers = customData?.workers || [];
+    if (!customData || workers.length === 0) {
+      if (supabase) {
+        try {
+          const [{ data: wData }, { data: pData }] = await Promise.all([
+            supabase.from('workers').select('*'),
+            supabase.from('profiles').select('*').eq('role', 'worker')
+          ]);
+          const map = new Map();
+          (wData || []).forEach(w => map.set(w.id, { ...w }));
+          (pData || []).forEach(p => {
+            const ex = map.get(p.id) || { id: p.id };
+            map.set(p.id, {
+              ...ex,
+              ...p,
+              district: ex.district || p.district || ex.city || p.city,
+              city: ex.city || p.city || ex.district || p.district
+            });
+          });
+          workers = Array.from(map.values());
+        } catch (e) { void e; }
+      }
     }
 
-    // 4. Fetch Active Bookings per district
-    let bookings = [];
-    if (supabase) {
-      try {
-        const res = await supabase.from('bookings').select('id, district, city, status');
-        if (res.data) bookings = res.data;
-      } catch (e) { void e; }
+    // 4. Fetch Contractors count per district
+    let contractors = customData?.contractors || [];
+    if (!customData || contractors.length === 0) {
+      if (supabase) {
+        try {
+          const [{ data: cData }, { data: pData }] = await Promise.all([
+            supabase.from('contractors').select('*'),
+            supabase.from('profiles').select('*').eq('role', 'contractor')
+          ]);
+          const map = new Map();
+          (cData || []).forEach(c => map.set(c.id, { ...c }));
+          (pData || []).forEach(p => {
+            const ex = map.get(p.id) || { id: p.id };
+            map.set(p.id, {
+              ...ex,
+              ...p,
+              district: ex.district || p.district || ex.city || p.city,
+              city: ex.city || p.city || ex.district || p.district
+            });
+          });
+          contractors = Array.from(map.values());
+        } catch (e) { void e; }
+      }
     }
 
-    // 5. Fetch Coverage Requests per district
-    let requests = [];
-    if (supabase) {
-      try {
-        const res = await supabase.from('coverage_requests').select('id, district, status');
-        if (res.data) requests = res.data;
-      } catch (e) { void e; }
+    // 5. Fetch Active Bookings per district
+    let bookings = customData?.bookings || [];
+    if (!customData || bookings.length === 0) {
+      if (supabase) {
+        try {
+          const res = await supabase.from('bookings').select('*');
+          if (res.data) bookings = res.data;
+        } catch (e) { void e; }
+      }
     }
 
-    // Map aggregated metrics to each District
+    // 6. Fetch Coverage Requests per district
+    let requests = customData?.requests || [];
+    if (!customData || requests.length === 0) {
+      if (supabase) {
+        try {
+          const res = await supabase.from('coverage_requests').select('*');
+          if (res.data) requests = res.data;
+        } catch (e) { void e; }
+      }
+    }
+
+    // Map aggregated metrics to each District using robust matching
     const aggregated = (districts || []).map(dist => {
-      const distName = (dist.name || '').toLowerCase();
-      
+      const customerCount = (customers || []).filter(c => 
+        isMatchForDistrict(c, dist.name) && String(c.account_status || c.status || '').toLowerCase() !== 'disabled'
+      ).length;
+
       const workerCount = (workers || []).filter(w => 
-        ((w.district || w.city || '').toLowerCase() === distName) && w.status !== 'Disabled'
+        isMatchForDistrict(w, dist.name) && String(w.status || '').toLowerCase() !== 'disabled'
       ).length;
 
       const contractorCount = (contractors || []).filter(c => 
-        ((c.district || c.city || '').toLowerCase() === distName) && c.status !== 'Disabled'
+        isMatchForDistrict(c, dist.name) && String(c.status || '').toLowerCase() !== 'disabled'
       ).length;
 
       const bookingCount = (bookings || []).filter(b => 
-        ((b.district || b.city || '').toLowerCase() === distName)
+        isMatchForDistrict(b, dist.name)
       ).length;
 
       const requestCount = (requests || []).filter(r => 
-        ((r.district || '').toLowerCase() === distName)
+        isMatchForDistrict(r, dist.name)
       ).length;
 
       return {
         ...dist,
+        customerCount,
         workerCount,
         contractorCount,
         bookingCount,

@@ -3,9 +3,11 @@ import { MapPin, Search, Edit2, X, Plus } from 'lucide-react';
 import { getDistrictCoverageList, updateDistrictStatus } from '../../services/coverageService';
 import { createDistrict } from '../../services/locationService';
 import { useToast } from '../../context/ToastContext';
+import { useCms } from '../../context/CmsContext';
 
 const CoveragePanel = () => {
   const { showToast } = useToast();
+  const { customers = [], workers = [], contractors = [], bookings = [], coverageRequests = [] } = useCms();
   const [districts, setDistricts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -25,14 +27,20 @@ const CoveragePanel = () => {
 
   const fetchCoverage = useCallback(async () => {
     setLoading(true);
-    const res = await getDistrictCoverageList();
+    const res = await getDistrictCoverageList({
+      customers,
+      workers,
+      contractors,
+      bookings,
+      requests: coverageRequests
+    });
     if (res.data) {
       setDistricts(res.data);
     } else {
       showToast('Failed to load district coverage', 'error');
     }
     setLoading(false);
-  }, [showToast]);
+  }, [customers, workers, contractors, bookings, coverageRequests, showToast]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -167,6 +175,7 @@ const CoveragePanel = () => {
                   <th className="py-3.5 px-4">State & District</th>
                   <th className="py-3.5 px-4">Coverage Status</th>
                   <th className="py-3.5 px-4 text-center">Coverage Radius</th>
+                  <th className="py-3.5 px-4 text-center">Customers</th>
                   <th className="py-3.5 px-4 text-center">Workers</th>
                   <th className="py-3.5 px-4 text-center">Contractors</th>
                   <th className="py-3.5 px-4 text-center">Active Bookings</th>
@@ -210,6 +219,7 @@ const CoveragePanel = () => {
                     </td>
 
                     {/* Counts */}
+                    <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.customerCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.workerCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.contractorCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.bookingCount || 0}</td>

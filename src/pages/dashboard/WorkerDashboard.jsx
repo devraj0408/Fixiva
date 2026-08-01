@@ -18,7 +18,11 @@ import {
   PhoneOff,
   CheckSquare,
   Sparkles,
-  Camera
+  Camera,
+  Headphones,
+  ShieldCheck,
+  Send,
+  Loader2
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
@@ -34,7 +38,9 @@ const WorkerDashboard = () => {
     updateUserProfile,
     logout,
     showToast,
-    confirm
+    confirm,
+    tickets = [],
+    addTicket
   } = useApp();
 
   const navigate = useNavigate();
@@ -55,6 +61,80 @@ const WorkerDashboard = () => {
   const [photoUrl, setPhotoUrl] = useState(user?.profile_photo_url || '');
   const photoFileInputRef = useRef(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // Worker Realtime Support Chat State
+  const [liveTickets, setLiveTickets] = useState([]);
+  const [chatInputMessage, setChatInputMessage] = useState('');
+  const [chatSending, setChatSending] = useState(false);
+  const chatBottomRef = useRef(null);
+
+  // Realtime Support Tickets Sync for Worker
+  useEffect(() => {
+    queueMicrotask(() => {
+      const userTickets = (tickets || []).filter(t => t.user_id === user?.id);
+      setLiveTickets(userTickets);
+    });
+  }, [tickets, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !supabase) return;
+
+    const channel = supabase
+      .channel(`worker-support-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'support_tickets', filter: `user_id=eq.${user.id}` },
+        async () => {
+          const { data } = await supabase
+            .from('support_tickets')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+          if (data) setLiveTickets(data);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Scroll to bottom of chat when activeTab is support or liveTickets update
+  useEffect(() => {
+    if (activeTab === 'support') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activeTab, liveTickets]);
+
+  // Send Worker Support Chat Message
+  const handleSendSupportMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInputMessage.trim()) return;
+
+    const messageText = chatInputMessage.trim();
+    setChatInputMessage('');
+    setChatSending(true);
+
+    const { error } = await addTicket({
+      user_id: user?.id,
+      subject: `Worker Support (${user?.name || 'Worker'})`,
+      message: messageText
+    });
+
+    setChatSending(false);
+    if (!error) {
+      showToast('Message sent to Fixiva Support Desk!', 'success');
+      const { data } = await supabase
+        .from('support_tickets')
+        .select('*')
+        .eq('user_id', user?.id)
+        .order('created_at', { ascending: true });
+      if (data) setLiveTickets(data);
+    } else {
+      showToast('Failed to send support message', 'error');
+    }
+  };
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
@@ -370,6 +450,7 @@ const WorkerDashboard = () => {
     { id: 'history', label: 'Job History', icon: Clock, count: completedJobs.length },
     { id: 'earnings', label: 'Earnings', icon: IndianRupee },
     { id: 'availability', label: 'Availability', icon: CheckSquare },
+    { id: 'support', label: 'Support Desk', icon: Headphones },
     { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter(n => !n.read).length },
     { id: 'reviews', label: 'Reviews', icon: Star },
     { id: 'profile', label: 'Profile', icon: Settings },
@@ -927,6 +1008,111 @@ const WorkerDashboard = () => {
                 {profileLoading ? 'Saving...' : 'Save Profile Changes'}
               </button>
             </form>
+          </div>
+        );
+
+      // SUPPORT DESK: WHATSAPP-STYLE REALTIME CHAT FOR WORKERS
+      case 'support':
+        return (
+          <div className="space-y-4 max-w-3xl mx-auto">
+            {/* Header */}
+            <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-11 h-11 rounded-2xl bg-primary text-white flex items-center justify-center shadow-md font-bold">
+                  <Headphones size={22} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-extrabold text-slate-900">Fixiva Worker Support Desk</h2>
+                    <span className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                      ⚡ Priority Response
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500">Live chat for worker dispatches, payouts & job inquiries.</p>
+                </div>
+              </div>
+
+              <span className="text-[11px] font-bold text-slate-400">Official Channel</span>
+            </div>
+
+            {/* WhatsApp-Style Chat Container */}
+            <div className="bg-slate-900/95 rounded-3xl border border-slate-800 shadow-xl overflow-hidden flex flex-col h-[520px]">
+              
+              {/* Chat Thread Messages Area */}
+              <div className="flex-1 p-5 overflow-y-auto space-y-4 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+                
+                {/* Welcome Message Bubble */}
+                <div className="flex justify-start">
+                  <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tl-sm bg-slate-800 text-slate-100 p-4 border border-slate-700/60 shadow-sm space-y-1">
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-primary">
+                      <ShieldCheck size={13} /> Fixiva Support Desk
+                    </div>
+                    <p className="text-xs font-medium leading-relaxed">
+                      Hello {user?.name || 'Worker'}! 👋 Welcome to Fixiva Worker Support. How can we assist you with your dispatches, payouts, or account today?
+                    </p>
+                    <span className="text-[9px] text-slate-400 block text-right">Official Desk</span>
+                  </div>
+                </div>
+
+                {/* Dynamic Thread Messages */}
+                {liveTickets.map(t => (
+                  <div key={t.id} className="space-y-3">
+                    {/* Worker Message Bubble (Right) */}
+                    <div className="flex justify-end">
+                      <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tr-sm bg-primary text-white p-3.5 shadow-sm space-y-1">
+                        <p className="text-xs font-semibold leading-relaxed whitespace-pre-wrap">{t.message}</p>
+                        <span className="text-[9px] text-blue-200 block text-right">
+                          {t.created_at ? new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sent'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Admin Support Reply Bubble (Left) */}
+                    {t.admin_reply && (
+                      <div className="flex justify-start">
+                        <div className="max-w-xs sm:max-w-md rounded-2xl rounded-tl-sm bg-emerald-950/90 text-emerald-100 p-3.5 border border-emerald-800/60 shadow-sm space-y-1">
+                          <div className="flex items-center gap-1.5 text-[10px] font-black text-emerald-400 uppercase tracking-wider">
+                            <ShieldCheck size={12} /> Fixiva Support Team
+                          </div>
+                          <p className="text-xs font-semibold leading-relaxed whitespace-pre-wrap">{t.admin_reply}</p>
+                          <span className="text-[9px] text-emerald-400/80 block text-right">
+                            {t.created_at ? new Date(t.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Replied'}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Chat Input Bar */}
+              <form onSubmit={handleSendSupportMessage} className="p-3 bg-slate-900 border-t border-slate-800 flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Type message to worker support desk..."
+                  className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-xs text-white placeholder-slate-400 outline-none focus:border-primary font-medium"
+                  value={chatInputMessage}
+                  onChange={(e) => setChatInputMessage(e.target.value)}
+                />
+
+                <button
+                  type="submit"
+                  disabled={chatSending || !chatInputMessage.trim()}
+                  className="h-10 px-4 rounded-xl bg-primary text-white text-xs font-bold hover:bg-blue-600 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 shrink-0"
+                >
+                  {chatSending ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <>
+                      <span>Send</span>
+                      <Send size={14} />
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
           </div>
         );
 
