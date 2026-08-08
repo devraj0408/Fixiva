@@ -37,13 +37,28 @@ const BookingFlow = () => {
   const [step, setStep] = useState(2);
   const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId);
 
-  // Location state
-  const [selectedState, setSelectedState] = useState(initialParamState);
-  const [selectedDistrict, setSelectedDistrict] = useState(initialParamDistrict);
-  const [selectedLocality, setSelectedLocality] = useState(initialParamLocality);
-  const [userLat, setUserLat] = useState(null);
-  const [userLng, setUserLng] = useState(null);
+  // Location selection mode: 'manual' | 'gps'
+  const [locationMode, setLocationMode] = useState('manual');
+
+  // Manual location state
+  const [manualState, setManualState] = useState(initialParamState);
+  const [manualDistrict, setManualDistrict] = useState(initialParamDistrict);
+  const [manualLocality, setManualLocality] = useState(initialParamLocality);
+
+  // GPS detected location state
+  const [detectedState, setDetectedState] = useState('');
+  const [detectedDistrict, setDetectedDistrict] = useState('');
+  const [detectedLocality, setDetectedLocality] = useState('');
+  const [detectedLat, setDetectedLat] = useState(null);
+  const [detectedLng, setDetectedLng] = useState(null);
   const [detectingGps, setDetectingGps] = useState(false);
+
+  // Active computed location strictly based on active locationMode
+  const selectedState = locationMode === 'gps' ? (detectedState || user?.state || 'Jharkhand') : manualState;
+  const selectedDistrict = locationMode === 'gps' ? (detectedDistrict || user?.district || user?.city || 'Ranchi') : manualDistrict;
+  const selectedLocality = locationMode === 'gps' ? (detectedLocality || user?.locality || 'Lalpur') : manualLocality;
+  const userLat = locationMode === 'gps' ? (detectedLat || user?.location_latitude || null) : null;
+  const userLng = locationMode === 'gps' ? (detectedLng || user?.location_longitude || null) : null;
 
   // Matching Engine state
   const [matchingLoading, setMatchingLoading] = useState(false);
@@ -65,7 +80,7 @@ const BookingFlow = () => {
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
   const [createdBooking, setCreatedBooking] = useState(null);
 
-  // Pre-fill user data
+  // Pre-fill user data & initial detected location from registration
   useEffect(() => {
     if (user) {
       queueMicrotask(() => {
@@ -74,14 +89,23 @@ const BookingFlow = () => {
           setCustomerPhone(user.phone);
           setCoveragePhone(user.phone);
         }
+        if (user.state) setDetectedState(user.state);
+        if (user.district || user.city) setDetectedDistrict(user.district || user.city);
+        if (user.locality) setDetectedLocality(user.locality);
+        if (user.location_latitude) setDetectedLat(user.location_latitude);
+        if (user.location_longitude) setDetectedLng(user.location_longitude);
       });
     }
   }, [user]);
 
+  const activeServices = (services || []).filter(
+    (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+  );
+
   // Active Service object
-  const activeService = services.find(s => s.id === selectedServiceId) || {
+  const activeService = activeServices.find(s => s.id === selectedServiceId) || services.find(s => s.id === selectedServiceId) || activeServices[0] || {
     id: selectedServiceId,
-    name: selectedServiceId ? selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1) : 'Electrician',
+    name: selectedServiceId ? selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1) : 'Plumber',
     base_price: 199,
     platform_fee: 49
   };
@@ -118,19 +142,34 @@ const BookingFlow = () => {
     });
   }, [runMatchingEngine]);
 
-  // Handle GPS location detection (Optional)
+  // Handle GPS location detection (Switch strictly to GPS mode)
   const handleDetectGps = async () => {
     setDetectingGps(true);
+    setLocationMode('gps');
     try {
       const loc = await detectCurrentLocation();
-      setSelectedState(loc.state || 'Jharkhand');
-      setSelectedDistrict(loc.district || 'Ranchi');
-      setSelectedLocality(loc.locality || 'Lalpur');
-      setUserLat(loc.latitude);
-      setUserLng(loc.longitude);
-      showToast('📍 Current location auto-detected!', 'success');
+      const st = loc.state || user?.state || 'Jharkhand';
+      const dt = loc.district || user?.district || user?.city || 'Ranchi';
+      const lc = loc.locality || user?.locality || 'Lalpur';
+      const lat = loc.latitude || user?.location_latitude || 23.3700;
+      const lng = loc.longitude || user?.location_longitude || 85.3300;
+
+      setDetectedState(st);
+      setDetectedDistrict(dt);
+      setDetectedLocality(lc);
+      setDetectedLat(lat);
+      setDetectedLng(lng);
+      showToast(`🎯 Current location detected: ${lc}, ${dt}`, 'success');
     } catch {
-      showToast('Location permission denied or unavailable. Please select manually.', 'error');
+      const st = user?.state || 'Jharkhand';
+      const dt = user?.district || user?.city || 'Ranchi';
+      const lc = user?.locality || 'Lalpur';
+      setDetectedState(st);
+      setDetectedDistrict(dt);
+      setDetectedLocality(lc);
+      setDetectedLat(user?.location_latitude || 23.3700);
+      setDetectedLng(user?.location_longitude || 85.3300);
+      showToast(`📍 Location set to: ${lc}, ${dt}`, 'info');
     } finally {
       setDetectingGps(false);
     }
@@ -265,7 +304,7 @@ const BookingFlow = () => {
               <h2 className="text-lg font-bold text-slate-900 mb-4">Choose Required Service</h2>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {services.map(s => (
+                {activeServices.map(s => (
                   <button
                     key={s.id}
                     onClick={() => {
@@ -301,47 +340,116 @@ const BookingFlow = () => {
                 <p className="text-xs text-slate-500 mt-1">We match verified experts available in your locality.</p>
               </div>
 
-              {/* Option A: Use Current Location */}
-              <div className="p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-md">
-                    📍
+              {/* Option A: Use Current GPS Location */}
+              <div
+                onClick={() => {
+                  setLocationMode('gps');
+                  handleDetectGps();
+                }}
+                className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-3 ${
+                  locationMode === 'gps'
+                    ? 'bg-blue-50/70 border-primary ring-2 ring-primary/20 shadow-md'
+                    : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm text-lg ${
+                      locationMode === 'gps' ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'
+                    }`}>
+                      🎯
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="radio"
+                          name="location_selection_mode"
+                          checked={locationMode === 'gps'}
+                          onChange={() => {
+                            setLocationMode('gps');
+                            handleDetectGps();
+                          }}
+                          className="w-4 h-4 text-primary focus:ring-primary cursor-pointer"
+                        />
+                        <h3 className="text-sm font-black text-slate-900">Option A: Auto-Detect GPS Location</h3>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 font-medium">Use precise GPS coordinates. Manual location will be ignored when active.</p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Option A: Use Current Location (Optional)</h3>
-                    <p className="text-xs text-slate-500">Auto-detect your State, District, and Locality instantly.</p>
-                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setLocationMode('gps');
+                      handleDetectGps();
+                    }}
+                    disabled={detectingGps}
+                    className="btn-primary text-xs px-4 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm"
+                  >
+                    {detectingGps ? 'Detecting...' : 'Detect My Location'}
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleDetectGps}
-                  disabled={detectingGps}
-                  className="btn-primary text-xs px-4 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm"
-                >
-                  {detectingGps ? 'Detecting...' : 'Detect My Location'}
-                </button>
+                {locationMode === 'gps' && (
+                  <div className="p-3 rounded-xl bg-white border border-blue-100 flex items-center justify-between text-xs font-bold text-slate-800">
+                    <span className="flex items-center gap-1.5 text-primary">
+                      <span>✓ Active Mode:</span> 📍 {detectedLocality || 'Lalpur'}, {detectedDistrict || 'Ranchi'}, {detectedState || 'Jharkhand'}
+                    </span>
+                    <span className="text-[10px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-0.5 rounded">GPS Active</span>
+                  </div>
+                )}
               </div>
 
               {/* Option B: Manual Location Selection */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-sm font-bold text-slate-900">Option B: Manual Location Selection</h3>
-                
-                <HierarchicalLocationSelector
-                  selectedState={selectedState}
-                  selectedDistrict={selectedDistrict}
-                  selectedLocality={selectedLocality}
-                  onChange={({ state, district, locality }) => {
-                    setSelectedState(state);
-                    setSelectedDistrict(district);
-                    setSelectedLocality(locality);
-                  }}
-                  statePlaceholder="Select State"
-                  districtPlaceholder="Select District"
-                  localityPlaceholder="Select Locality"
-                  variant="boxed"
-                  layout="col"
-                />
+              <div
+                onClick={() => setLocationMode('manual')}
+                className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-4 ${
+                  locationMode === 'manual'
+                    ? 'bg-white border-primary ring-2 ring-primary/20 shadow-md'
+                    : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="location_selection_mode"
+                      checked={locationMode === 'manual'}
+                      onChange={() => setLocationMode('manual')}
+                      className="w-4 h-4 text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900">Option B: Manual Location Selection</h3>
+                      <p className="text-xs text-slate-500 font-medium">Select State, District, and Locality manually. GPS will be ignored when active.</p>
+                    </div>
+                  </div>
+
+                  {locationMode === 'manual' && (
+                    <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-1 rounded-md">
+                      Manual Active
+                    </span>
+                  )}
+                </div>
+
+                <div onClick={(e) => e.stopPropagation()} className="pt-1">
+                  <HierarchicalLocationSelector
+                    selectedState={manualState}
+                    selectedDistrict={manualDistrict}
+                    selectedLocality={manualLocality}
+                    onChange={({ state, district, locality }) => {
+                      setManualState(state);
+                      setManualDistrict(district);
+                      setManualLocality(locality);
+                      setLocationMode('manual'); // Strictly switch to manual mode
+                    }}
+                    statePlaceholder="Select State"
+                    districtPlaceholder="Select District"
+                    localityPlaceholder="Select Locality"
+                    variant="boxed"
+                    layout="col"
+                  />
+                </div>
               </div>
 
               <div className="pt-4 flex justify-between items-center border-t border-slate-100">
@@ -431,8 +539,47 @@ const BookingFlow = () => {
               </div>
             )}
 
-            {/* IF DISTRICT IS ACTIVE: DISPLAY MATCHED PROFESSIONALS */}
-            {!matchingLoading && isDistrictActiveStatus && (
+            {/* IF DISTRICT IS ACTIVE BUT NO WORKERS/CONTRACTORS FOUND: COMING SOON SCREEN */}
+            {!matchingLoading && isDistrictActiveStatus && availablePros.length === 0 && (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center shadow-sm border border-slate-100 space-y-6 max-w-2xl mx-auto">
+                <div className="w-16 h-16 rounded-full bg-blue-50 text-primary flex items-center justify-center mx-auto text-3xl shadow-sm border border-blue-100">
+                  🚀
+                </div>
+
+                <div className="space-y-2">
+                  <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest border border-primary/20">
+                    Coming Soon
+                  </span>
+                  <h2 className="text-2xl font-black text-slate-900 pt-2">
+                    Services Coming Soon to {selectedLocality}, {selectedDistrict}
+                  </h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed max-w-md mx-auto">
+                    There are currently no active registered workers or contractors available in your location for <strong className="text-slate-800">{activeService.name}</strong>. Fixiva is expanding rapidly to bring verified professionals near you soon!
+                  </p>
+                </div>
+
+                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="btn-primary text-xs py-3.5 px-6 rounded-xl shadow-md font-extrabold flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowLeft size={14} /> Change Location
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="text-xs py-3.5 px-6 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Browse Other Services
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* IF DISTRICT IS ACTIVE & PROFESSIONALS MATCHED: DISPLAY LIST */}
+            {!matchingLoading && isDistrictActiveStatus && availablePros.length > 0 && (
               <div className="space-y-6">
                 <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
@@ -491,7 +638,7 @@ const BookingFlow = () => {
                         </div>
                       </div>
 
-                      {/* Distance & ETA Info (No Exact Address Exposed!) */}
+                      {/* Distance & ETA Info */}
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-3">
                           <span className="font-bold text-slate-700 flex items-center gap-1">

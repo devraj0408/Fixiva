@@ -11,8 +11,11 @@ const UnifiedBookingModal = () => {
   const { isOpen, initialData = {} } = bookingModalState;
 
   const [prevIsOpen, setPrevIsOpen] = useState(false);
-  const [step, setStep] = useState(1);
-  const [serviceId, setServiceId] = useState('electrician');
+  const activeServices = (services || []).filter(
+    (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+  );
+
+  const [serviceId, setServiceId] = useState(initialData.serviceId || activeServices[0]?.id || 'plumber');
   const [selectedState, setSelectedState] = useState('Jharkhand');
   const [selectedDistrict, setSelectedDistrict] = useState('Ranchi');
   const [selectedLocality, setSelectedLocality] = useState('Lalpur');
@@ -31,6 +34,7 @@ const UnifiedBookingModal = () => {
     setPrevIsOpen(true);
     setStep(1);
     if (initialData.serviceId) setServiceId(initialData.serviceId);
+    else if (activeServices[0]?.id) setServiceId(activeServices[0].id);
     if (initialData.state) setSelectedState(initialData.state);
     if (initialData.district || initialData.city) setSelectedDistrict(initialData.district || initialData.city);
     if (initialData.locality) setSelectedLocality(initialData.locality);
@@ -42,9 +46,9 @@ const UnifiedBookingModal = () => {
 
   if (!isOpen) return null;
 
-  const activeService = services.find(s => s.id === serviceId) || {
+  const activeService = activeServices.find(s => s.id === serviceId) || services.find(s => s.id === serviceId) || activeServices[0] || {
     id: serviceId,
-    name: 'Electrician',
+    name: 'Service',
     base_price: 199,
     platform_fee: 49
   };
@@ -160,30 +164,49 @@ const UnifiedBookingModal = () => {
               )}
 
               {step === 2 && isDistrictActiveStatus && (
-                <div className="space-y-4">
-                  <span className="text-xs font-bold text-slate-700">Available Professionals near {selectedLocality}</span>
-                  
-                  <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                    {availablePros.map(pro => (
-                      <div
-                        key={pro.id}
-                        onClick={() => setSelectedPro(pro)}
-                        className={`p-3 rounded-2xl border cursor-pointer text-xs flex items-center justify-between transition-all ${
-                          selectedPro?.id === pro.id ? 'border-primary bg-primary/5 font-bold' : 'border-slate-100 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <img src={pro.profile_photo_url} alt={pro.name} className="w-9 h-9 rounded-xl object-cover" />
-                          <div>
-                            <h4 className="font-bold text-slate-900">{pro.name}</h4>
-                            <span className="text-[10px] text-slate-500 font-semibold">{pro.distance_km} km away • ETA {pro.eta_text}</span>
-                          </div>
-                        </div>
-
-                        <span className="font-black text-slate-900">₹{pro.starting_price}</span>
-                      </div>
-                    ))}
+                availablePros.length === 0 ? (
+                  <div className="p-6 text-center space-y-3 bg-blue-50/50 rounded-2xl border border-blue-100">
+                    <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
+                      Coming Soon
+                    </span>
+                    <h3 className="text-base font-black text-slate-900 pt-1">
+                      Services Coming Soon to {selectedLocality}, {selectedDistrict}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                      No active registered workers or contractors are currently available for this service in your area. Fixiva is expanding rapidly!
+                    </p>
+                    <button
+                      onClick={() => setStep(1)}
+                      className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl shadow-sm mt-2"
+                    >
+                      Change Location / Service
+                    </button>
                   </div>
+                ) : (
+                  <div className="space-y-4">
+                    <span className="text-xs font-bold text-slate-700">Available Professionals near {selectedLocality}</span>
+                    
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                      {availablePros.map(pro => (
+                        <div
+                          key={pro.id}
+                          onClick={() => setSelectedPro(pro)}
+                          className={`p-3 rounded-2xl border cursor-pointer text-xs flex items-center justify-between transition-all ${
+                            selectedPro?.id === pro.id ? 'border-primary bg-primary/5 font-bold' : 'border-slate-100 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <img src={pro.profile_photo_url} alt={pro.name} className="w-9 h-9 rounded-xl object-cover" />
+                            <div>
+                              <h4 className="font-bold text-slate-900">{pro.name}</h4>
+                              <span className="text-[10px] text-slate-500 font-semibold">{pro.distance_km} km away • ETA {pro.eta_text}</span>
+                            </div>
+                          </div>
+
+                          <span className="font-black text-slate-900">₹{pro.starting_price}</span>
+                        </div>
+                      ))}
+                    </div>
 
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <input
@@ -218,7 +241,7 @@ const UnifiedBookingModal = () => {
                     </button>
                   </div>
                 </div>
-              )}
+              ))}
 
               {step === 2 && !isDistrictActiveStatus && (
                 <div className="text-center py-6 space-y-4">

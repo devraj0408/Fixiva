@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -36,6 +36,12 @@ const Home = () => {
   const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
   const { reviews: cmsReviews } = useCms();
   const navigate = useNavigate();
+
+  const activeServices = useMemo(() => {
+    return (services || []).filter(
+      (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+  }, [services]);
 
   const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
 
@@ -349,7 +355,7 @@ const Home = () => {
             </Link>
           </div>
 
-          {services.length === 0 ? (
+          {activeServices.length === 0 ? (
             <div className="py-16 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl">
               <Zap size={36} className="mx-auto text-slate-300 mb-2" />
               <p className="text-slate-500 text-sm font-semibold">No services database records found. Populate via SQL.</p>
@@ -362,7 +368,7 @@ const Home = () => {
               whileInView="visible"
               viewport={{ once: true }}
             >
-              {services.slice(0, 12).map(s => {
+              {activeServices.slice(0, 12).map(s => {
                 const Icon = IconMap[s.name] || IconMap[s.icon] || Zap;
                 return (
                   <motion.div key={s.id} variants={itemVariants}>

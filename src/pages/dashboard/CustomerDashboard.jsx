@@ -25,9 +25,26 @@ import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
 import { uploadImage } from '../../services/storageService';
 
+const getServiceIcon = (iconName, serviceName = '') => {
+  const lowerName = String(serviceName).toLowerCase();
+  const lowerIcon = String(iconName).toLowerCase();
+
+  if (lowerIcon === 'zap' || lowerName.includes('electrician') || lowerName.includes('electric')) return '⚡';
+  if (lowerIcon === 'droplets' || lowerIcon === 'wrench' || lowerName.includes('plumber') || lowerName.includes('plumb')) return '💧';
+  if (lowerIcon === 'wind' || lowerName.includes('ac') || lowerName.includes('cool')) return '❄️';
+  if (lowerIcon === 'sparkles' || lowerName.includes('clean')) return '✨';
+  if (lowerIcon === 'paintbrush' || lowerName.includes('paint')) return '🎨';
+  if (lowerIcon === 'hammer' || lowerName.includes('carpenter') || lowerName.includes('wood')) return '🔨';
+  if (lowerIcon === 'bug' || lowerName.includes('pest')) return '🪲';
+  if (lowerIcon === 'truck' || lowerName.includes('mover')) return '🚚';
+  if (lowerIcon === 'tv' || lowerName.includes('appliance')) return '📺';
+  return '🛠️';
+};
+
 const CustomerDashboard = () => {
   const {
     user,
+    services = [],
     bookings = [],
     contractors = [],
     workers = [],
@@ -41,6 +58,12 @@ const CustomerDashboard = () => {
     showToast,
     refreshData
   } = useApp();
+
+  const activeServices = useMemo(() => {
+    return (services || []).filter(
+      (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+  }, [services]);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -851,26 +874,30 @@ const CustomerDashboard = () => {
             <div className="space-y-3">
               <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Quick Book Category Shortcuts</h3>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-                {[
-                  { id: 'electrician', name: 'Electrician', icon: '⚡', price: '₹199' },
-                  { id: 'plumber', name: 'Plumber', icon: '💧', price: '₹249' },
-                  { id: 'ac-repair', name: 'AC Repair', icon: '❄️', price: '₹499' },
-                  { id: 'cleaning', name: 'Cleaning', icon: '✨', price: '₹799' },
-                  { id: 'painter', name: 'Painting', icon: '🎨', price: '₹999' },
-                  { id: 'carpenter', name: 'Carpenter', icon: '🔨', price: '₹299' },
-                ].map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => navigate(`/book/${s.id}?district=${encodeURIComponent(profileDistrict)}`)}
-                    className="p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-primary shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-1.5 group"
-                  >
-                    <span className="text-2xl group-hover:scale-110 transition-transform">{s.icon}</span>
-                    <span className="font-extrabold text-xs text-slate-800 group-hover:text-primary">{s.name}</span>
-                    <span className="text-[10px] text-slate-400 font-bold">{s.price}</span>
-                  </button>
-                ))}
-              </div>
+              {activeServices.length === 0 ? (
+                <div className="p-4 rounded-2xl bg-white border border-slate-100 text-center text-xs text-slate-500 font-medium">
+                  No active services available at the moment.
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                  {activeServices.map((s) => {
+                    const iconEmoji = getServiceIcon(s.icon, s.name);
+                    const basePrice = s.base_price || s.inspection_fee || s.basePrice || 0;
+                    const priceDisplay = basePrice ? `₹${basePrice}` : 'On Request';
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => navigate(`/book/${s.id}?district=${encodeURIComponent(profileDistrict)}`)}
+                        className="p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-primary shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-1.5 group"
+                      >
+                        <span className="text-2xl group-hover:scale-110 transition-transform">{iconEmoji}</span>
+                        <span className="font-extrabold text-xs text-slate-800 group-hover:text-primary">{s.name}</span>
+                        <span className="text-[10px] text-slate-400 font-bold">{priceDisplay}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Upcoming Bookings Section */}

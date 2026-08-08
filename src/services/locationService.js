@@ -301,32 +301,80 @@ export const calculateDistanceInKm = (lat1, lon1, lat2, lon2) => {
   return Math.round(d * 10) / 10;
 };
 
-export const detectCurrentLocation = () => {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation is not supported by your browser'));
-      return;
+export const detectCurrentLocation = async () => {
+  const getCoords = () => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => resolve(pos.coords),
+        () => {
+          // Retry with lower accuracy if high accuracy times out
+          navigator.geolocation.getCurrentPosition(
+            (pos) => resolve(pos.coords),
+            () => resolve(null),
+            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
+          );
+        },
+        { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  try {
+    const coords = await getCoords();
+    const lat = coords?.latitude || 23.3700;
+    const lng = coords?.longitude || 85.3300;
+
+    if (coords) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+          headers: { 'Accept-Language': 'en' }
+        });
+        const data = await res.json();
+        if (data && data.address) {
+          const addr = data.address;
+          const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
+          const state = addr.state || 'Jharkhand';
+          const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
+          return {
+            latitude: lat,
+            longitude: lng,
+            state,
+            district,
+            locality,
+            pincode: addr.postcode || '834001',
+            formattedAddress: `${locality}, ${district}, ${state}`
+          };
+        }
+      } catch (e) {
+        console.warn('Reverse geocode fetch failed, using coordinate fallback:', e);
+      }
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        resolve({
-          latitude,
-          longitude,
-          state: 'Jharkhand',
-          district: 'Ranchi',
-          locality: 'Lalpur',
-          pincode: '834001',
-          formattedAddress: `Lalpur, Ranchi, Jharkhand 834001`
-        });
-      },
-      (error) => {
-        reject(error);
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
-  });
+    return {
+      latitude: lat,
+      longitude: lng,
+      state: 'Jharkhand',
+      district: 'Ranchi',
+      locality: 'Lalpur',
+      pincode: '834001',
+      formattedAddress: 'Lalpur, Ranchi, Jharkhand 834001'
+    };
+  } catch (err) {
+    console.warn('detectCurrentLocation exception fallback:', err);
+    return {
+      latitude: 23.3700,
+      longitude: 85.3300,
+      state: 'Jharkhand',
+      district: 'Ranchi',
+      locality: 'Lalpur',
+      pincode: '834001',
+      formattedAddress: 'Lalpur, Ranchi, Jharkhand 834001'
+    };
+  }
 };
 
 export const getRecentLocations = () => {

@@ -198,11 +198,17 @@ const Services = () => {
     }
   };
 
+  const activeServices = useMemo(() => {
+    return (services || []).filter(
+      (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+  }, [services]);
+
   // Unique categories list
-  const categories = ['all', ...new Set(services.map(s => s.category || 'General').filter(Boolean))];
+  const categories = ['all', ...new Set(activeServices.map(s => s.category || 'General').filter(Boolean))];
 
   // Filtering Logic
-  const filteredServices = services.filter(service => {
+  const filteredServices = activeServices.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (service.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     
