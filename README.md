@@ -179,3 +179,7 @@ The `supabase/migrations/` folder contains SQL helpers to align schema expectati
 
 ## Summary
 Fixiva is ready to run locally as a full-featured service marketplace prototype with a complete admin control panel, role-based access, and Supabase-backed authentication and data management.
+=======
+# Fixivahackthon
+this is fixiva project for hackthon
+>>>>>>> jhaayush/main
