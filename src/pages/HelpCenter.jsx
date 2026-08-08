@@ -1,18 +1,22 @@
-import React, { useState } from 'react';
-import { 
-  HelpCircle, Book, Shield, XCircle, 
-  Mail, CheckCircle, ChevronDown, 
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  HelpCircle, Book, Shield, XCircle,
+  Mail, CheckCircle, ChevronDown,
   ChevronUp, Loader2, MapPin, AlertTriangle
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 
+import { useCms } from '../context/CmsContext';
+
 const HelpCenter = () => {
-  const { addTicket } = useApp();
+  const { user, addTicket, showToast } = useApp();
+  const { faqs: cmsFaqs } = useCms();
   const [activeFaq, setActiveFaq] = useState(null);
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const faqs = [
+  const fallbackFaqs = [
     { 
       q: "How does the pricing work?", 
       a: "Every service has a Base Price or Inspection Fee. In addition, we charge a fixed Fixiva Convenience Fee to handle booking and professional verification. No hidden charges." 
@@ -31,6 +35,11 @@ const HelpCenter = () => {
     }
   ];
 
+  const faqs = (cmsFaqs || []).length > 0
+    ? cmsFaqs.map((f) => ({ q: f.question, a: f.answer }))
+    : fallbackFaqs;
+
+
   const handleSubmit = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -43,10 +52,14 @@ const HelpCenter = () => {
 
     setLoading(true);
     setTimeout(async () => {
-      const { error } = await addTicket({ ...ticketData, user_id: undefined });
+      const payload = {
+        ...ticketData,
+        ...(user?.id ? { user_id: user.id } : {}),
+      };
+      const { error } = await addTicket(payload);
       setLoading(false);
       if (error) {
-        alert('Failed to submit ticket: ' + error.message);
+        showToast('Failed to submit ticket: ' + error.message, 'error');
       } else {
         setSubmitted(true);
         e.target.reset();
@@ -191,7 +204,7 @@ const HelpCenter = () => {
               <div className="border-t border-slate-100 pt-6 space-y-3 text-slate-500 font-semibold text-xs">
                 <div className="flex items-center gap-2">
                   <Mail size={16} className="text-primary shrink-0" />
-                  <a href="mailto:sinhadev739@gmail.com" className="hover:text-primary transition-all text-xs break-all">sinhadev739@gmail.com</a>
+                  <a href="mailto:fixiva869@gmail.com" className="hover:text-primary transition-all text-xs break-all">fixiva869@gmail.com</a>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin size={16} className="text-primary shrink-0" />

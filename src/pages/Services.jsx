@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+/* eslint-disable react-hooks/set-state-in-effect */
+import { useMemo, useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug, 
+import {
+  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon, Search, ShieldCheck,
-  ArrowRight, MapPin, IndianRupee, Star, Filter, RotateCcw
+  ArrowRight, Star, Filter, RotateCcw, X, MapPin, Mail
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { scrollToFeatureContent } from '../components/ScrollToTop';
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 
 const IconMap = {
   zap: Zap,
@@ -29,40 +32,183 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+
 
 const Services = () => {
-  const { services, cities } = useApp();
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  const { services, cities, districts = [], cityControl, submitCoverageRequest, showToast, user, openBookingModal } = useApp();
   const location = useLocation();
-  const queryParams = new URLSearchParams(location.search);
+  const [submittedCoverages, setSubmittedCoverages] = useState([]);
+  const queryParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   
   const initialSearch = queryParams.get('search') || '';
   const initialCity = queryParams.get('city') || '';
+  const initialState = queryParams.get('state') || '';
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCity, setSelectedCity] = useState(initialCity);
+  const [selectedState, setSelectedState] = useState(initialState);
   const [activeCategory, setActiveCategory] = useState('all');
   const [maxPrice, setMaxPrice] = useState(3000);
+
+  // Modal State for Coverage Request
+  const [coverageModalService, setCoverageModalService] = useState(null);
+  const [coverageFormCity, setCoverageFormCity] = useState('');
+  const [coverageFormState, setCoverageFormState] = useState('');
+  const [coverageFormContact, setCoverageFormContact] = useState('');
+  const [isSubmittingCoverage, setIsSubmittingCoverage] = useState(false);
 
   // Sync with query params changes (e.g. from Hero)
   useEffect(() => {
     setSearchTerm(queryParams.get('search') || '');
     setSelectedCity(queryParams.get('city') || '');
-  }, [location.search]);
+    setSelectedState(queryParams.get('state') || '');
+  }, [location.search, queryParams]);
+
+  const isServiceAvailable = (serviceId) => {
+    if (!selectedCity) return true;
+
+    const safeCity = String(selectedCity).trim().toLowerCase();
+    const cityList = (cities && cities.length > 0) ? cities : (districts || []);
+
+    const matchedCity = cityList.find(c => {
+      if (!c) return false;
+      const cName = String(c.name || '').trim().toLowerCase();
+      return cName === safeCity || safeCity.includes(cName) || cName.includes(safeCity);
+    });
+
+    if (matchedCity && (matchedCity.status === 'Disabled' || matchedCity.status === 'Coming Soon')) {
+      return false;
+    }
+
+    if (cityControl && Object.keys(cityControl).length > 0) {
+      const matchedService = (services || []).find(
+        (s) => String(s.id) === String(serviceId) || String(s.name).toLowerCase() === String(serviceId).toLowerCase()
+      );
+
+      const cityKeysToTry = [
+        matchedCity?.id,
+        matchedCity?.name,
+        selectedCity,
+        safeCity,
+        `dist-${safeCity}`
+      ].filter(Boolean);
+
+      const serviceKeysToTry = [
+        serviceId,
+        String(serviceId).toLowerCase(),
+        matchedService?.id,
+        matchedService?.name,
+        matchedService?.name ? String(matchedService.name).toLowerCase() : null
+      ].filter(Boolean);
+
+      for (const cKey of cityKeysToTry) {
+        if (cityControl[cKey]) {
+          for (const sKey of serviceKeysToTry) {
+            if (cityControl[cKey][sKey] !== undefined) {
+              return cityControl[cKey][sKey] === true;
+            }
+          }
+        }
+      }
+    }
+
+    // Default: Available for active districts unless explicitly disabled
+    return true;
+  };
+
+  const handleCardRequestCoverage = async (e, serviceName, serviceId) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const cityToUse = selectedCity || '';
+    const stateToUse = selectedState || matchedCity?.region || 'Jharkhand';
+    const emailToUse = user?.email || '';
+
+    // If both city and email are available, submit directly
+    if (cityToUse && emailToUse) {
+      setIsSubmittingCoverage(true);
+      try {
+        const res = await submitCoverageRequest({
+          customer_id: user?.id,
+          customer_name: user?.user_metadata?.full_name || user?.name || user?.email?.split('@')[0] || 'Customer',
+          email: emailToUse,
+          phone: user?.phone || emailToUse,
+          service_id: serviceId,
+          service_name: serviceName,
+          district: cityToUse,
+          state: stateToUse
+        });
+
+        if (res.success || res.error === 'duplicate') {
+          setSubmittedCoverages(prev => [...prev, serviceId]);
+          showToast(res.message || "Coverage request submitted successfully!", 'success');
+        } else {
+          showToast(res.error || "Failed to request coverage.", 'error');
+        }
+      } catch {
+        showToast("Failed to request coverage.", 'error');
+      } finally {
+        setIsSubmittingCoverage(false);
+      }
+    } else {
+      // Open coverage modal to collect missing city or contact email/phone
+      setCoverageFormCity(cityToUse);
+      setCoverageFormState(stateToUse);
+      setCoverageFormContact(emailToUse);
+      setCoverageModalService({ id: serviceId, name: serviceName });
+    }
+  };
+
+  const submitCoverageModal = async (e) => {
+    e.preventDefault();
+    if (!coverageFormCity.trim()) {
+      showToast("Please enter your city/district.", 'error');
+      return;
+    }
+    if (!coverageFormContact.trim()) {
+      showToast("Please enter your email or phone number.", 'error');
+      return;
+    }
+
+    setIsSubmittingCoverage(true);
+    try {
+      const res = await submitCoverageRequest({
+        customer_id: user?.id,
+        customer_name: user?.user_metadata?.full_name || user?.name || coverageFormContact.split('@')[0] || 'Customer',
+        email: coverageFormContact.includes('@') ? coverageFormContact.trim() : (user?.email || ''),
+        phone: coverageFormContact.trim(),
+        service_id: coverageModalService.id,
+        service_name: coverageModalService.name,
+        district: coverageFormCity.trim(),
+        state: coverageFormState.trim() || 'Jharkhand'
+      });
+
+      if (res.success || res.error === 'duplicate') {
+        setSubmittedCoverages(prev => [...prev, coverageModalService.id]);
+        showToast(res.message || "Coverage request submitted successfully!", 'success');
+        setCoverageModalService(null);
+      } else {
+        showToast(res.error || "Failed to request coverage.", 'error');
+      }
+    } catch {
+      showToast("Failed to request coverage.", 'error');
+    } finally {
+      setIsSubmittingCoverage(false);
+    }
+  };
+
+  const activeServices = useMemo(() => {
+    return (services || []).filter(
+      (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+  }, [services]);
 
   // Unique categories list
-  const categories = ['all', ...new Set(services.map(s => s.category || 'General').filter(Boolean))];
+  const categories = ['all', ...new Set(activeServices.map(s => s.category || 'General').filter(Boolean))];
 
   // Filtering Logic
-  const filteredServices = services.filter(service => {
+  const filteredServices = activeServices.filter(service => {
     const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (service.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     
@@ -80,6 +226,7 @@ const Services = () => {
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedCity('');
+    setSelectedState('');
     setActiveCategory('all');
     setMaxPrice(3000);
   };
@@ -102,7 +249,7 @@ const Services = () => {
       </section>
 
       {/* Catalog Workspace */}
-      <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
+      <div id="feature-content" className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           
           {/* Left Sidebar Filters */}
@@ -138,17 +285,19 @@ const Services = () => {
               {/* City Selection dropdown */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Location</label>
-                <div className="relative">
-                  <MapPin size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
-                  <select
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none transition-all"
-                    value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                  >
-                    <option value="">All Operating Cities</option>
-                    {displayCities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
-                </div>
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedCity}
+                  onChange={({ state, district }) => {
+                    setSelectedCity(district || '');
+                    setSelectedState(state || '');
+                  }}
+                  statePlaceholder="All States"
+                  districtPlaceholder="All Districts"
+                  showAllOption={true}
+                  layout="col"
+                  className="w-full"
+                />
               </div>
 
               {/* Price Range Slider */}
@@ -184,7 +333,10 @@ const Services = () => {
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setActiveCategory(cat)}
+                    onClick={() => {
+                      setActiveCategory(cat);
+                      scrollToFeatureContent();
+                    }}
                     className={`px-4 py-2.5 rounded-xl text-xs capitalize transition-all ${
                       activeCategory === cat 
                         ? 'btn-primary shadow-md' 
@@ -213,49 +365,100 @@ const Services = () => {
                     
                     return (
                       <div key={service.id} className="h-full flex">
-                        <Link 
-                          to={`/book/${service.id}${selectedCity ? `?city=${encodeURIComponent(selectedCity)}` : ''}`} 
-                          className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300"
-                        >
-                          <div>
-                            {/* Card Top Icon & Starting tariff */}
-                            <div className="flex justify-between items-start gap-4 mb-6">
-                              <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                                <Icon size={22} />
-                              </div>
-                              <div className="text-right space-y-0.5">
-                                <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
-                                <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
-                                  ₹{startingPrice}
-                                </span>
-                              </div>
-                            </div>
+                        {isServiceAvailable(service.id) ? (
+                          <div 
+                            onClick={() => openBookingModal({ serviceId: service.id, city: selectedCity, state: selectedState })} 
+                            className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
+                          >
+                            <div className="flex flex-col justify-between h-full w-full">
+                              <div>
+                                {/* Card Top Icon & Starting tariff */}
+                                <div className="flex justify-between items-start gap-4 mb-6">
+                                  <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
+                                    <Icon size={22} />
+                                  </div>
+                                  <div className="text-right space-y-0.5">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
+                                    <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
+                                      ₹{startingPrice}
+                                    </span>
+                                  </div>
+                                </div>
 
-                            {/* Card Content Info */}
-                            <div className="space-y-2">
-                              <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
-                                {service.name}
-                              </h3>
-                              <p className="text-slate-500 text-xs leading-relaxed font-semibold">
-                                {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
-                              </p>
-                              
-                              {/* Average review rating badge */}
-                              <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
-                                <Star size={12} fill="currentColor" />
-                                <span>4.9 (Verified reviews)</span>
+                                {/* Card Content Info */}
+                                <div className="space-y-2">
+                                  <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
+                                    {service.name}
+                                  </h3>
+                                  <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                                    {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
+                                  </p>
+                                  
+                                  {/* Average review rating badge */}
+                                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
+                                    <Star size={12} fill="currentColor" />
+                                    <span>4.9 (Verified reviews)</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Card Footer action button */}
+                              <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
+                                <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
+                                  <ArrowRight size={14} />
+                                </div>
                               </div>
                             </div>
                           </div>
+                        ) : (
+                          <div className="bg-slate-50/40 rounded-2xl border border-slate-150 p-6 flex flex-col justify-between h-full w-full opacity-95">
+                            <div className="flex flex-col justify-between h-full w-full">
+                              <div>
+                                {/* Card Top Icon & Starting tariff */}
+                                <div className="flex justify-between items-start gap-4 mb-6">
+                                  <div className="h-12 w-12 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center">
+                                    <Icon size={22} />
+                                  </div>
+                                  <div className="text-right space-y-0.5">
+                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
+                                    <span className="text-lg font-black text-slate-400 block">
+                                      ₹{startingPrice}
+                                    </span>
+                                  </div>
+                                </div>
 
-                          {/* Card Footer action button */}
-                          <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
-                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
-                            <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
-                              <ArrowRight size={14} />
+                                {/* Card Content Info */}
+                                <div className="space-y-2">
+                                  <h3 className="font-extrabold text-slate-500 text-base leading-tight">
+                                    {service.name}
+                                  </h3>
+                                  <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                                    {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
+                                  </p>
+                                  
+                                  {/* Availability block with request button */}
+                                  <div className="p-3 bg-amber-50/50 border border-amber-200/80 rounded-xl space-y-2 mt-2">
+                                    <p className="text-[10px] text-amber-800 font-semibold leading-relaxed">
+                                      🚀 Fixiva is expanding rapidly. We aren't available in this district yet, but you can request coverage and we'll notify you as soon as we launch here.
+                                    </p>
+                                    {submittedCoverages.includes(service.id) ? (
+                                      <span className="text-[10px] text-green-700 font-bold block">🎉 Request Registered!</span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleCardRequestCoverage(e, service.name, service.id)}
+                                        className="w-full text-center bg-white hover:bg-slate-50 border border-slate-200 rounded-lg py-1.5 text-[10px] font-extrabold text-slate-700 transition-colors cursor-pointer"
+                                      >
+                                        Request Coverage
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                        </Link>
+                        )}
                       </div>
                     );
                   })}
@@ -278,6 +481,105 @@ const Services = () => {
 
         </div>
       </div>
+
+      {/* Coverage Request Modal */}
+      <AnimatePresence>
+        {coverageModalService && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-5 border border-slate-100 relative"
+            >
+              <button
+                onClick={() => setCoverageModalService(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+
+              <div className="space-y-1 text-left">
+                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200">
+                  🚀 Expansion Request
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">
+                  Request Coverage for {coverageModalService.name}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium">
+                  We are expanding rapidly! Let us know where you need service so we can notify you as soon as we launch.
+                </p>
+              </div>
+
+              <form onSubmit={submitCoverageModal} className="space-y-4 pt-1">
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    City / District <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <MapPin size={16} className="absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="e.g. Ranchi, Dhanbad, Bokaro"
+                      required
+                      value={coverageFormCity}
+                      onChange={(e) => setCoverageFormCity(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Jharkhand"
+                    value={coverageFormState}
+                    onChange={(e) => setCoverageFormState(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Email or Mobile Number <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-3 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="you@example.com or 9876543210"
+                      required
+                      value={coverageFormContact}
+                      onChange={(e) => setCoverageFormContact(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold text-slate-800 outline-none transition-all"
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCoverageModalService(null)}
+                    className="w-1/3 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingCoverage}
+                    className="w-2/3 btn-primary py-2.5 rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {isSubmittingCoverage ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
