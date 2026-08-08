@@ -2,12 +2,15 @@ import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, Settings, Briefcase, FileText, LifeBuoy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDashboardPath } from '../lib/navbarUtils';
+import LanguageSelector from './LanguageSelector';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -91,7 +94,7 @@ const Navbar = () => {
           </div>
 
           {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-6">
+          <div className="hidden md:flex items-center gap-5">
             {!isAuthenticated ? (
               <>
                 <Link 
@@ -100,7 +103,7 @@ const Navbar = () => {
                     isActive('/') ? 'text-primary' : 'text-slate-600'
                   }`}
                 >
-                  Home
+                  {t('home', 'Home')}
                 </Link>
                 <Link 
                   to="/services" 
@@ -108,7 +111,7 @@ const Navbar = () => {
                     isActive('/services') ? 'text-primary' : 'text-slate-600'
                   }`}
                 >
-                  Services
+                  {t('services', 'Services')}
                 </Link>
                 <Link 
                   to="/help" 
@@ -116,7 +119,7 @@ const Navbar = () => {
                     isActive('/help') ? 'text-primary' : 'text-slate-600'
                   }`}
                 >
-                  Help Center
+                  {t('helpCenter', 'Help Center')}
                 </Link>
                 <Link 
                   to="/help?tab=about" 
@@ -124,20 +127,27 @@ const Navbar = () => {
                     location.search.includes('tab=about') ? 'text-primary' : 'text-slate-600'
                   }`}
                 >
-                  About
+                  {t('about', 'About')}
                 </Link>
+                
                 <div className="h-4 w-px bg-slate-200"></div>
+
+                {/* Language Selector */}
+                <LanguageSelector />
+
+                <div className="h-4 w-px bg-slate-200"></div>
+
                 <Link 
                   to="/login" 
                   className="text-sm font-bold text-slate-700 hover:text-primary transition-all px-3 py-2 rounded-full hover:bg-slate-50"
                 >
-                  Login
+                  {t('login', 'Login')}
                 </Link>
                 <Link 
                   to="/register" 
                   className="join-cta"
                 >
-                  Join Fixiva
+                  {t('joinFixiva', 'Join Fixiva')}
                 </Link>
               </>
             ) : (
@@ -148,28 +158,33 @@ const Navbar = () => {
                     location.pathname.startsWith('/dashboard') ? 'text-primary' : 'text-slate-600'
                   }`}
                 >
-                  <Briefcase size={16} /> Dashboard
+                  <Briefcase size={16} /> {t('dashboard', 'Dashboard')}
                 </Link>
                 <Link 
                   to={`${dashboardPath}?tab=bookings`} 
                   className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
                 >
-                  <FileText size={16} /> Bookings
+                  <FileText size={16} /> {t('bookings', 'Bookings')}
                 </Link>
                 {normalizedUser.role !== 'admin' && (
                   <Link 
                     to={`${dashboardPath}?tab=support`} 
                     className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
                   >
-                    <LifeBuoy size={16} /> Support
+                    <LifeBuoy size={16} /> {t('support', 'Support')}
                   </Link>
                 )}
                 <Link 
                   to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                   className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
                 >
-                  <Settings size={16} /> Profile
+                  <Settings size={16} /> {t('profile', 'Profile')}
                 </Link>
+
+                <div className="h-5 w-px bg-slate-200"></div>
+
+                {/* Language Selector */}
+                <LanguageSelector />
 
                 <div className="h-5 w-px bg-slate-200"></div>
 
@@ -201,7 +216,7 @@ const Navbar = () => {
                   <button 
                     onClick={handleLogout} 
                     className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-danger hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100" 
-                    title="Logout"
+                    title={t('logout', 'Logout')}
                   >
                     <LogOut size={18} />
                   </button>
@@ -213,11 +228,12 @@ const Navbar = () => {
           {/* Mobile Menu Button */}
           <div className="flex items-center md:hidden">
             <button 
-              className="p-2 rounded-xl text-slate-600 hover:text-primary hover:bg-slate-50 transition-all" 
+              className="p-1.5 px-2 rounded-xl text-slate-600 hover:text-primary hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5 select-none" 
               onClick={() => setIsOpen(!isOpen)} 
               aria-label="Toggle Menu"
             >
-              {isOpen ? <X size={22} /> : <Menu size={22} />}
+              {isOpen ? <X size={20} /> : <Menu size={20} />}
+              <span className="text-[10px] font-extrabold tracking-wider uppercase leading-none">{t('menu', 'Menu')}</span>
             </button>
           </div>
         </div>
@@ -241,43 +257,47 @@ const Navbar = () => {
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Home
+                    {t('home', 'Home')}
                   </Link>
                   <Link 
                     to="/services" 
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Services
+                    {t('services', 'Services')}
                   </Link>
                   <Link 
                     to="/help" 
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Help Center
+                    {t('helpCenter', 'Help Center')}
                   </Link>
                   <Link 
                     to="/help?tab=about" 
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    About
+                    {t('about', 'About')}
                   </Link>
+                  
+                  {/* Language Selector inside Mobile Menu */}
+                  <LanguageSelector isMobile={true} />
+
                   <div className="h-px bg-slate-100 my-2"></div>
                   <Link 
                     to="/login" 
                     onClick={() => setIsOpen(false)}
                     className="block text-center px-4 py-2.5 rounded-xl text-base font-bold text-slate-700 hover:bg-slate-50 transition-all"
                   >
-                    Login
+                    {t('login', 'Login')}
                   </Link>
                   <Link 
                     to="/register" 
                     onClick={() => setIsOpen(false)} 
                     className="block text-center join-cta-mobile"
                   >
-                    Join Fixiva
+                    {t('joinFixiva', 'Join Fixiva')}
                   </Link>
                 </>
               ) : (
@@ -304,14 +324,14 @@ const Navbar = () => {
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Dashboard
+                    {t('dashboard', 'Dashboard')}
                   </Link>
                   <Link 
                     to={`${dashboardPath}?tab=bookings`} 
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Bookings
+                    {t('bookings', 'Bookings')}
                   </Link>
                   {normalizedUser.role !== 'admin' && (
                     <Link 
@@ -319,7 +339,7 @@ const Navbar = () => {
                       onClick={() => setIsOpen(false)}
                       className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                     >
-                      Support
+                      {t('support', 'Support')}
                     </Link>
                   )}
                   <Link 
@@ -327,14 +347,18 @@ const Navbar = () => {
                     onClick={() => setIsOpen(false)}
                     className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
                   >
-                    Profile Settings
+                    {t('profile', 'Profile')}
                   </Link>
+
+                  {/* Language Selector inside Mobile Menu */}
+                  <LanguageSelector isMobile={true} />
+
                   <div className="h-px bg-slate-100 my-2"></div>
                   <button 
                     onClick={handleLogout} 
                     className="w-full text-center px-4 py-2.5 rounded-xl text-base font-bold text-danger hover:bg-red-50 transition-all flex items-center justify-center gap-2"
                   >
-                    <LogOut size={18} /> Logout
+                    <LogOut size={18} /> {t('logout', 'Logout')}
                   </button>
                 </>
               )}
@@ -347,3 +371,4 @@ const Navbar = () => {
 };
 
 export default Navbar;
+

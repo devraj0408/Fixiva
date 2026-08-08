@@ -121,6 +121,7 @@ const Services = () => {
     e.preventDefault();
     e.stopPropagation();
 
+    const matchedCity = (cities || []).find(c => c.name === selectedCity || c.id === selectedCity || String(c.name).toLowerCase() === String(selectedCity).toLowerCase());
     const cityToUse = selectedCity || '';
     const stateToUse = selectedState || matchedCity?.region || 'Jharkhand';
     const emailToUse = user?.email || '';

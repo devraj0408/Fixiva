@@ -108,11 +108,11 @@ const WorkerDashboard = () => {
   }, [activeTab, liveTickets]);
 
   // Send Worker Support Chat Message
-  const handleSendSupportMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInputMessage.trim()) return;
+  const handleSendSupportMessage = async (e, customMsg = null) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const messageText = (customMsg || chatInputMessage).trim();
+    if (!messageText) return;
 
-    const messageText = chatInputMessage.trim();
     setChatInputMessage('');
     setChatSending(true);
 
@@ -125,12 +125,17 @@ const WorkerDashboard = () => {
     setChatSending(false);
     if (!error) {
       showToast('Message sent to Fixiva Support Desk!', 'success');
-      const { data } = await supabase
-        .from('support_tickets')
-        .select('*')
-        .eq('user_id', user?.id)
-        .order('created_at', { ascending: true });
-      if (data) setLiveTickets(data);
+      const fetchLatest = async () => {
+        const { data } = await supabase
+          .from('support_tickets')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('created_at', { ascending: true });
+        if (data) setLiveTickets(data);
+      };
+      await fetchLatest();
+      // Second poll after AI finishes processing (~600ms)
+      setTimeout(fetchLatest, 650);
     } else {
       showToast('Failed to send support message', 'error');
     }
@@ -1085,6 +1090,23 @@ const WorkerDashboard = () => {
                 ))}
                 
                 <div ref={chatBottomRef} />
+              </div>
+
+              {/* Quick AI Suggestions */}
+              <div className="px-4 py-2 bg-slate-900/90 border-t border-slate-800 flex items-center gap-2 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider shrink-0 flex items-center gap-1">
+                  <Sparkles size={11} className="text-amber-400" /> AI Suggestions:
+                </span>
+                {['How do payouts work?', 'How to increase Trust Score?', 'Verification requirements', 'Escalate to Admin'].map((prompt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={(e) => handleSendSupportMessage(e, prompt)}
+                    className="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-primary text-[10px] text-slate-300 hover:text-white border border-slate-700 font-medium whitespace-nowrap transition-all shrink-0"
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
 
               {/* Chat Input Bar */}

@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabaseClient';
 import * as staffService from '../services/staffService';
 import { submitCoverageRequest } from '../services/coverageService';
 import { getDistricts } from '../services/locationService';
+import { generateAIResponse } from '../services/aiChatService';
 
 const AppContext = createContext();
 
@@ -833,7 +834,39 @@ export const AuthProvider = ({ children }) => {
       status: 'Open',
     };
     const { data, error } = await supabase.from('support_tickets').insert(payload).select();
-    if (!error && data) setTickets((prev) => [...prev, data[0]]);
+    if (!error && data && data.length > 0) {
+      const insertedTicket = data[0];
+      setTickets((prev) => [...prev, insertedTicket]);
+
+      // Asynchronously generate AI Bot response
+      setTimeout(async () => {
+        try {
+          const aiRes = await generateAIResponse({
+            userMessage: ticket.message,
+            userRole: user?.role || 'Customer',
+            userProfile: user,
+            activeBookings: bookings || [],
+            availableServices: services || [],
+            availableCities: cities || []
+          });
+
+          if (aiRes && aiRes.text) {
+            const { error: updateError } = await supabase
+              .from('support_tickets')
+              .update({ admin_reply: aiRes.text })
+              .eq('id', insertedTicket.id);
+
+            if (!updateError) {
+              setTickets((prev) =>
+                prev.map((t) => (t.id === insertedTicket.id ? { ...t, admin_reply: aiRes.text } : t))
+              );
+            }
+          }
+        } catch (aiErr) {
+          console.error('Error generating AI ticket reply:', aiErr);
+        }
+      }, 400);
+    }
     return { data, error };
   };
 

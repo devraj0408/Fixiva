@@ -11,6 +11,7 @@ const UnifiedBookingModal = () => {
   const { isOpen, initialData = {} } = bookingModalState;
 
   const [prevIsOpen, setPrevIsOpen] = useState(false);
+  const [step, setStep] = useState(1);
   const activeServices = (services || []).filter(
     (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
   );

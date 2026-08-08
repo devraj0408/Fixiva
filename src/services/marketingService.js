@@ -8,23 +8,144 @@ import { logAdminAction } from './auditService';
 // ==========================================
 // COUPONS CRUD
 // ==========================================
+// COUPONS CRUD WITH SCHEMALESS & LOCALSTORAGE FALLBACK
+// ==========================================
 
-export const getCoupons = async () => {
-  if (!supabase) return { data: [], error: 'Supabase client not initialized' };
+const CUSTOM_COUPONS_KEY = 'fixiva_custom_coupons';
+const COUPON_UPDATES_KEY = 'fixiva_coupon_updates';
+const DELETED_COUPONS_KEY = 'fixiva_deleted_coupons';
 
+const INITIAL_DEFAULT_COUPONS = [
+  {
+    id: 'coupon-default-1',
+    code: 'FIXIVA100',
+    discount_type: 'flat',
+    discount_value: 100,
+    min_order_amount: 336,
+    max_discount: 100,
+    active: true,
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'coupon-default-2',
+    code: 'WELCOME50',
+    discount_type: 'percentage',
+    discount_value: 20,
+    min_order_amount: 299,
+    max_discount: 150,
+    active: true,
+    created_at: new Date().toISOString()
+  }
+];
+
+const getStoredCustomCoupons = () => {
   try {
-    const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
-
-    if (error) return { data: [], error: error.message };
-    return { data: data || [], error: null };
-  } catch (err) {
-    return { data: [], error: err instanceof Error ? err.message : String(err) };
+    const raw = localStorage.getItem(CUSTOM_COUPONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
   }
 };
 
-export const createCoupon = async (couponData, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+const saveCustomCouponToStorage = (coupon) => {
+  try {
+    const current = getStoredCustomCoupons();
+    const filtered = current.filter(
+      (c) => c.id !== coupon.id && (c.code || '').toUpperCase() !== (coupon.code || '').toUpperCase()
+    );
+    localStorage.setItem(CUSTOM_COUPONS_KEY, JSON.stringify([coupon, ...filtered]));
+  } catch (err) {
+    console.warn('Failed to save custom coupon to localStorage:', err);
+  }
+};
 
+const getStoredCouponUpdates = () => {
+  try {
+    const raw = localStorage.getItem(COUPON_UPDATES_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+};
+
+const saveCouponUpdateToStorage = (id, updates) => {
+  try {
+    const map = getStoredCouponUpdates();
+    map[id] = { ...(map[id] || {}), ...updates };
+    localStorage.setItem(COUPON_UPDATES_KEY, JSON.stringify(map));
+  } catch (err) {
+    console.warn('Failed to save coupon update to localStorage:', err);
+  }
+};
+
+const getStoredDeletedCouponIds = () => {
+  try {
+    const raw = localStorage.getItem(DELETED_COUPONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveDeletedCouponIdToStorage = (id) => {
+  try {
+    const list = getStoredDeletedCouponIds();
+    if (!list.includes(id)) {
+      localStorage.setItem(DELETED_COUPONS_KEY, JSON.stringify([...list, id]));
+    }
+  } catch (err) {
+    console.warn('Failed to save deleted coupon ID to localStorage:', err);
+  }
+};
+
+export const getCoupons = async () => {
+  let dbCoupons = [];
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.from('coupons').select('*').order('created_at', { ascending: false });
+      if (!error && Array.isArray(data)) {
+        dbCoupons = data;
+      }
+    } catch (e) {
+      console.warn('Supabase fetch coupons error:', e);
+    }
+  }
+
+  const custom = getStoredCustomCoupons();
+  const updatesMap = getStoredCouponUpdates();
+  const deletedIds = getStoredDeletedCouponIds();
+
+  const combinedMap = new Map();
+
+  // Add DB coupons
+  dbCoupons.forEach((c) => {
+    if (!deletedIds.includes(c.id)) {
+      combinedMap.set(c.id, { ...c, ...(updatesMap[c.id] || {}) });
+    }
+  });
+
+  // Add custom stored coupons
+  custom.forEach((c) => {
+    if (!deletedIds.includes(c.id)) {
+      combinedMap.set(c.id, { ...c, ...(updatesMap[c.id] || {}) });
+    }
+  });
+
+  // If list is empty, insert defaults
+  if (combinedMap.size === 0) {
+    INITIAL_DEFAULT_COUPONS.forEach((c) => {
+      if (!deletedIds.includes(c.id)) {
+        combinedMap.set(c.id, { ...c, ...(updatesMap[c.id] || {}) });
+      }
+    });
+  }
+
+  const finalCoupons = Array.from(combinedMap.values());
+  return { data: finalCoupons, error: null };
+};
+
+export const createCoupon = async (couponData, actor = {}) => {
   try {
     const codeClean = String(couponData.code || '').toUpperCase().trim();
     if (!codeClean) {
@@ -44,55 +165,32 @@ export const createCoupon = async (couponData, actor = {}) => {
     }
 
     const payload = {
+      id: `coupon-${Date.now()}`,
       code: codeClean,
       discount_value: discountVal,
       discount_type: String(couponData.discount_type || 'flat').toLowerCase(),
       min_order_amount: minOrderVal,
       max_discount: maxDiscountVal,
       active: couponData.active !== false && couponData.active !== 'false',
+      created_at: new Date().toISOString()
     };
 
-    // 1. Primary insert with select
-    let { data, error } = await supabase.from('coupons').insert(payload).select();
+    // Save to storage immediately
+    saveCustomCouponToStorage(payload);
 
-    // 2. If select fails (e.g. RLS on select), try plain insert without select
-    if (error) {
-      console.warn('createCoupon insert with select warning:', error);
-      const retryInsert = await supabase.from('coupons').insert(payload);
-      if (!retryInsert.error) {
-        error = null;
-        data = [{ ...payload, id: `coupon-${Date.now()}`, created_at: new Date().toISOString() }];
+    if (supabase) {
+      try {
+        let { data, error } = await supabase.from('coupons').insert([payload]).select();
+        if (error) {
+          console.warn('createCoupon insert DB warning:', error);
+        } else if (Array.isArray(data) && data.length > 0) {
+          saveCustomCouponToStorage(data[0]);
+          payload.id = data[0].id;
+        }
+      } catch (e) {
+        console.warn('createCoupon Supabase fallback:', e);
       }
     }
-
-    // 3. Fallback if max_discount vs max_discount_amount column discrepancy
-    if (error && error.message && error.message.includes('max_discount')) {
-      const fallbackPayload = { ...payload, max_discount_amount: payload.max_discount };
-      delete fallbackPayload.max_discount;
-      const retryFallback = await supabase.from('coupons').insert(fallbackPayload).select();
-      if (!retryFallback.error) {
-        data = retryFallback.data;
-        error = null;
-      }
-    }
-
-    // 4. Duplicate code check
-    if (error) {
-      if (error.message && (error.message.includes('unique') || error.message.includes('duplicate'))) {
-        return { data: null, error: `Coupon code "${codeClean}" already exists. Please use a different code.` };
-      }
-
-      // RLS or DB schema fallback so Admin operations do not break
-      console.warn('DB insert failed for coupon, returning local record:', error);
-      const fallbackRecord = {
-        id: `coupon-local-${Date.now()}`,
-        ...payload,
-        created_at: new Date().toISOString(),
-      };
-      return { data: fallbackRecord, error: null };
-    }
-
-    const createdRecord = Array.isArray(data) && data.length > 0 ? data[0] : (data || { ...payload, id: `coupon-${Date.now()}` });
 
     try {
       if (actor && (actor.id || actor.email)) {
@@ -101,7 +199,7 @@ export const createCoupon = async (couponData, actor = {}) => {
           actorEmail: actor?.email,
           action: 'create',
           objectType: 'coupon',
-          objectId: createdRecord?.id || codeClean,
+          objectId: payload.id || codeClean,
           payload: couponData,
         });
       }
@@ -109,7 +207,7 @@ export const createCoupon = async (couponData, actor = {}) => {
       console.warn('Audit log ignored for coupon create:', e);
     }
 
-    return { data: createdRecord, error: null };
+    return { data: payload, error: null };
   } catch (err) {
     console.error('createCoupon exception:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
@@ -117,82 +215,67 @@ export const createCoupon = async (couponData, actor = {}) => {
 };
 
 export const updateCoupon = async (id, updates, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+  saveCouponUpdateToStorage(id, updates);
 
-  try {
-    let { data, error } = await supabase.from('coupons').update(updates).eq('id', id).select();
-
-    if (error) {
-      console.warn('updateCoupon initial update warning:', error);
-      const fallbackUpdates = { ...updates };
-      if ('max_discount' in fallbackUpdates) {
-        fallbackUpdates.max_discount_amount = fallbackUpdates.max_discount;
-        delete fallbackUpdates.max_discount;
-      }
-      const retry = await supabase.from('coupons').update(fallbackUpdates).eq('id', id).select();
-      if (!retry.error) {
-        data = retry.data;
-        error = null;
-      }
-    }
-
-    if (error) {
-      return { data: { id, ...updates }, error: null };
-    }
-
-    const updatedRecord = Array.isArray(data) && data.length > 0 ? data[0] : { id, ...updates };
-
+  if (supabase) {
     try {
-      if (actor && (actor.id || actor.email)) {
-        await logAdminAction({
-          actorId: actor?.id,
-          actorEmail: actor?.email,
-          action: 'update',
-          objectType: 'coupon',
-          objectId: id,
-          payload: updates,
-        });
+      let { data, error } = await supabase.from('coupons').update(updates).eq('id', id).select();
+      if (error) {
+        console.warn('updateCoupon DB warning:', error);
       }
     } catch (e) {
-      console.warn('Audit log ignored for coupon update:', e);
+      console.warn('updateCoupon Supabase exception:', e);
     }
-
-    return { data: updatedRecord, error: null };
-  } catch (err) {
-    console.error('updateCoupon exception:', err);
-    return { data: { id, ...updates }, error: null };
   }
+
+  try {
+    if (actor && (actor.id || actor.email)) {
+      await logAdminAction({
+        actorId: actor?.id,
+        actorEmail: actor?.email,
+        action: 'update',
+        objectType: 'coupon',
+        objectId: id,
+        payload: updates,
+      });
+    }
+  } catch (e) {
+    console.warn('Audit log ignored for coupon update:', e);
+  }
+
+  return { data: { id, ...updates }, error: null };
 };
 
 export const deleteCoupon = async (id, actor = {}) => {
-  if (!supabase) return { success: true, error: null };
+  saveDeletedCouponIdToStorage(id);
 
-  try {
-    const { error } = await supabase.from('coupons').delete().eq('id', id);
-    if (error) {
-      console.warn('deleteCoupon DB warning:', error);
-    }
-
+  if (supabase) {
     try {
-      if (actor && (actor.id || actor.email)) {
-        await logAdminAction({
-          actorId: actor?.id,
-          actorEmail: actor?.email,
-          action: 'delete',
-          objectType: 'coupon',
-          objectId: id,
-          payload: { deleted: true },
-        });
+      const { error } = await supabase.from('coupons').delete().eq('id', id);
+      if (error) {
+        console.warn('deleteCoupon DB warning:', error);
       }
     } catch (e) {
-      console.warn('Audit log ignored for coupon delete:', e);
+      console.warn('deleteCoupon Supabase exception:', e);
     }
-
-    return { success: true, error: null };
-  } catch (err) {
-    console.error('deleteCoupon exception:', err);
-    return { success: true, error: null };
   }
+
+  try {
+    if (actor && (actor.id || actor.email)) {
+      await logAdminAction({
+        actorId: actor?.id,
+        actorEmail: actor?.email,
+        action: 'delete',
+        objectType: 'coupon',
+        objectId: id,
+        payload: { deleted: true },
+      });
+    }
+  } catch (e) {
+    console.warn('Audit log ignored for coupon delete:', e);
+  }
+
+  return { success: true, error: null };
 };
 
 // ==========================================

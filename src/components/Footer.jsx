@@ -1,7 +1,10 @@
 import { Link } from 'react-router-dom';
 import { Mail, MapPin, Share2 } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const Footer = () => {
+  const { t } = useLanguage();
+
   return (
     <footer className="bg-slate-950 text-slate-400 border-t border-slate-800/80">
       <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
@@ -61,7 +64,7 @@ const Footer = () => {
               </svg>
             </Link>
             <p className="text-sm text-slate-400 leading-relaxed font-medium">
-              One App. Every Solution. <br/>Everything Your Home Needs.
+              {t('footerTagline', 'Fixiva is a modern home-service control plane connecting customers with verified professionals.')}
             </p>
             <div className="flex items-center gap-3">
               <a 
@@ -76,31 +79,31 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">Quick Links</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('quickLinks', 'Quick Links')}</h4>
             <ul className="space-y-3.5 text-sm font-medium">
               <li>
                 <Link to="/services" className="hover:text-white transition-colors">
-                  All Services
+                  {t('services', 'Services')}
                 </Link>
               </li>
               <li>
                 <Link to="/help" className="hover:text-white transition-colors">
-                  Help Center
+                  {t('helpCenter', 'Help Center')}
                 </Link>
               </li>
               <li>
                 <Link to="/help?tab=about" className="hover:text-white transition-colors">
-                  About Us
+                  {t('about', 'About')}
                 </Link>
               </li>
               <li>
                 <Link to="/contact" className="hover:text-white transition-colors">
-                  Contact Us
+                  {t('support', 'Support')}
                 </Link>
               </li>
               <li>
                 <Link to="/register?role=worker" className="hover:text-white transition-colors text-primary font-bold">
-                  Become a Partner
+                  {t('joinFixiva', 'Join Fixiva')}
                 </Link>
               </li>
             </ul>
@@ -108,7 +111,7 @@ const Footer = () => {
 
           {/* Legal Links */}
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">Legal Info</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('legalPolicies', 'Legal & Policies')}</h4>
             <ul className="space-y-3.5 text-sm font-medium">
               <li>
                 <Link to="/privacy" className="hover:text-white transition-colors">
@@ -135,7 +138,7 @@ const Footer = () => {
 
           {/* Contact Details */}
           <div className="space-y-6">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">Contact Us</h4>
+            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('contactInfo', 'Contact Information')}</h4>
             <div className="space-y-4 text-sm font-medium">
               <div className="flex items-center gap-3">
                 <Mail size={16} className="text-primary shrink-0" />
@@ -148,18 +151,12 @@ const Footer = () => {
                 <span className="text-slate-400">Deoghar, Jharkhand, India</span>
               </div>
             </div>
-            <div className="inline-block px-3 py-1.5 bg-slate-800 border border-slate-700/50 rounded-lg text-[10px] font-bold text-primary tracking-wider uppercase">
-              Digital Payments Coming Soon
-            </div>
           </div>
         </div>
 
         {/* Footer Bottom */}
         <div className="mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium">
-          <p>&copy; {new Date().getFullYear()} Fixiva Services. All rights reserved.</p>
-          <div className="flex gap-4">
-            <span className="text-slate-500">Tagline: Everything Your Home Needs.</span>
-          </div>
+          <p>&copy; {new Date().getFullYear()} Fixiva Services. {t('allRightsReserved', 'All rights reserved.')}</p>
         </div>
       </div>
     </footer>

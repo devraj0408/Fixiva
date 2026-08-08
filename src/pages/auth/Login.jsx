@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { isAdminRole } from '../../lib/adminAccess';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
   const { requestOtp, verifyOtp, user, isAuthenticated, showToast } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [otp, setOtp] = useState('');
@@ -21,8 +23,8 @@ const Login = () => {
   const resendDisabled = countdown > 0;
   const [attempts, setAttempts] = useState(0);
 
-  const title = 'Welcome Back';
-  const subtitle = 'Enter your email to receive a secure OTP.';
+  const title = t('loginTitle', 'Welcome Back');
+  const subtitle = t('loginSubtitle', 'Enter your email to receive a secure OTP.');
 
   // Redirect automatically if already logged in based on database role
   useEffect(() => {
@@ -297,13 +299,13 @@ const Login = () => {
           <form className="space-y-5" onSubmit={otpSent ? handleVerifyOtp : handleRequestOtp}>
             {!otpSent ? (
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email Address</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
                 <div className="relative">
                   <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
                   <input
                     type="email"
                     className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                    placeholder="name@email.com"
+                    placeholder={t('emailPlaceholder', 'name@email.com')}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                   />
@@ -314,7 +316,7 @@ const Login = () => {
               <div className="space-y-4">
                 <div className="text-center bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
                   <p className="text-xs text-slate-500 font-semibold mb-1.5">
-                    Verification code sent to:
+                    {t('codeSentTo', 'Verification code sent to:')}
                   </p>
                   <p className="text-xs font-black text-slate-850 break-all">{identifier}</p>
                   <button
@@ -330,12 +332,12 @@ const Login = () => {
                     }}
                     className="text-primary hover:underline text-[11px] font-bold mt-2 inline-flex items-center gap-1"
                   >
-                    Change Email
+                    {t('changeEmail', 'Change Email')}
                   </button>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block text-center">Enter Verification Code</label>
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block text-center">{t('enterCodeLabel', 'Enter Verification Code')}</label>
                   <div className="flex gap-2 justify-center my-4" onPaste={handlePaste}>
                     {otpValues.map((val, idx) => (
                       <input
@@ -361,7 +363,7 @@ const Login = () => {
                 <div className="text-center pt-1">
                   {resendDisabled ? (
                     <p className="text-[11px] text-slate-400 font-semibold">
-                      Resend code in <span className="text-slate-700 font-bold">{countdown}s</span>
+                      {t('resendIn', 'Resend code in')} <span className="text-slate-700 font-bold">{countdown}s</span>
                     </p>
                   ) : (
                     <button
@@ -370,7 +372,7 @@ const Login = () => {
                       disabled={loading}
                       className="text-primary hover:underline text-[11px] font-bold disabled:opacity-50"
                     >
-                      Resend Verification Code
+                      {t('resendBtn', 'Resend Verification Code')}
                     </button>
                   )}
                 </div>
@@ -388,12 +390,12 @@ const Login = () => {
                 <Loader2 className="animate-spin" size={16} />
               ) : otpSent ? (
                 <>
-                  Verify Code
+                  {t('verifyCodeBtn', 'Verify Code')}
                   <ArrowRight size={16} />
                 </>
               ) : (
                 <>
-                  Continue
+                  {t('continueBtn', 'Continue')}
                   <ArrowRight size={16} />
                 </>
               )}
@@ -402,13 +404,13 @@ const Login = () => {
 
           <div className="space-y-4 pt-4 border-t border-slate-100 text-center">
             <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
-              Passwordless secure access
+              {t('passwordlessNote', 'Passwordless secure access')}
             </div>
             <div className="text-center pt-2">
               <p className="text-xs text-slate-500 font-medium">
-                Don't have an account?{' '}
+                {t('dontHaveAccount', "Don't have an account?")}{' '}
                 <Link to="/register" className="text-primary font-bold hover:underline">
-                  Create one now
+                  {t('createOneNow', 'Create one now')}
                 </Link>
               </p>
             </div>

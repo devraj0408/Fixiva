@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 
 import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
@@ -13,6 +14,7 @@ const Register = () => {
   const [role, setRole] = useState(initialRole === 'worker' || initialRole === 'contractor' ? initialRole : 'customer');
 
   const { requestOtp, verifyOtp, showToast, user, isAuthenticated } = useApp();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState('');
@@ -345,14 +347,14 @@ const Register = () => {
     <div className="max-w-2xl mx-auto px-4 py-16">
       <div className="bg-white rounded-3xl border border-slate-100 p-8 sm:p-12 shadow-xl shadow-slate-100/50 space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Create an Account</h1>
-          <p className="text-xs text-slate-400 font-semibold">Join Fixiva with a secure one-time verification code.</p>
+          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('registerTitle', 'Create Account')}</h1>
+          <p className="text-xs text-slate-400 font-semibold">{t('registerSubtitle', 'Join Fixiva as a Customer, Worker, or Partner.')}</p>
         </div>
 
         <div className="flex flex-col items-center justify-center gap-3">
           <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
             <span className="rounded-full bg-primary/10 p-1 text-primary"><User size={12} /></span>
-            Joining as {role === 'worker' ? 'Worker' : role === 'contractor' ? 'Contractor' : 'Customer'}
+            Joining as {role === 'worker' ? t('workerRole', 'Worker') : role === 'contractor' ? t('contractorRole', 'Contractor') : t('customerRole', 'Customer')}
           </div>
           <div className="grid grid-cols-3 gap-3 w-full max-w-md">
             {['customer', 'worker', 'contractor'].map((option) => (
@@ -365,7 +367,7 @@ const Register = () => {
                 }}
                 disabled={otpSent}
               >
-                {option === 'customer' ? 'Customer' : option === 'worker' ? 'Worker' : 'Contractor'}
+                {option === 'customer' ? t('customerRole', 'Customer') : option === 'worker' ? t('workerRole', 'Worker') : t('contractorRole', 'Contractor')}
               </button>
             ))}
           </div>
@@ -379,7 +381,7 @@ const Register = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Full Name</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('fullNameLabel', 'Full Name')}</label>
                     <div className="relative">
                       <User className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
                       <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Rahul Sharma" />
@@ -388,7 +390,7 @@ const Register = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email Address</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
                     <div className="relative">
                       <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
                       <input type="email" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="name@email.com" />
@@ -399,7 +401,7 @@ const Register = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Operating City</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('cityLabel', 'Operating City')}</label>
                     <HierarchicalLocationSelector
                       selectedState={typeof formData.state === 'string' ? formData.state : (formData.state?.state || '')}
                       selectedDistrict={typeof formData.city === 'string' ? formData.city : (formData.city?.district || '')}
@@ -417,7 +419,7 @@ const Register = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mobile Number</label>
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('phoneLabel', 'Mobile Number')}</label>
                     <div className="relative">
                       <Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
                       <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="10-digit mobile" />

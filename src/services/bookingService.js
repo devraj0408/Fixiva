@@ -35,9 +35,6 @@ export const findAvailableProfessionals = async ({
   }
 
   try {
-    const targetLat = userLat || 23.3700;
-    const targetLng = userLng || 85.3300;
-
     // 2. Fetch Active Workers & Profiles
     let rawWorkers = [];
     let rawContractors = [];

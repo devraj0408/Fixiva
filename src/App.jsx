@@ -5,11 +5,13 @@ import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
 import { CmsProvider } from './context/CmsContext';
 import { ToastProvider } from './context/ToastContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { getRouterBasename } from './lib/routePaths';
 
 
 import ScrollToTop from './components/ScrollToTop';
 import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
+import AIChatBotWidget from './components/support/AIChatBotWidget';
 
 const Home = React.lazy(() => import('./pages/Home'));
 const Services = React.lazy(() => import('./pages/Services'));
@@ -131,6 +133,7 @@ function AppShell() {
         </main>
         <Footer />
         <UnifiedBookingModal />
+        <AIChatBotWidget />
       </div>
     </Router>
   );
@@ -139,11 +142,13 @@ function AppShell() {
 function App() {
   return (
     <ToastProvider>
-      <AppProvider>
-        <CmsProvider>
-          <AppShell />
-        </CmsProvider>
-      </AppProvider>
+      <LanguageProvider>
+        <AppProvider>
+          <CmsProvider>
+            <AppShell />
+          </CmsProvider>
+        </AppProvider>
+      </LanguageProvider>
     </ToastProvider>
   );
 }

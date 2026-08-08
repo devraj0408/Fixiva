@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { useCms } from '../context/CmsContext';
+import { useLanguage } from '../context/LanguageContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 import { detectCurrentLocation } from '../services/locationService';
 
@@ -35,6 +36,7 @@ const IconMap = {
 const Home = () => {
   const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
   const { reviews: cmsReviews } = useCms();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const activeServices = useMemo(() => {
@@ -118,8 +120,11 @@ const Home = () => {
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       s.id === searchQuery.toLowerCase()
     );
-    const serviceId = matchedService?.id || searchQuery.toLowerCase() || 'electrician';
-    navigate(`/book/${serviceId}?state=${encodeURIComponent(selectedState)}&district=${encodeURIComponent(selectedDistrict)}&locality=${encodeURIComponent(selectedLocality)}`);
+    if (matchedService) {
+      navigate(`/book/${matchedService.id}`);
+    } else {
+      navigate('/services');
+    }
   };
 
   // Animation variants
@@ -152,24 +157,24 @@ const Home = () => {
             transition={{ duration: 0.6 }}
           >
             <div className="section-label">
-              <ShieldCheck size={13} /> Official Marketplace
+              <ShieldCheck size={13} /> {t('heroBadge', 'OFFICIAL MARKETPLACE')}
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-[0.95]">
-              One App.<br/>
+              {t('heroTitle1', 'One App.')}<br/>
               <span className="hero-title-highlight">
-                Every Solution.
+                {t('heroTitle2', 'Every Solution.')}
               </span>
             </h1>
 
             <p className="text-lg text-slate-600 font-medium max-w-xl leading-8">
-              Book professional home services with instant dispatch, verified experts, and a clear experience from first click to final service.
+              {t('heroSubtitle', 'Book professional home services with instant dispatch, verified experts, and a clear experience from first click to final service.')}
             </p>
 
             <div className="flex flex-wrap gap-3">
-              <span className="stat-pill"><ShieldCheck size={15} className="text-primary" /> Background Verified</span>
-              <span className="stat-pill"><Clock size={15} className="text-primary" /> Quick Booking</span>
-              <span className="stat-pill"><Lock size={15} className="text-primary" /> Secure Booking</span>
+              <span className="stat-pill"><ShieldCheck size={15} className="text-primary" /> {t('backgroundVerified', 'Background Verified')}</span>
+              <span className="stat-pill"><Clock size={15} className="text-primary" /> {t('quickBooking', 'Quick Booking')}</span>
+              <span className="stat-pill"><Lock size={15} className="text-primary" /> {t('secureBooking', 'Secure Booking')}</span>
             </div>
 
             {/* Premium search & Location controls */}
@@ -178,7 +183,7 @@ const Home = () => {
                 <Search size={18} className="text-slate-400 shrink-0" />
                 <input 
                   type="text" 
-                  placeholder="What service do you need? (e.g. Electrician, Plumber, AC Repair)" 
+                  placeholder={t('searchPlaceholder', 'What service do you need? (e.g. Electrician, Plumber, AC Repair)')} 
                   className="w-full bg-transparent border-0 outline-none text-slate-800 text-sm font-semibold placeholder-slate-400 focus:ring-0"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -219,7 +224,7 @@ const Home = () => {
                     type="submit" 
                     className="btn-primary text-xs font-extrabold px-5 py-2.5 rounded-xl shrink-0 flex items-center justify-center gap-1.5 shadow-md"
                   >
-                    Book Now
+                    {t('bookNowBtn', 'Book Now')}
                     <ArrowRight size={15} />
                   </button>
                 </div>
@@ -238,16 +243,16 @@ const Home = () => {
               <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-[2rem] opacity-10 blur-3xl"></div>
               <div className="absolute -bottom-6 -left-6 hero-panel rounded-[1.4rem] p-5 min-w-[240px] z-20 space-y-2.5 shadow-xl border border-slate-100/80 bg-white/95 backdrop-blur-md">
                 <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
-                  <span className="text-emerald-500 text-sm font-bold">✔</span> Verified Professionals
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> {t('verifiedPros', 'Verified Professionals')}
                 </div>
                 <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
-                  <span className="text-emerald-500 text-sm font-bold">✔</span> Transparent Pricing
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> {t('transparentPricing', 'Transparent Pricing')}
                 </div>
                 <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
-                  <span className="text-emerald-500 text-sm font-bold">✔</span> Quality Assured Services
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> {t('qualityAssured', 'Quality Assured Services')}
                 </div>
                 <div className="flex items-center gap-2 text-slate-800 text-[11px] font-extrabold">
-                  <span className="text-emerald-500 text-sm font-bold">✔</span> Easy Booking Experience
+                  <span className="text-emerald-500 text-sm font-bold">✔</span> {t('easyBooking', 'Easy Booking Experience')}
                 </div>
               </div>
               <img 
