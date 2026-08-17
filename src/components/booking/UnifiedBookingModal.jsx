@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
+import RapidoLocationSelector from '../location/RapidoLocationSelector';
 import { findAvailableProfessionals, createBooking } from '../../services/bookingService';
 import { submitCoverageRequest } from '../../services/coverageService';
 
@@ -135,32 +136,37 @@ const UnifiedBookingModal = () => {
             <div className="space-y-4">
               {step === 1 && (
                 <div className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-700">Service Location</label>
-                    <HierarchicalLocationSelector
-                      selectedState={selectedState}
-                      selectedDistrict={selectedDistrict}
-                      selectedLocality={selectedLocality}
-                      onChange={({ state, district, locality }) => {
-                        setSelectedState(state);
-                        setSelectedDistrict(district);
-                        setSelectedLocality(locality);
-                      }}
-                      statePlaceholder="State"
-                      districtPlaceholder="District"
-                      localityPlaceholder="Locality"
-                      layout="col"
-                    />
-                  </div>
-
-                  <button
-                    onClick={handleSearchPros}
-                    disabled={matchingLoading || !selectedDistrict}
-                    className="btn-primary w-full py-3 text-xs font-bold rounded-xl shadow-md flex items-center justify-center gap-1.5"
-                  >
-                    {matchingLoading ? 'Searching...' : 'Find Nearby Specialists'}
-                    <ArrowRight size={15} />
-                  </button>
+                  <RapidoLocationSelector
+                    initialState={selectedState}
+                    initialDistrict={selectedDistrict}
+                    initialLocality={selectedLocality}
+                    onLocationConfirmed={async (loc) => {
+                      setSelectedState(loc.state);
+                      setSelectedDistrict(loc.district);
+                      setSelectedLocality(loc.locality);
+                      setMatchingLoading(true);
+                      try {
+                        const res = await findAvailableProfessionals({
+                          serviceId,
+                          state: loc.state,
+                          district: loc.district,
+                          locality: loc.locality,
+                          userLat: loc.latitude,
+                          userLng: loc.longitude
+                        });
+                        setIsDistrictActiveStatus(res.districtActive);
+                        setAvailablePros(res.professionals || []);
+                        if (res.professionals && res.professionals.length > 0) {
+                          setSelectedPro(res.professionals[0]);
+                        }
+                        setStep(2);
+                      } catch {
+                        showToast('Error matching professionals', 'error');
+                      } finally {
+                        setMatchingLoading(false);
+                      }
+                    }}
+                  />
                 </div>
               )}
 

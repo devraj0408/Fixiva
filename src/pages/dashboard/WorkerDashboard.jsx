@@ -27,6 +27,7 @@ import {
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
 import { uploadImage } from '../../services/storageService';
+import { updateWorkerLiveLocation } from '../../services/locationService';
 
 const WorkerDashboard = () => {
   const {
@@ -61,6 +62,29 @@ const WorkerDashboard = () => {
   const [photoUrl, setPhotoUrl] = useState(user?.profile_photo_url || '');
   const photoFileInputRef = useRef(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+
+  // Worker Live Location State & Toggle
+  const [liveLocationEnabled, setLiveLocationEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`fixiva_worker_live_loc_${user?.id}`);
+      return saved !== null ? JSON.parse(saved) : true;
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleLiveLocation = () => {
+    const nextState = !liveLocationEnabled;
+    setLiveLocationEnabled(nextState);
+    try {
+      localStorage.setItem(`fixiva_worker_live_loc_${user?.id}`, JSON.stringify(nextState));
+    } catch (e) { void e; }
+    if (nextState) {
+      showToast('Live location is on', 'success');
+    } else {
+      showToast('Live location is off', 'info');
+    }
+  };
 
   // Worker Realtime Support Chat State
   const [liveTickets, setLiveTickets] = useState([]);
@@ -268,6 +292,43 @@ const WorkerDashboard = () => {
   const pendingJobs = useMemo(() => {
     return myJobs.filter((b) => ['Pending', 'New Request', 'Assigned'].includes(b.status));
   }, [myJobs]);
+
+  const activeAssignedJob = useMemo(() => {
+    return myJobs.find((b) => ['Assigned', 'In Progress', 'Accepted', 'On The Way'].includes(b.status));
+  }, [myJobs]);
+
+  // GPS Watcher for Active Assigned Job
+  useEffect(() => {
+    if (!liveLocationEnabled || !activeAssignedJob || !user?.id || !navigator.geolocation) return;
+
+    let watchId = null;
+    try {
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          updateWorkerLiveLocation({
+            workerId: user.id,
+            latitude: lat,
+            longitude: lng,
+            address: 'Active Job GPS'
+          });
+        },
+        (err) => {
+          console.warn('Worker GPS watch error:', err);
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+      );
+    } catch (e) {
+      console.warn('Failed to start worker geolocation watchPosition:', e);
+    }
+
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [liveLocationEnabled, activeAssignedJob, user?.id]);
 
   const activeJobs = useMemo(() => {
     return myJobs.filter((b) => ['Accepted', 'Worker Assigned', 'Confirmed', 'On The Way', 'Work Started', 'In Progress'].includes(b.status));
@@ -1147,6 +1208,47 @@ const WorkerDashboard = () => {
                 <h2 className="text-xl font-black text-slate-900 tracking-tight">Worker Operations Desk</h2>
                 <p className="text-sm text-slate-500">Welcome back, {user?.name || 'Partner'}! Here is your daily work dispatch overview.</p>
               </div>
+            </div>
+
+            {/* Live Location Toggle Banner */}
+            <div className="p-4 sm:p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3.5">
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm ${
+                  liveLocationEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
+                }`}>
+                  📍
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-black text-slate-900">
+                      {liveLocationEnabled ? 'Live location is on' : 'Live location is off'}
+                    </h4>
+                    {liveLocationEnabled && (
+                      <span className="flex h-2.5 w-2.5 relative">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    {activeAssignedJob 
+                      ? `Tracking active for job #${activeAssignedJob.id} (${activeAssignedJob.service_name || 'Service'})` 
+                      : 'Automatic GPS tracking active during assigned jobs only.'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={toggleLiveLocation}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm cursor-pointer ${
+                  liveLocationEnabled
+                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    : 'bg-slate-200 hover:bg-slate-300 text-slate-700'
+                }`}
+              >
+                {liveLocationEnabled ? 'Turn OFF Live Location' : 'Turn ON Live Location'}
+              </button>
             </div>
 
             {/* Metric Cards */}

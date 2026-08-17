@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import RapidoLocationSelector from '../components/location/RapidoLocationSelector';
 import { detectCurrentLocation } from '../services/locationService';
 import { findAvailableProfessionals, createBooking } from '../services/bookingService';
 import { submitCoverageRequest } from '../services/coverageService';
@@ -334,143 +335,36 @@ const BookingFlow = () => {
         {/* STEP 2: CHOOSE LOCATION */}
         {step === 2 && (
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
-              <div className="border-b border-slate-100 pb-4">
-                <h2 className="text-xl font-black text-slate-900">Select Service Location</h2>
-                <p className="text-xs text-slate-500 mt-1">We match verified experts available in your locality.</p>
-              </div>
+            <RapidoLocationSelector
+              initialState={selectedState}
+              initialDistrict={selectedDistrict}
+              initialLocality={selectedLocality}
+              initialAddress={addressLine}
+              initialLat={userLat}
+              initialLng={userLng}
+              onLocationConfirmed={(loc) => {
+                setManualState(loc.state);
+                setManualDistrict(loc.district);
+                setManualLocality(loc.locality);
+                setDetectedState(loc.state);
+                setDetectedDistrict(loc.district);
+                setDetectedLocality(loc.locality);
+                setDetectedLat(loc.latitude);
+                setDetectedLng(loc.longitude);
+                if (loc.formattedAddress) setAddressLine(loc.formattedAddress);
+                setLocationMode('gps');
+                setStep(3);
+              }}
+            />
 
-              {/* Option A: Use Current GPS Location */}
-              <div
-                onClick={() => {
-                  setLocationMode('gps');
-                  handleDetectGps();
-                }}
-                className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-3 ${
-                  locationMode === 'gps'
-                    ? 'bg-blue-50/70 border-primary ring-2 ring-primary/20 shadow-md'
-                    : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
-                }`}
+            <div className="flex justify-between items-center px-2">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
               >
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm text-lg ${
-                      locationMode === 'gps' ? 'bg-primary text-white' : 'bg-slate-200 text-slate-600'
-                    }`}>
-                      🎯
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="location_selection_mode"
-                          checked={locationMode === 'gps'}
-                          onChange={() => {
-                            setLocationMode('gps');
-                            handleDetectGps();
-                          }}
-                          className="w-4 h-4 text-primary focus:ring-primary cursor-pointer"
-                        />
-                        <h3 className="text-sm font-black text-slate-900">Option A: Auto-Detect GPS Location</h3>
-                      </div>
-                      <p className="text-xs text-slate-500 mt-0.5 font-medium">Use precise GPS coordinates. Manual location will be ignored when active.</p>
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setLocationMode('gps');
-                      handleDetectGps();
-                    }}
-                    disabled={detectingGps}
-                    className="btn-primary text-xs px-4 py-2.5 rounded-xl shrink-0 flex items-center gap-1.5 shadow-sm"
-                  >
-                    {detectingGps ? 'Detecting...' : 'Detect My Location'}
-                  </button>
-                </div>
-
-                {locationMode === 'gps' && (
-                  <div className="p-3 rounded-xl bg-white border border-blue-100 flex items-center justify-between text-xs font-bold text-slate-800">
-                    <span className="flex items-center gap-1.5 text-primary">
-                      <span>✓ Active Mode:</span> 📍 {detectedLocality || 'Lalpur'}, {detectedDistrict || 'Ranchi'}, {detectedState || 'Jharkhand'}
-                    </span>
-                    <span className="text-[10px] font-black text-blue-600 uppercase bg-blue-50 px-2 py-0.5 rounded">GPS Active</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Option B: Manual Location Selection */}
-              <div
-                onClick={() => setLocationMode('manual')}
-                className={`p-5 rounded-2xl border transition-all cursor-pointer space-y-4 ${
-                  locationMode === 'manual'
-                    ? 'bg-white border-primary ring-2 ring-primary/20 shadow-md'
-                    : 'bg-slate-50/50 border-slate-200 hover:border-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="location_selection_mode"
-                      checked={locationMode === 'manual'}
-                      onChange={() => setLocationMode('manual')}
-                      className="w-4 h-4 text-primary focus:ring-primary cursor-pointer"
-                    />
-                    <div>
-                      <h3 className="text-sm font-black text-slate-900">Option B: Manual Location Selection</h3>
-                      <p className="text-xs text-slate-500 font-medium">Select State, District, and Locality manually. GPS will be ignored when active.</p>
-                    </div>
-                  </div>
-
-                  {locationMode === 'manual' && (
-                    <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-1 rounded-md">
-                      Manual Active
-                    </span>
-                  )}
-                </div>
-
-                <div onClick={(e) => e.stopPropagation()} className="pt-1">
-                  <HierarchicalLocationSelector
-                    selectedState={manualState}
-                    selectedDistrict={manualDistrict}
-                    selectedLocality={manualLocality}
-                    onChange={({ state, district, locality }) => {
-                      setManualState(state);
-                      setManualDistrict(district);
-                      setManualLocality(locality);
-                      setLocationMode('manual'); // Strictly switch to manual mode
-                    }}
-                    statePlaceholder="Select State"
-                    districtPlaceholder="Select District"
-                    localityPlaceholder="Select Locality"
-                    variant="boxed"
-                    layout="col"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 flex justify-between items-center border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setStep(1)}
-                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
-                >
-                  <ArrowLeft size={14} /> Back
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setStep(3)}
-                  disabled={!selectedDistrict || !selectedLocality}
-                  className="btn-primary text-xs px-6 py-3 rounded-xl flex items-center gap-1.5 shadow-md"
-                >
-                  Search Nearby Pros
-                  <ArrowRight size={15} />
-                </button>
-              </div>
+                <ArrowLeft size={14} /> Back to Services
+              </button>
             </div>
           </motion.div>
         )}

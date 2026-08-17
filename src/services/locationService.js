@@ -329,29 +329,8 @@ export const detectCurrentLocation = async () => {
     const lng = coords?.longitude || 85.3300;
 
     if (coords) {
-      try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-          headers: { 'Accept-Language': 'en' }
-        });
-        const data = await res.json();
-        if (data && data.address) {
-          const addr = data.address;
-          const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
-          const state = addr.state || 'Jharkhand';
-          const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
-          return {
-            latitude: lat,
-            longitude: lng,
-            state,
-            district,
-            locality,
-            pincode: addr.postcode || '834001',
-            formattedAddress: `${locality}, ${district}, ${state}`
-          };
-        }
-      } catch (e) {
-        console.warn('Reverse geocode fetch failed, using coordinate fallback:', e);
-      }
+      const res = await reverseGeocodeCoords(lat, lng);
+      if (res) return res;
     }
 
     return {
@@ -375,6 +354,85 @@ export const detectCurrentLocation = async () => {
       formattedAddress: 'Lalpur, Ranchi, Jharkhand 834001'
     };
   }
+};
+
+export const reverseGeocodeCoords = async (latitude, longitude) => {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (isNaN(lat) || isNaN(lng)) return null;
+
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+      headers: { 'Accept-Language': 'en' }
+    });
+    const data = await res.json();
+    if (data && data.address) {
+      const addr = data.address;
+      const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
+      const state = addr.state || 'Jharkhand';
+      const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
+      const pincode = addr.postcode || '834001';
+      const formattedAddress = data.display_name || `${locality}, ${district}, ${state} ${pincode}`;
+
+      return {
+        latitude: lat,
+        longitude: lng,
+        state,
+        district,
+        locality,
+        pincode,
+        formattedAddress
+      };
+    }
+  } catch (err) {
+    console.warn('reverseGeocodeCoords error:', err);
+  }
+
+  return {
+    latitude: lat,
+    longitude: lng,
+    state: 'Jharkhand',
+    district: 'Ranchi',
+    locality: 'Lalpur',
+    pincode: '834001',
+    formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}, Ranchi, Jharkhand`
+  };
+};
+
+export const searchAddressNominatim = async (query) => {
+  if (!query || !query.trim()) return [];
+
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&countrycodes=in`,
+      { headers: { 'Accept-Language': 'en' } }
+    );
+    const data = await res.json();
+    if (Array.isArray(data)) {
+      return data.map((item) => {
+        const addr = item.address || {};
+        const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
+        const state = addr.state || 'Jharkhand';
+        const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
+        const pincode = addr.postcode || '834001';
+
+        return {
+          id: item.place_id || String(Math.random()),
+          formattedAddress: item.display_name,
+          latitude: parseFloat(item.lat),
+          longitude: parseFloat(item.lon),
+          state,
+          district,
+          locality,
+          pincode
+        };
+      });
+    }
+  } catch (err) {
+    console.warn('searchAddressNominatim error:', err);
+  }
+
+  return [];
 };
 
 export const getRecentLocations = () => {
