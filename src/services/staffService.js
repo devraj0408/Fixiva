@@ -38,12 +38,13 @@ const ensureContractorExists = async (contractorId, city) => {
     const { data } = await supabase
       .from('contractors')
       .select('id')
-      .eq('id', contractorId)
+      .or(`profile_id.eq.${contractorId},id.eq.${contractorId}`)
       .maybeSingle();
 
     if (!data) {
       await supabase.from('contractors').upsert({
         id: contractorId,
+        profile_id: contractorId,
         company: 'Contractor Agency',
         status: 'Active',
         city: city || 'Ranchi'

@@ -67,12 +67,25 @@ export const getWorkers = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
 
   try {
-    const [{ data: workers, error: wErr }, { data: profiles, error: pErr }] = await Promise.all([
-      supabase.from('workers').select('*'),
-      supabase.from('profiles').select('*').eq('role', 'worker'),
-    ]);
+    let workers = [];
+    let profiles = [];
+    let wErr = null;
+    let pErr = null;
 
-    if (wErr && pErr) return { data: [], error: wErr?.message || pErr?.message };
+    try {
+      const [wRes, pRes] = await Promise.all([
+        supabase.from('workers').select('*'),
+        supabase.from('profiles').select('*').eq('role', 'worker'),
+      ]);
+      workers = wRes.data || [];
+      profiles = pRes.data || [];
+      wErr = wRes.error;
+      pErr = pRes.error;
+    } catch (e) {
+      console.warn('getWorkers RLS query fallback:', e);
+    }
+
+    if (wErr && pErr && workers.length === 0 && profiles.length === 0) return { data: [], error: wErr?.message || pErr?.message };
 
     const workerMap = new Map();
 
@@ -135,12 +148,25 @@ export const getContractors = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
 
   try {
-    const [{ data: contractors, error: cErr }, { data: profiles, error: pErr }] = await Promise.all([
-      supabase.from('contractors').select('*'),
-      supabase.from('profiles').select('*').eq('role', 'contractor'),
-    ]);
+    let contractors = [];
+    let profiles = [];
+    let cErr = null;
+    let pErr = null;
 
-    if (cErr && pErr) return { data: [], error: cErr?.message || pErr?.message };
+    try {
+      const [cRes, pRes] = await Promise.all([
+        supabase.from('contractors').select('*'),
+        supabase.from('profiles').select('*').eq('role', 'contractor'),
+      ]);
+      contractors = cRes.data || [];
+      profiles = pRes.data || [];
+      cErr = cRes.error;
+      pErr = pRes.error;
+    } catch (e) {
+      console.warn('getContractors RLS query fallback:', e);
+    }
+
+    if (cErr && pErr && contractors.length === 0 && profiles.length === 0) return { data: [], error: cErr?.message || pErr?.message };
 
     const contractorMap = new Map();
 

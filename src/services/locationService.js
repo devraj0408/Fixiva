@@ -641,3 +641,87 @@ export const getCoverageRequests = async () => {
   const { getCoverageRequests: getCoverageRequestsFromCoverageService } = await import('./coverageService');
   return getCoverageRequestsFromCoverageService();
 };
+
+// ==========================================
+// WORKER LIVE LOCATION RLS ENGINE
+// ==========================================
+
+export const updateWorkerLiveLocation = async ({ workerId, latitude, longitude, address = '' }) => {
+  if (!supabase || !workerId) return { data: null, error: 'Supabase client or workerId missing' };
+
+  try {
+    const payload = {
+      worker_id: workerId,
+      latitude: Number(latitude),
+      longitude: Number(longitude),
+      address: String(address || ''),
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('worker_locations')
+      .upsert(payload, { onConflict: 'worker_id' })
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.warn('updateWorkerLiveLocation error:', error.message);
+      return { data: null, error: error.message };
+    }
+
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+export const getAssignedWorkerLocation = async (workerId) => {
+  if (!supabase || !workerId) return { data: null, error: 'Supabase client or workerId missing' };
+
+  try {
+    const { data, error } = await supabase
+      .from('worker_locations')
+      .select('*')
+      .eq('worker_id', workerId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('getAssignedWorkerLocation error:', error.message);
+      return { data: null, error: error.message };
+    }
+
+    return { data, error: null };
+  } catch (err) {
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+export const subscribeToWorkerLiveLocation = (workerId, onLocationUpdate) => {
+  if (!supabase || !workerId || typeof onLocationUpdate !== 'function') return null;
+
+  try {
+    const channel = supabase
+      .channel(`worker-location-${workerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'worker_locations',
+          filter: `worker_id=eq.${workerId}`
+        },
+        (payload) => {
+          if (payload.new) {
+            onLocationUpdate(payload.new);
+          }
+        }
+      )
+      .subscribe();
+
+    return channel;
+  } catch (err) {
+    console.warn('subscribeToWorkerLiveLocation exception:', err);
+    return null;
+  }
+};
+

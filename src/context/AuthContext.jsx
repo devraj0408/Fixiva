@@ -274,10 +274,11 @@ export const AuthProvider = ({ children }) => {
       const regExtra = activeRegistrationData?.extra || {};
 
       if (normalizedRole === 'worker') {
-        let { data: workerData } = await supabase.from('workers').select('*').eq('id', userId).maybeSingle();
+        let { data: workerData } = await supabase.from('workers').select('*').or(`profile_id.eq.${userId},id.eq.${userId}`).maybeSingle();
         if (!workerData) {
           const newWorker = {
             id: userId,
+            profile_id: userId,
             status: 'Active',
             trust_score: 100,
             skills: regExtra.skills || activeRegistrationData?.skills || '',
@@ -302,10 +303,11 @@ export const AuthProvider = ({ children }) => {
 
         userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
       } else if (normalizedRole === 'contractor') {
-        let { data: contractorData } = await supabase.from('contractors').select('*').eq('id', userId).maybeSingle();
+        let { data: contractorData } = await supabase.from('contractors').select('*').or(`profile_id.eq.${userId},id.eq.${userId}`).maybeSingle();
         if (!contractorData) {
           const newContractor = {
             id: userId,
+            profile_id: userId,
             status: 'Active',
             company: regExtra.company || activeRegistrationData?.company || profile.name || 'Business Entity',
             owner_name: regExtra.owner_name || activeRegistrationData?.owner_name || profile.name || '',
@@ -1157,7 +1159,7 @@ export const AuthProvider = ({ children }) => {
         if (updates.profile_photo_url !== undefined) workerUpdates.profile_photo_url = updates.profile_photo_url;
 
         if (supabase && Object.keys(workerUpdates).length > 0) {
-          let currentPayload = { id: user.id, ...workerUpdates };
+          let currentPayload = { id: user.id, profile_id: user.id, ...workerUpdates };
           let { error: wErr } = await supabase.from('workers').upsert(currentPayload, { onConflict: 'id' });
 
           // Fallback retry loop for missing columns in workers table
@@ -1170,7 +1172,7 @@ export const AuthProvider = ({ children }) => {
               const retry = await supabase.from('workers').upsert(currentPayload, { onConflict: 'id' });
               wErr = retry.error;
             } else {
-              const minimal = { id: user.id };
+              const minimal = { id: user.id, profile_id: user.id };
               if (updates.city) minimal.city = updates.city;
               const retryMin = await supabase.from('workers').upsert(minimal, { onConflict: 'id' });
               wErr = retryMin.error;
@@ -1202,7 +1204,7 @@ export const AuthProvider = ({ children }) => {
         if (updates.city !== undefined) contractorUpdates.city = updates.city;
 
         if (supabase && Object.keys(contractorUpdates).length > 0) {
-          let currentPayload = { id: user.id, ...contractorUpdates };
+          let currentPayload = { id: user.id, profile_id: user.id, ...contractorUpdates };
           let { error: cErr } = await supabase.from('contractors').upsert(currentPayload, { onConflict: 'id' });
 
           // Fallback retry loop for missing columns in contractors table
@@ -1215,7 +1217,7 @@ export const AuthProvider = ({ children }) => {
               const retry = await supabase.from('contractors').upsert(currentPayload, { onConflict: 'id' });
               cErr = retry.error;
             } else {
-              const minimal = { id: user.id };
+              const minimal = { id: user.id, profile_id: user.id };
               if (updates.company) minimal.company = updates.company;
               if (updates.city) minimal.city = updates.city;
               const retryMin = await supabase.from('contractors').upsert(minimal, { onConflict: 'id' });

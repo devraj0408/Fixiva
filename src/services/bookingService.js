@@ -41,14 +41,29 @@ export const findAvailableProfessionals = async ({
     let rawProfiles = [];
 
     if (supabase) {
-      const [{ data: wData }, { data: cData }, { data: pData }] = await Promise.all([
-        supabase.from('workers').select('*'),
-        supabase.from('contractors').select('*'),
-        supabase.from('profiles').select('*').in('role', ['worker', 'contractor'])
-      ]);
-      rawWorkers = wData || [];
-      rawContractors = cData || [];
-      rawProfiles = pData || [];
+      try {
+        const [{ data: wData }, { data: cData }, { data: pData }, { data: skillsData }] = await Promise.all([
+          supabase.from('workers').select('id, name, skills, district, city, state, status, visit_charge, starting_price, experience, rating, completed_jobs, location_latitude, location_longitude, profile_photo_url, whatsapp, phone'),
+          supabase.from('contractors').select('id, company, owner_name, services_offered, district, city, state, status, starting_price, rating, completed_jobs, location_latitude, location_longitude, profile_photo_url, whatsapp, phone'),
+          supabase.from('profiles').select('id, name, role, city, district, state, account_status, skills, services_offered, profile_photo_url, phone, email').in('role', ['worker', 'contractor']),
+          supabase.from('worker_skills').select('*').eq('active', true)
+        ]);
+        rawWorkers = wData || [];
+        rawContractors = cData || [];
+        rawProfiles = pData || [];
+        if (skillsData && skillsData.length > 0) {
+          skillsData.forEach(s => {
+            if (s.worker_id) {
+              const existing = rawWorkers.find(w => w.id === s.worker_id);
+              if (existing) {
+                existing.skills = existing.skills ? `${existing.skills}, ${s.skill_name || s.category}` : (s.skill_name || s.category);
+              }
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('findAvailableProfessionals DB query RLS fallback:', e);
+      }
     }
 
     const workerMap = new Map();
@@ -257,10 +272,19 @@ export const createBooking = async (bookingData, actor = {}) => {
   try {
     const bookingId = `FXV-${Date.now().toString().slice(-6)}`;
     
+    let currentCustomerId = bookingData.customer_id;
+    if (!currentCustomerId) {
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        currentCustomerId = authData?.user?.id || null;
+      } catch (e) { void e; }
+    }
+
     const payload = {
       id: bookingId,
-      customer_id: bookingData.customer_id || null,
+      customer_id: currentCustomerId,
       worker_id: bookingData.worker_id && !String(bookingData.worker_id).startsWith('mock-') ? bookingData.worker_id : null,
+      contractor_id: bookingData.contractor_id && !String(bookingData.contractor_id).startsWith('mock-') ? bookingData.contractor_id : null,
       service_id: bookingData.service_id || 'general',
       service_name: bookingData.service_name || 'Home Service',
       state: bookingData.state || 'Jharkhand',
