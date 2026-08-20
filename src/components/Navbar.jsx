@@ -308,7 +308,24 @@ const Navbar = () => {
                   {/* Language Selector inside Mobile Menu */}
                   <LanguageSelector isMobile={true} />
 
-                  <div className="h-px bg-slate-100 my-2"></div>
+                  {/* Dark Mode Toggle inside Mobile Menu */}
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
+                    title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                    aria-label="Toggle Theme"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600 dark:text-slate-300" />}
+                      <span>{isDark ? t('lightMode', 'Light Mode') : t('darkMode', 'Dark Mode')}</span>
+                    </div>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
+                      {isDark ? t('dark', 'Dark') : t('light', 'Light')}
+                    </span>
+                  </button>
+
+                  <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
                   <Link 
                     to="/login" 
                     onClick={() => setIsOpen(false)}
@@ -377,7 +394,24 @@ const Navbar = () => {
                   {/* Language Selector inside Mobile Menu */}
                   <LanguageSelector isMobile={true} />
 
-                  <div className="h-px bg-slate-100 my-2"></div>
+                  {/* Dark Mode Toggle inside Mobile Menu */}
+                  <button
+                    type="button"
+                    onClick={toggleTheme}
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
+                    title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                    aria-label="Toggle Theme"
+                  >
+                    <div className="flex items-center gap-2">
+                      {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600 dark:text-slate-300" />}
+                      <span>{isDark ? t('lightMode', 'Light Mode') : t('darkMode', 'Dark Mode')}</span>
+                    </div>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200/60 dark:border-slate-700">
+                      {isDark ? t('dark', 'Dark') : t('light', 'Light')}
+                    </span>
+                  </button>
+
+                  <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
                   <button 
                     onClick={handleLogout} 
                     className="w-full text-center px-4 py-2.5 rounded-xl text-base font-bold text-danger hover:bg-red-50 transition-all flex items-center justify-center gap-2"
