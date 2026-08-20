@@ -8,6 +8,7 @@ const SearchableDropdown = ({
   value = '',
   onChange,
   placeholder = 'Select option',
+  searchPlaceholder,
   disabled = false,
   icon: Icon,
   className = '',
@@ -191,7 +192,7 @@ const SearchableDropdown = ({
             ? (value.name || value.district || value.state || value.locality || '') 
             : String(value || '');
           return (
-            <span className={displayValue ? 'text-slate-800' : 'text-slate-400'}>
+            <span className={`truncate flex-1 text-left min-w-0 pr-1 ${displayValue ? 'text-slate-800' : 'text-slate-400'}`}>
               {displayValue || placeholder}
             </span>
           );
@@ -230,7 +231,7 @@ const SearchableDropdown = ({
                       setFocusedIndex(-1);
                     }}
                     onKeyDown={handleKeyDown}
-                    placeholder="Search..."
+                    placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
                     className="w-full h-9.5 pl-8 pr-3 bg-white border border-slate-200 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all placeholder-slate-400"
                   />
                 </div>
@@ -260,7 +261,7 @@ const SearchableDropdown = ({
                                 : 'text-slate-650 hover:bg-slate-50/50 hover:text-slate-850'
                           }`}
                         >
-                          <span>{option}</span>
+                        <span className="truncate pr-2">{option}</span>
                           {isSelected && <Check size={12} className="text-primary" />}
                         </button>
                       );
@@ -298,7 +299,7 @@ const SearchableDropdown = ({
                     setFocusedIndex(-1);
                   }}
                   onKeyDown={handleKeyDown}
-                  placeholder="Search..."
+                  placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
                   className="w-full h-9.5 pl-8 pr-3 bg-white border border-slate-200 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all placeholder-slate-400"
                 />
               </div>
@@ -328,7 +329,7 @@ const SearchableDropdown = ({
                               : 'text-slate-650 hover:bg-slate-50/50 hover:text-slate-850'
                         }`}
                       >
-                        <span>{option}</span>
+                        <span className="truncate pr-2">{option}</span>
                         {isSelected && <Check size={12} className="text-primary" />}
                       </button>
                     );

@@ -310,32 +310,108 @@ export const detectCurrentLocation = async () => {
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve(pos.coords),
-        () => {
-          // Retry with lower accuracy if high accuracy times out
-          navigator.geolocation.getCurrentPosition(
-            (pos) => resolve(pos.coords),
-            () => resolve(null),
-            { enableHighAccuracy: false, timeout: 3000, maximumAge: 60000 }
-          );
-        },
-        { enableHighAccuracy: true, timeout: 4000, maximumAge: 60000 }
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
       );
     });
   };
 
   try {
+    // 1. Try Browser GPS coordinates (gives user time to click Allow)
     const coords = await getCoords();
-    const lat = coords?.latitude || 23.3700;
-    const lng = coords?.longitude || 85.3300;
-
-    if (coords) {
-      const res = await reverseGeocodeCoords(lat, lng);
-      if (res) return res;
+    if (coords?.latitude && coords?.longitude) {
+      const res = await reverseGeocodeCoords(coords.latitude, coords.longitude);
+      if (res) {
+        try {
+          if (res.state) localStorage.setItem('fixiva:last-state', res.state);
+          if (res.district) localStorage.setItem('fixiva:last-district', res.district);
+          if (res.locality) localStorage.setItem('fixiva:last-locality', res.locality);
+        } catch { void 0; }
+        return res;
+      }
     }
 
+    // 2. Try wttr.in (Weather API - CORS allowed & unblocked by ad-blockers)
+    try {
+      const wttrRes = await fetch('https://wttr.in/?format=j1').then(r => r.json()).catch(() => null);
+      const area = wttrRes?.nearest_area?.[0];
+      const city = area?.areaName?.[0]?.value;
+      const region = area?.region?.[0]?.value;
+      if (city || region) {
+        const state = region || 'Jharkhand';
+        const district = city || 'Ranchi';
+        const locality = city ? `${city} Main` : 'Lalpur';
+        const res = {
+          latitude: 23.3700,
+          longitude: 85.3300,
+          state,
+          district,
+          locality,
+          pincode: '834001',
+          formattedAddress: `${locality}, ${district}, ${state}`
+        };
+        try {
+          localStorage.setItem('fixiva:last-state', state);
+          localStorage.setItem('fixiva:last-district', district);
+          localStorage.setItem('fixiva:last-locality', locality);
+        } catch { void 0; }
+        return res;
+      }
+    } catch { void 0; }
+
+    // 3. Try ipwho.is
+    try {
+      const ipRes = await fetch('https://ipwho.is/').then(r => r.json()).catch(() => null);
+      if (ipRes && ipRes.success && (ipRes.region || ipRes.city)) {
+        const state = ipRes.region || 'Jharkhand';
+        const district = ipRes.city || 'Ranchi';
+        const locality = ipRes.city ? `${ipRes.city} Main` : 'Lalpur';
+        const res = {
+          latitude: ipRes.latitude || 23.3700,
+          longitude: ipRes.longitude || 85.3300,
+          state,
+          district,
+          locality,
+          pincode: ipRes.postal || '834001',
+          formattedAddress: `${locality}, ${district}, ${state}`
+        };
+        try {
+          localStorage.setItem('fixiva:last-state', state);
+          localStorage.setItem('fixiva:last-district', district);
+          localStorage.setItem('fixiva:last-locality', locality);
+        } catch { void 0; }
+        return res;
+      }
+    } catch { void 0; }
+
+    // 4. Try freeipapi.com
+    try {
+      const freeRes = await fetch('https://freeipapi.com/api/json').then(r => r.json()).catch(() => null);
+      if (freeRes && (freeRes.regionName || freeRes.cityName)) {
+        const state = freeRes.regionName || 'Jharkhand';
+        const district = freeRes.cityName || 'Ranchi';
+        const locality = freeRes.cityName ? `${freeRes.cityName} Main` : 'Lalpur';
+        const res = {
+          latitude: freeRes.latitude || 23.3700,
+          longitude: freeRes.longitude || 85.3300,
+          state,
+          district,
+          locality,
+          pincode: freeRes.zipCode || '834001',
+          formattedAddress: `${locality}, ${district}, ${state}`
+        };
+        try {
+          localStorage.setItem('fixiva:last-state', state);
+          localStorage.setItem('fixiva:last-district', district);
+          localStorage.setItem('fixiva:last-locality', locality);
+        } catch { void 0; }
+        return res;
+      }
+    } catch { void 0; }
+
     return {
-      latitude: lat,
-      longitude: lng,
+      latitude: 23.3700,
+      longitude: 85.3300,
       state: 'Jharkhand',
       district: 'Ranchi',
       locality: 'Lalpur',
@@ -356,47 +432,82 @@ export const detectCurrentLocation = async () => {
   }
 };
 
+export const createLocationObject = ({
+  address = '',
+  location_text = '',
+  state = '',
+  district = '',
+  city = '',
+  locality = '',
+  pincode = '',
+  latitude = null,
+  longitude = null,
+  location_source = 'manual'
+}) => {
+  const finalDistrict = (district || city || '').replace(/\s+(district|county)$/i, '').trim();
+  const finalCity = (city || district || '').replace(/\s+(district|county)$/i, '').trim();
+  const cleanLocality = (locality || '').replace(/^Custom:\s*/, '').trim();
+  const formattedAddress = address || location_text || `${cleanLocality ? cleanLocality + ', ' : ''}${finalDistrict ? finalDistrict + ', ' : ''}${state}`.trim();
+
+  return {
+    address: formattedAddress,
+    location_text: formattedAddress,
+    state: state || '',
+    district: finalDistrict || '',
+    city: finalCity || '',
+    locality: cleanLocality || finalDistrict || '',
+    pincode: pincode || '',
+    latitude: latitude !== null && latitude !== undefined && !isNaN(Number(latitude)) ? Number(latitude) : null,
+    longitude: longitude !== null && longitude !== undefined && !isNaN(Number(longitude)) ? Number(longitude) : null,
+    location_source: location_source || 'manual'
+  };
+};
+
 export const reverseGeocodeCoords = async (latitude, longitude) => {
   const lat = Number(latitude);
   const lng = Number(longitude);
   if (isNaN(lat) || isNaN(lng)) return null;
 
   try {
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`, {
       headers: { 'Accept-Language': 'en' }
     });
     const data = await res.json();
     if (data && data.address) {
       const addr = data.address;
-      const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
-      const state = addr.state || 'Jharkhand';
-      const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
-      const pincode = addr.postcode || '834001';
-      const formattedAddress = data.display_name || `${locality}, ${district}, ${state} ${pincode}`;
+      const state = addr.state || addr.region || '';
+      let district = addr.state_district || addr.county || addr.city || addr.district || addr.town || '';
+      district = district.replace(/\s+(district|county)$/i, '').trim();
 
-      return {
-        latitude: lat,
-        longitude: lng,
+      const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.town || addr.village || addr.city_district || addr.amenity || district || '';
+      const pincode = addr.postcode || '';
+
+      const formattedAddress = data.display_name || `${locality ? locality + ', ' : ''}${district ? district + ', ' : ''}${state}`.trim();
+
+      return createLocationObject({
+        address: formattedAddress,
+        location_text: formattedAddress,
         state,
         district,
+        city: district,
         locality,
         pincode,
-        formattedAddress
-      };
+        latitude: lat,
+        longitude: lng,
+        location_source: 'gps'
+      });
     }
   } catch (err) {
     console.warn('reverseGeocodeCoords error:', err);
   }
 
-  return {
+  return createLocationObject({
+    address: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
+    location_text: `Location (${lat.toFixed(4)}, ${lng.toFixed(4)})`,
     latitude: lat,
     longitude: lng,
-    state: 'Jharkhand',
-    district: 'Ranchi',
-    locality: 'Lalpur',
-    pincode: '834001',
-    formattedAddress: `${lat.toFixed(4)}, ${lng.toFixed(4)}, Ranchi, Jharkhand`
-  };
+    location_source: 'gps'
+  });
 };
 
 export const searchAddressNominatim = async (query) => {
@@ -404,27 +515,36 @@ export const searchAddressNominatim = async (query) => {
 
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query.trim())}&limit=5&countrycodes=in`,
+      `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&q=${encodeURIComponent(query.trim())}&limit=6&countrycodes=in`,
       { headers: { 'Accept-Language': 'en' } }
     );
     const data = await res.json();
     if (Array.isArray(data)) {
       return data.map((item) => {
         const addr = item.address || {};
-        const district = addr.state_district || addr.county || addr.city || addr.district || 'Ranchi';
-        const state = addr.state || 'Jharkhand';
-        const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.town || addr.village || addr.city_district || 'Lalpur';
-        const pincode = addr.postcode || '834001';
+        const state = addr.state || addr.region || '';
+        let district = addr.state_district || addr.county || addr.city || addr.district || addr.town || '';
+        district = district.replace(/\s+(district|county)$/i, '').trim();
+
+        const locality = addr.suburb || addr.neighbourhood || addr.residential || addr.road || addr.town || addr.village || addr.city_district || addr.amenity || district || '';
+        const pincode = addr.postcode || '';
+        const lat = parseFloat(item.lat);
+        const lng = parseFloat(item.lon);
 
         return {
           id: item.place_id || String(Math.random()),
-          formattedAddress: item.display_name,
-          latitude: parseFloat(item.lat),
-          longitude: parseFloat(item.lon),
-          state,
-          district,
-          locality,
-          pincode
+          ...createLocationObject({
+            address: item.display_name,
+            location_text: item.display_name,
+            state,
+            district,
+            city: district,
+            locality,
+            pincode,
+            latitude: lat,
+            longitude: lng,
+            location_source: 'search'
+          })
         };
       });
     }

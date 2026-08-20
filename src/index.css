@@ -307,3 +307,172 @@ a.disabled,
 .max-w-7xl a {
   color: inherit;
 }
+
+/* ==========================================
+   FIXIVA COMPLETE DARK MODE SYSTEM
+   ========================================== */
+.dark {
+  color-scheme: dark;
+  --color-bg-base: #0f172a;
+  --color-surface: #1e293b;
+  --color-surface-muted: #334155;
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-border: #334155;
+}
+
+.dark body {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+}
+
+/* Glass panels, cards & hero sections */
+.dark .glass-panel,
+.dark .glass-panel-dark,
+.dark .glass-card,
+.dark .section-surface {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  box-shadow: 0 10px 30px -14px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark .glass-card:hover {
+  border-color: #3b82f6 !important;
+}
+
+.dark .hero-shell {
+  background: radial-gradient(circle at 90% 12%, rgba(37, 99, 235, 0.25), transparent 30%),
+              linear-gradient(135deg, #0f172a 0%, #1e293b 100%) !important;
+}
+
+.dark .hero-panel {
+  background: rgba(30, 41, 59, 0.95) !important;
+  border-color: #334155 !important;
+  box-shadow: 0 22px 55px -28px rgba(0, 0, 0, 0.6) !important;
+}
+
+.dark .elevated-card {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+}
+
+.dark .elevated-card,
+.dark .elevated-card * {
+  color: #f8fafc !important;
+}
+
+/* Navbars & Footers */
+.dark nav,
+.dark header {
+  background-color: rgba(15, 23, 42, 0.9) !important;
+  border-color: #334155 !important;
+}
+
+.dark footer {
+  background-color: #0b0f19 !important;
+  border-color: #1e293b !important;
+}
+
+/* Generic container & card dark mode overrides */
+.dark .bg-white,
+.dark .bg-white\/90,
+.dark .bg-white\/95,
+.dark .bg-white\/80,
+.dark .bg-slate-50,
+.dark .bg-slate-50\/50,
+.dark .bg-slate-50\/80,
+.dark .bg-slate-100 {
+  background-color: #1e293b !important;
+}
+
+.dark .bg-slate-50\/30,
+.dark .bg-blue-50\/80,
+.dark .bg-blue-50\/70,
+.dark .bg-blue-50\/50 {
+  background-color: rgba(30, 41, 59, 0.8) !important;
+}
+
+.dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700 {
+  color: #f8fafc !important;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+.dark .text-slate-400 {
+  color: #94a3b8 !important;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-200\/80,
+.dark .border-slate-100,
+.dark .border-blue-100 {
+  border-color: #334155 !important;
+}
+
+/* Inputs, Textareas, Selects in dark mode */
+.dark input[type="text"],
+.dark input[type="email"],
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="tel"],
+.dark textarea,
+.dark select {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Dropdowns & Modals */
+.dark .role-dropdown,
+.dark [role="listbox"],
+.dark .search-dropdown {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #f8fafc !important;
+}
+
+/* Tables in dark mode */
+.dark table {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark th {
+  background-color: #0f172a !important;
+  color: #cbd5e1 !important;
+  border-color: #334155 !important;
+}
+
+.dark td {
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark tr:hover {
+  background-color: #334155 !important;
+}
+
+/* OpenStreetMap / Leaflet tile container dark mode styling */
+.dark .leaflet-container {
+  background-color: #1e293b !important;
+}
+
+.dark .leaflet-tile {
+  filter: brightness(0.8) invert(0.9) contrast(1.2) hue-rotate(200deg) !important;
+}
+
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}

@@ -139,17 +139,21 @@ function AppShell() {
   );
 }
 
+import { ThemeProvider } from './context/ThemeContext';
+
 function App() {
   return (
-    <ToastProvider>
-      <LanguageProvider>
-        <AppProvider>
-          <CmsProvider>
-            <AppShell />
-          </CmsProvider>
-        </AppProvider>
-      </LanguageProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <LanguageProvider>
+          <AppProvider>
+            <CmsProvider>
+              <AppShell />
+            </CmsProvider>
+          </AppProvider>
+        </LanguageProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 }
 

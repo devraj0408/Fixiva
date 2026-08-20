@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, Settings, Briefcase, FileText, LifeBuoy } from 'lucide-react';
+import { Menu, X, LogOut, Settings, Briefcase, FileText, LifeBuoy, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
+import { useTheme } from '../context/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDashboardPath } from '../lib/navbarUtils';
 import LanguageSelector from './LanguageSelector';
@@ -11,6 +12,7 @@ const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { user, logout, isAuthenticated } = useAuth();
   const { t } = useLanguage();
+  const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -135,7 +137,18 @@ const Navbar = () => {
                 {/* Language Selector */}
                 <LanguageSelector />
 
-                <div className="h-4 w-px bg-slate-200"></div>
+                {/* Theme Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="p-2 rounded-full text-slate-600 hover:text-primary hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  aria-label="Toggle Theme"
+                >
+                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600" />}
+                </button>
+
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
 
                 <Link 
                   to="/login" 
@@ -186,7 +199,18 @@ const Navbar = () => {
                 {/* Language Selector */}
                 <LanguageSelector />
 
-                <div className="h-5 w-px bg-slate-200"></div>
+                {/* Theme Toggle Button */}
+                <button
+                  type="button"
+                  onClick={toggleTheme}
+                  className="p-2 rounded-full text-slate-600 hover:text-primary hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+                  aria-label="Toggle Theme"
+                >
+                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600" />}
+                </button>
+
+                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700"></div>
 
                 <div className="flex items-center gap-3">
                   <Link 

@@ -131,7 +131,7 @@ const Register = () => {
     if (!validate()) return;
 
     setLoading(true);
-    const { success, error, email } = await requestOtp(formData.email, 'sign-up', {
+    const { success, error, email, message: resMsg } = await requestOtp(formData.email, 'sign-up', {
       name: formData.name,
       phone: formData.phone,
       role,
@@ -164,7 +164,7 @@ const Register = () => {
     setAttempts(0);
     setOtpValues(['', '', '', '', '', '']);
     setOtp('');
-    setMessage(`Verification code sent to ${email}.`);
+    setMessage(resMsg || `Verification code sent to ${email}.`);
   };
 
   const handleResendOtp = async () => {
@@ -176,7 +176,7 @@ const Register = () => {
     setOtp('');
     setAttempts(0);
 
-    const { success, error, email } = await requestOtp(formData.email, 'sign-up', {
+    const { success, error, email, message: resMsg } = await requestOtp(formData.email, 'sign-up', {
       name: formData.name,
       phone: formData.phone,
       role,
@@ -205,7 +205,7 @@ const Register = () => {
     }
 
     setCountdown(60);
-    setMessage(`Verification code sent to ${email}.`);
+    setMessage(resMsg || `Verification code sent to ${email}.`);
   };
 
   const handleVerifyOtp = async (e) => {

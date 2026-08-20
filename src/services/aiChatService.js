@@ -167,20 +167,20 @@ export function detectPromptLanguage(text) {
   if (!text) return 'en';
   const str = text.trim();
 
-  // 1. Check for Bengali script (\u0980-\u09FF) or common Bengali words
-  if (/[\u0980-\u09FF]/.test(str) || /\b(kivabe|korbo|koro|bhabe|bolun|khub|kono|amar|apnar|jani|kamne)\b/i.test(str)) {
+  // 1. Bengali Script (\u0980-\u09FF) or common Bengali words in Roman script
+  if (/[\u0980-\u09FF]/.test(str) || /\b(kivabe|korbo|koro|bhabe|bolun|khub|kono|amar|apnar|jani|kamne|dorkar|amader|apni|tumi|chai|lagbe|hobe|kore)\b/i.test(str)) {
     return 'bn';
   }
 
-  // 2. Check for Hindi / Devanagari script (\u0900-\u097F)
+  // 2. Devanagari Script (\u0900-\u097F) - Formal Devanagari Hindi
   if (/[\u0900-\u097F]/.test(str)) {
     return 'hi';
   }
 
-  // 3. Check for Hindi / Hinglish words in Roman script (e.g. "login karte", "kaise karein", "batao", "kya hai")
-  const hindiWordsRegex = /\b(kaise|karein|karo|karne|karte|kya|kyun|hai|hain|ho|hoon|chahiye|batao|bataiye|bhejo|apna|apni|par|mein|karke|karna|raha|rahe|rahi|samajh|baten|baten|bata)\b/i;
-  if (hindiWordsRegex.test(str)) {
-    return 'hi';
+  // 3. Hinglish (Hindi / Urdu words written in Roman script)
+  const hinglishWordsRegex = /\b(kaise|karein|karo|karne|karte|kya|kyun|hai|hain|ho|hoon|chahiye|batao|bataiye|bhejo|apna|apni|par|mein|karke|karna|raha|rahe|rahi|samajh|bhai|karwana|karwani|kardo|kardijiye|dene|dena|chahiye|chahiye|milte|aaj|mujhe|tumhe|bhi|dikhao|bata)\b/i;
+  if (hinglishWordsRegex.test(str)) {
+    return 'hinglish';
   }
 
   return 'en';
@@ -192,6 +192,7 @@ export function detectPromptLanguage(text) {
  */
 export async function generateAIResponse({
   userMessage,
+  chatHistory = [],
   userRole = 'Customer',
   userProfile = null,
   userLanguage = 'en',
@@ -200,13 +201,27 @@ export async function generateAIResponse({
   availableCities = []
 }) {
   const query = userMessage.trim();
-  const lowerQuery = query.toLowerCase();
+
+  // Extract multi-turn context from recent chat history
+  let contextualQuery = query;
+  if (chatHistory && Array.isArray(chatHistory) && chatHistory.length > 0) {
+    const recentUserMsgs = chatHistory
+      .filter(m => m.sender === 'user' && m.text && m.text !== query)
+      .slice(-2)
+      .map(m => m.text);
+    if (recentUserMsgs.length > 0) {
+      contextualQuery = `${recentUserMsgs.join(' ')} ${query}`;
+    }
+  }
+
+  const lowerQuery = contextualQuery.toLowerCase();
 
   // Automatically detect prompt language (e.g. Hindi, Bengali, Hinglish, English)
-  const promptLang = detectPromptLanguage(query);
-  const effectiveLanguage = promptLang !== 'en' ? promptLang : (userLanguage || 'en');
+  // Follow user's latest prompt language immediately!
+  const detectedLang = detectPromptLanguage(query);
+  const effectiveLanguage = detectedLang !== 'en' ? detectedLang : (userLanguage || 'en');
 
-  // Universally detect Action Intent
+  // Universally detect Action Intent using contextual query
   const action = detectActionIntent(lowerQuery, userRole, availableServices);
 
   // Prepare live context string

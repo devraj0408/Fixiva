@@ -215,9 +215,21 @@ export function stopListening() {
 export function cleanTextForSpeech(text) {
   if (!text) return '';
   return text
-    .replace(/[*#_`~]/g, '')
+    // Remove markdown links [Link Text](url) -> Link Text
     .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-    .replace(/[•▪▫▶️👋🔑🤖🛠️📋💸⭐🔐🔄🚨💡👤🧭⚡📌🎉✔️✅]/g, '')
+    // Remove code blocks ```code```
+    .replace(/```[\s\S]*?```/g, '')
+    // Remove inline code backticks
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove headers #, ##, ###
+    .replace(/^#+\s+/gm, '')
+    // Remove markdown asterisks, hashes, underscores, tildes, quotes, pipes
+    .replace(/[\*#_`~>|]/g, '')
+    // Remove bullet point symbols
+    .replace(/^[ \t]*[\-•\*▪▫▶️][ \t]*/gm, '')
+    // Remove emojis and non-speech symbols
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+    // Collapse multiple spaces/newlines to single space
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -250,26 +262,39 @@ export function speakText({ text, language = 'en', onEnd, onError }) {
   utterance.pitch = 1.0;
 
   // Retrieve cached voices or browser voices
-  const voices = cachedVoices.length > 0 ? cachedVoices : window.speechSynthesis.getVoices();
+  const voices = cachedVoices.length > 0 ? cachedVoices : (window.speechSynthesis.getVoices() || []);
   if (voices && voices.length > 0) {
-    // 1. Try finding exact or partial language match (bn-IN, bn-BD, Bangla, Bengali)
-    let matchedVoice = voices.find(
-      (v) =>
-        v.lang.toLowerCase() === targetLocale.toLowerCase() ||
-        v.lang.toLowerCase().replace('_', '-').startsWith(targetLocale.split('-')[0]) ||
-        (language === 'bn' && (v.lang.toLowerCase().includes('bn') || (v.name && (v.name.toLowerCase().includes('bangla') || v.name.toLowerCase().includes('bengali')))))
-    );
+    let matchedVoice = null;
 
-    // 2. If no native Bengali voice installed in OS/browser, fallback to Indian / Google voice
-    if (!matchedVoice && language === 'bn') {
-      matchedVoice = voices.find(
-        (v) => v.lang.toLowerCase().startsWith('bn') || v.lang.toLowerCase().includes('in') || v.name.toLowerCase().includes('google')
+    if (language === 'bn') {
+      matchedVoice = voices.find(v => 
+        v.lang.toLowerCase().includes('bn') || 
+        (v.name && (v.name.toLowerCase().includes('bangla') || v.name.toLowerCase().includes('bengali')))
+      );
+    } else if (language === 'hi') {
+      matchedVoice = voices.find(v => 
+        v.lang.toLowerCase().includes('hi') || 
+        (v.name && v.name.toLowerCase().includes('hindi'))
+      );
+    } else if (language === 'hinglish') {
+      matchedVoice = voices.find(v => 
+        v.lang.toLowerCase() === 'en-in' || 
+        v.lang.toLowerCase().includes('hi') ||
+        (v.name && (v.name.toLowerCase().includes('india') || v.name.toLowerCase().includes('hindi')))
+      );
+    } else if (language === 'en') {
+      matchedVoice = voices.find(v => 
+        v.lang.toLowerCase() === 'en-in' || 
+        v.lang.toLowerCase().startsWith('en')
       );
     }
 
-    // 3. Ultimate fallback to default voice to guarantee audio NEVER stays silent
     if (!matchedVoice) {
-      matchedVoice = voices.find((v) => v.default) || voices[0];
+      matchedVoice = voices.find(v => v.lang.toLowerCase().startsWith(targetLocale.split('-')[0]));
+    }
+
+    if (!matchedVoice) {
+      matchedVoice = voices.find(v => v.default) || voices[0];
     }
 
     if (matchedVoice) {

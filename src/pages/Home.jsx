@@ -48,10 +48,16 @@ const Home = () => {
   const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
 
   
-  // Search & Location selectors inside the Hero
-  const [selectedState, setSelectedState] = useState('Jharkhand');
-  const [selectedDistrict, setSelectedDistrict] = useState('Ranchi');
-  const [selectedLocality, setSelectedLocality] = useState('Lalpur');
+  // Search & Location selectors inside the Hero initialized from localStorage
+  const [selectedState, setSelectedState] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-state') || ''; } catch { return ''; }
+  });
+  const [selectedDistrict, setSelectedDistrict] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-district') || ''; } catch { return ''; }
+  });
+  const [selectedLocality, setSelectedLocality] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-locality') || ''; } catch { return ''; }
+  });
   const [searchQuery, setSearchQuery] = useState('');
   const [detectingGps, setDetectingGps] = useState(false);
 
@@ -68,12 +74,23 @@ const Home = () => {
     setDetectingGps(true);
     try {
       const loc = await detectCurrentLocation();
-      setSelectedState(loc.state || 'Jharkhand');
-      setSelectedDistrict(loc.district || 'Ranchi');
-      setSelectedLocality(loc.locality || 'Lalpur');
-      showToast('📍 Current location detected!', 'success');
+      const st = loc.state || '';
+      const dist = loc.district || '';
+      const locName = loc.locality || '';
+
+      if (st) setSelectedState(st);
+      if (dist) setSelectedDistrict(dist);
+      if (locName) setSelectedLocality(locName);
+
+      try {
+        if (st) localStorage.setItem('fixiva:last-state', st);
+        if (dist) localStorage.setItem('fixiva:last-district', dist);
+        if (locName) localStorage.setItem('fixiva:last-locality', locName);
+      } catch { void 0; }
+
+      showToast(`📍 Location set: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
     } catch {
-      showToast('Could not access current location. You can select your district manually.', 'error');
+      showToast('Could not access current location. You can select your location manually.', 'error');
     } finally {
       setDetectingGps(false);
     }
@@ -120,10 +137,19 @@ const Home = () => {
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       s.id === searchQuery.toLowerCase()
     );
+
+    const params = new URLSearchParams();
+    if (selectedState) params.set('state', selectedState);
+    if (selectedDistrict) params.set('city', selectedDistrict);
+    if (selectedLocality) params.set('locality', selectedLocality);
+    if (searchQuery) params.set('search', searchQuery);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
     if (matchedService) {
-      navigate(`/book/${matchedService.id}`);
+      navigate(`/book/${matchedService.id}${queryString}`);
     } else {
-      navigate('/services');
+      navigate(`/services${queryString}`);
     }
   };
 
@@ -178,8 +204,9 @@ const Home = () => {
             </div>
 
             {/* Premium search & Location controls */}
-            <form onSubmit={handleSearchSubmit} className="hero-panel p-3 rounded-[1.6rem] flex flex-col gap-3 max-w-2xl shadow-lg border border-slate-200/60 bg-white">
-              <div className="flex items-center gap-2 px-3 py-1.5 border-b border-slate-100">
+            <form onSubmit={handleSearchSubmit} className="hero-panel p-4 sm:p-5 rounded-3xl flex flex-col gap-4 max-w-2xl w-full shadow-xl border border-slate-200/70 bg-white">
+              {/* Search input field */}
+              <div className="flex items-center gap-3 px-3.5 py-2.5 bg-slate-50/80 rounded-2xl border border-slate-100 focus-within:border-primary focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10 transition-all">
                 <Search size={18} className="text-slate-400 shrink-0" />
                 <input 
                   type="text" 
@@ -190,44 +217,50 @@ const Home = () => {
                 />
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-2">
-                <div className="flex-1 w-full">
-                  <HierarchicalLocationSelector
-                    selectedState={selectedState}
-                    selectedDistrict={selectedDistrict}
-                    selectedLocality={selectedLocality}
-                    onChange={({ state, district, locality }) => {
-                      setSelectedState(state);
-                      setSelectedDistrict(district);
-                      setSelectedLocality(locality);
-                    }}
-                    statePlaceholder="State"
-                    districtPlaceholder="District"
-                    localityPlaceholder="Locality"
-                    variant="borderless"
-                    layout="row"
-                    className="w-full"
-                  />
-                </div>
+              {/* Location Selectors */}
+              <div className="w-full">
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedDistrict}
+                  selectedLocality={selectedLocality}
+                  onChange={({ state, district, locality }) => {
+                    setSelectedState(state);
+                    setSelectedDistrict(district);
+                    setSelectedLocality(locality);
+                    try {
+                      if (state) localStorage.setItem('fixiva:last-state', state);
+                      if (district) localStorage.setItem('fixiva:last-district', district);
+                      if (locality) localStorage.setItem('fixiva:last-locality', locality);
+                    } catch { void 0; }
+                  }}
+                  statePlaceholder="State"
+                  districtPlaceholder="District"
+                  localityPlaceholder="Locality"
+                  variant="borderless"
+                  layout="row"
+                  className="w-full"
+                />
+              </div>
 
-                <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-                  <button
-                    type="button"
-                    onClick={handleDetectLocation}
-                    disabled={detectingGps}
-                    className="flex-1 sm:flex-none text-xs font-bold px-3 py-2.5 rounded-xl border border-slate-200 hover:border-primary text-slate-700 hover:text-primary flex items-center justify-center gap-1.5 transition-all bg-slate-50"
-                  >
-                    📍 {detectingGps ? 'Locating...' : 'Current Location'}
-                  </button>
+              {/* Action Bar: Current Location & Book Now */}
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={detectingGps}
+                  className="text-xs font-bold px-3.5 py-2.5 rounded-xl border border-slate-200 hover:border-primary text-slate-700 hover:text-primary flex items-center gap-2 transition-all bg-slate-50 hover:bg-primary/5 active:scale-95 disabled:opacity-50"
+                >
+                  <span className="text-primary text-sm">📍</span>
+                  {detectingGps ? 'Locating...' : 'Current Location'}
+                </button>
 
-                  <button 
-                    type="submit" 
-                    className="btn-primary text-xs font-extrabold px-5 py-2.5 rounded-xl shrink-0 flex items-center justify-center gap-1.5 shadow-md"
-                  >
-                    {t('bookNowBtn', 'Book Now')}
-                    <ArrowRight size={15} />
-                  </button>
-                </div>
+                <button 
+                  type="submit" 
+                  className="btn-primary text-xs sm:text-sm font-extrabold px-6 py-2.5 sm:py-3 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all active:scale-95 shrink-0"
+                >
+                  {t('bookNowBtn', 'Book Now')}
+                  <ArrowRight size={16} />
+                </button>
               </div>
             </form>
           </motion.div>

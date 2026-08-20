@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Navigation,
@@ -8,129 +8,145 @@ import {
   Check,
   RotateCcw,
   Loader2,
-  ChevronDown
+  ChevronDown,
+  ArrowRight,
+  AlertCircle
 } from 'lucide-react';
-import { detectCurrentLocation, searchAddressNominatim, reverseGeocodeCoords } from '../../services/locationService';
+import { detectCurrentLocation, searchAddressNominatim, createLocationObject } from '../../services/locationService';
 import OpenStreetMapPicker from './OpenStreetMapPicker';
 import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
 
 const RapidoLocationSelector = ({
-  initialState = 'Jharkhand',
-  initialDistrict = 'Ranchi',
-  initialLocality = 'Lalpur',
+  initialState = '',
+  initialDistrict = '',
+  initialLocality = '',
   initialAddress = '',
   initialLat = null,
   initialLng = null,
-  onLocationConfirmed, // ({ state, district, locality, address, latitude, longitude, pincode }) => void
+  onLocationConfirmed,
   className = ''
 }) => {
   // Mode: 'initial' | 'detected' | 'change' | 'map'
   const [viewMode, setViewMode] = useState('initial');
   const [detecting, setDetecting] = useState(false);
+  const [gpsError, setGpsError] = useState(null);
 
-  // Selected Location State
-  const [selectedLoc, setSelectedLoc] = useState({
-    state: initialState,
-    district: initialDistrict,
-    locality: initialLocality,
-    formattedAddress: initialAddress || `${initialLocality}, ${initialDistrict}, ${initialState}`,
-    latitude: initialLat || 23.3700,
-    longitude: initialLng || 85.3300,
-    pincode: '834001'
+  // Selected Location State (unified schema)
+  const [selectedLoc, setSelectedLoc] = useState(() => {
+    return createLocationObject({
+      state: initialState || localStorage.getItem('fixiva:last-state') || '',
+      district: initialDistrict || localStorage.getItem('fixiva:last-district') || '',
+      locality: initialLocality || localStorage.getItem('fixiva:last-locality') || '',
+      address: initialAddress || localStorage.getItem('fixiva:last-address') || '',
+      latitude: initialLat !== null ? initialLat : parseFloat(localStorage.getItem('fixiva:last-lat')) || null,
+      longitude: initialLng !== null ? initialLng : parseFloat(localStorage.getItem('fixiva:last-lng')) || null,
+      location_source: 'manual'
+    });
   });
 
-  // Address Search State
+  // Search State
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
   const [showManualDropdowns, setShowManualDropdowns] = useState(false);
+  const searchDebounceRef = useRef(null);
 
-  // Auto-detect GPS on first load if no custom address passed
   useEffect(() => {
-    if (initialAddress) {
+    if (initialAddress || selectedLoc.address) {
       setViewMode('detected');
     }
   }, [initialAddress]);
 
-  // Handle "Use Current Location" (Primary Rapido CTA)
+  // GPS Current Location handler
   const handleUseCurrentLocation = async () => {
     setDetecting(true);
+    setGpsError(null);
     try {
       const res = await detectCurrentLocation();
-      if (res) {
-        const updated = {
-          state: res.state || 'Jharkhand',
-          district: res.district || 'Ranchi',
-          locality: res.locality || 'Lalpur',
-          formattedAddress: res.formattedAddress || `${res.locality}, ${res.district}`,
-          latitude: res.latitude || 23.3700,
-          longitude: res.longitude || 85.3300,
-          pincode: res.pincode || '834001'
-        };
+      if (res && (res.address || res.district || res.state)) {
+        const updated = createLocationObject({
+          ...res,
+          location_source: 'gps'
+        });
         setSelectedLoc(updated);
+        saveLocationToStorage(updated);
         setViewMode('detected');
+      } else {
+        setGpsError('Location permission is unavailable.');
       }
     } catch (e) {
       console.warn('GPS detection failed:', e);
+      setGpsError('Location permission is unavailable.');
     } finally {
       setDetecting(false);
     }
   };
 
-  // Handle Search Input Change
-  const handleSearchChange = async (e) => {
+  // Debounced Search Input Change
+  const handleSearchChange = (e) => {
     const query = e.target.value;
     setSearchQuery(query);
+
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+
     if (!query || query.trim().length < 3) {
       setSearchResults([]);
+      setSearching(false);
       return;
     }
 
     setSearching(true);
-    try {
-      const results = await searchAddressNominatim(query);
-      setSearchResults(results);
-    } catch (err) {
-      console.warn('Search error:', err);
-    } finally {
-      setSearching(false);
-    }
+    searchDebounceRef.current = setTimeout(async () => {
+      try {
+        const results = await searchAddressNominatim(query);
+        setSearchResults(results);
+      } catch (err) {
+        console.warn('Search error:', err);
+      } finally {
+        setSearching(false);
+      }
+    }, 300);
   };
 
-  // Select a search result
+  // Select Search Result
   const handleSelectSearchResult = (result) => {
-    const updated = {
-      state: result.state || selectedLoc.state,
-      district: result.district || selectedLoc.district,
-      locality: result.locality || selectedLoc.locality,
-      formattedAddress: result.formattedAddress,
-      latitude: result.latitude,
-      longitude: result.longitude,
-      pincode: result.pincode || '834001'
-    };
+    const updated = createLocationObject({
+      ...result,
+      location_source: 'search'
+    });
     setSelectedLoc(updated);
+    saveLocationToStorage(updated);
     setSearchQuery('');
     setSearchResults([]);
     setViewMode('detected');
   };
 
-  // Select location from Map Pin
+  // Select Map Pin Location
   const handleConfirmMapPin = (mapLoc) => {
-    const updated = {
-      state: mapLoc.state || selectedLoc.state,
-      district: mapLoc.district || selectedLoc.district,
-      locality: mapLoc.locality || selectedLoc.locality,
-      formattedAddress: mapLoc.formattedAddress,
-      latitude: mapLoc.latitude,
-      longitude: mapLoc.longitude,
-      pincode: mapLoc.pincode || '834001'
-    };
+    const updated = createLocationObject({
+      ...mapLoc,
+      location_source: 'map'
+    });
     setSelectedLoc(updated);
+    saveLocationToStorage(updated);
     setViewMode('detected');
   };
 
-  // Final confirmation to parent flow
+  // Save unified location to localStorage
+  const saveLocationToStorage = (loc) => {
+    try {
+      if (loc.state) localStorage.setItem('fixiva:last-state', loc.state);
+      if (loc.district) localStorage.setItem('fixiva:last-district', loc.district);
+      if (loc.locality) localStorage.setItem('fixiva:last-locality', loc.locality);
+      if (loc.address) localStorage.setItem('fixiva:last-address', loc.address);
+      if (loc.latitude) localStorage.setItem('fixiva:last-lat', String(loc.latitude));
+      if (loc.longitude) localStorage.setItem('fixiva:last-lng', String(loc.longitude));
+    } catch { void 0; }
+  };
+
+  // Final Confirmation to Parent Component
   const handleFinalConfirm = () => {
+    saveLocationToStorage(selectedLoc);
     if (onLocationConfirmed) {
       onLocationConfirmed(selectedLoc);
     }
@@ -140,72 +156,186 @@ const RapidoLocationSelector = ({
     <div className={`space-y-6 ${className}`}>
       <AnimatePresence mode="wait">
         
-        {/* VIEW 1: INITIAL RAPIDO PROMPT */}
+        {/* VIEW 1: INITIAL / SEARCH PROMPT */}
         {viewMode === 'initial' && (
           <motion.div
             key="initial"
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
-            className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
+            className="bg-white rounded-2xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-5"
           >
-            <div className="text-center space-y-2">
+            <div className="text-center space-y-1.5">
               <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20 tracking-wider">
-                Instant Location
+                Service Location
               </span>
-              <h2 className="text-2xl font-black text-slate-900">Where should we provide the service?</h2>
-              <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium leading-relaxed">
-                Fixiva automatically dispatches verified specialists nearby your location.
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900">Where do you need service?</h2>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto font-medium">
+                Choose any option below to set your exact service address
               </p>
             </div>
 
-            {/* Primary CTA: Use Current Location */}
+            {/* Option 1: Search Address Card */}
+            <div className="space-y-2">
+              <label className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                <Search size={15} className="text-primary" /> Search for an Address
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  placeholder="Search area, locality, landmark or address"
+                  className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm placeholder-slate-400"
+                />
+                <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+                {searching && (
+                  <Loader2 size={16} className="absolute right-3.5 top-3.5 animate-spin text-primary" />
+                )}
+              </div>
+
+              {/* Autocomplete Results */}
+              {searchResults.length > 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden max-h-56 overflow-y-auto space-y-1 p-2">
+                  {searchResults.map((res) => (
+                    <button
+                      key={res.id || res.address}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(res)}
+                      className="w-full p-2.5 rounded-xl hover:bg-blue-50/70 cursor-pointer flex items-start gap-2.5 transition-colors text-left"
+                    >
+                      <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 leading-snug truncate">{res.address}</p>
+                        <p className="text-[10px] text-slate-500 font-medium truncate">
+                          {[res.locality, res.district, res.state].filter(Boolean).join(' · ')}
+                        </p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* GPS Error Banner if Permission Denied */}
+            {gpsError && (
+              <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 flex items-start gap-2.5 text-xs">
+                <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold">{gpsError}</p>
+                  <p className="text-[11px] text-amber-700 mt-0.5 font-medium">Please search your location above or choose on map below.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Option 2: Use Current Location Card */}
             <button
               type="button"
               onClick={handleUseCurrentLocation}
               disabled={detecting}
-              className="w-full py-4 px-6 bg-primary hover:bg-primary/90 text-white rounded-2xl font-black text-sm shadow-lg shadow-primary/25 flex items-center justify-center gap-3 transition-all cursor-pointer transform active:scale-95 disabled:opacity-75"
+              className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
             >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center shrink-0">
+                  <Navigation size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">📍 Use Current Location</h4>
+                  <p className="text-[11px] text-slate-500 font-medium">Auto-detect position via browser GPS</p>
+                </div>
+              </div>
               {detecting ? (
-                <>
-                  <Loader2 size={20} className="animate-spin" />
-                  <span>Detecting exact location...</span>
-                </>
+                <Loader2 size={16} className="animate-spin text-primary" />
               ) : (
-                <>
-                  <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center">
-                    <Navigation size={16} />
-                  </div>
-                  <span>Use Current Location</span>
-                </>
+                <div className="text-xs font-bold text-primary flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <span>Detect</span>
+                  <ArrowRight size={14} />
+                </div>
               )}
             </button>
 
-            {/* Secondary Option: Change / Pick Location */}
-            <div className="flex items-center justify-center gap-4 text-xs font-bold text-slate-500 pt-2 border-t border-slate-100">
+            {/* Option 3: Choose on Map Card */}
+            <button
+              type="button"
+              onClick={() => setViewMode('map')}
+              className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all flex items-center justify-center shrink-0">
+                  <MapIcon size={18} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black text-slate-900">🗺️ Choose on Map</h4>
+                  <p className="text-[11px] text-slate-500 font-medium">Drag interactive pin on OpenStreetMap</p>
+                </div>
+              </div>
+              <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                <span>Open Map</span>
+                <ArrowRight size={14} />
+              </div>
+            </button>
+
+            {/* Collapsible Manual Dropdowns */}
+            <div className="pt-2 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setViewMode('change')}
-                className="hover:text-primary transition-colors flex items-center gap-1.5 cursor-pointer py-1"
+                onClick={() => setShowManualDropdowns(!showManualDropdowns)}
+                className="text-xs font-extrabold text-slate-600 hover:text-primary flex items-center gap-1.5 cursor-pointer py-1"
               >
-                <Search size={14} /> Search address or pick on map
+                <ChevronDown size={14} className={`transform transition-transform ${showManualDropdowns ? 'rotate-180' : ''}`} />
+                Or pick via State → District → Locality dropdowns
               </button>
+
+              {showManualDropdowns && (
+                <div className="mt-3 p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                  <HierarchicalLocationSelector
+                    selectedState={selectedLoc.state}
+                    selectedDistrict={selectedLoc.district}
+                    selectedLocality={selectedLoc.locality}
+                    onChange={({ state, district, locality, customLocationText }) => {
+                      const cleanLoc = customLocationText || (locality ? locality.replace(/^Custom:\s*/, '') : '');
+                      const updated = createLocationObject({
+                        state,
+                        district,
+                        city: district,
+                        locality: cleanLoc,
+                        address: cleanLoc ? `${cleanLoc}, ${district}, ${state}` : `${district}, ${state}`,
+                        latitude: null,
+                        longitude: null,
+                        location_source: 'manual'
+                      });
+                      setSelectedLoc(updated);
+                    }}
+                    layout="col"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveLocationToStorage(selectedLoc);
+                      setViewMode('detected');
+                    }}
+                    className="w-full py-3 text-xs font-black text-white bg-primary hover:bg-primary/90 rounded-xl transition-all shadow-md"
+                  >
+                    Confirm Dropdown Location
+                  </button>
+                </div>
+              )}
             </div>
           </motion.div>
         )}
 
-        {/* VIEW 2: LOCATION FOUND / DETECTED CARD */}
+        {/* VIEW 2: UNIFIED LOCATION PREVIEW CARD */}
         {viewMode === 'detected' && (
           <motion.div
             key="detected"
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
+            className="bg-white rounded-2xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-5"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-black uppercase text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Location Found
+              <span className="text-[11px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Selected Location
               </span>
               <button
                 type="button"
@@ -216,19 +346,24 @@ const RapidoLocationSelector = ({
               </button>
             </div>
 
-            {/* Address Card */}
-            <div className="p-5 rounded-2xl bg-blue-50/70 border border-blue-100 space-y-2">
+            {/* Unified Preview Address Card */}
+            <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 space-y-2">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-md">
-                  <MapPin size={22} />
+                  <MapPin size={20} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-black text-slate-900 leading-snug">
-                    {selectedLoc.formattedAddress || `${selectedLoc.locality}, ${selectedLoc.district}`}
+                  <h3 className="text-sm font-black text-slate-900 leading-snug">
+                    {selectedLoc.address || selectedLoc.location_text || `${selectedLoc.locality}, ${selectedLoc.district}`}
                   </h3>
-                  <p className="text-xs font-bold text-slate-500 mt-1">
-                    Locality: <span className="text-slate-800">{selectedLoc.locality}</span> | District: <span className="text-slate-800">{selectedLoc.district}</span> ({selectedLoc.state})
+                  <p className="text-xs font-bold text-slate-500 mt-1 truncate">
+                    {[selectedLoc.locality, selectedLoc.district || selectedLoc.city, selectedLoc.state, selectedLoc.pincode].filter(Boolean).join(' · ')}
                   </p>
+                  {selectedLoc.location_source && (
+                    <span className="inline-block text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                      Source: {selectedLoc.location_source}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -253,31 +388,31 @@ const RapidoLocationSelector = ({
           </motion.div>
         )}
 
-        {/* VIEW 3: CHANGE LOCATION SCREEN */}
+        {/* VIEW 3: CHANGE LOCATION OPTIONS */}
         {viewMode === 'change' && (
           <motion.div
             key="change"
             initial={{ opacity: 0, y: 15 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6"
+            className="bg-white rounded-2xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-5"
           >
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div>
-                <h3 className="text-xl font-black text-slate-900">Change Service Location</h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">Choose any of the simple options below</p>
+                <h3 className="text-lg font-black text-slate-900">Change Service Location</h3>
+                <p className="text-xs text-slate-500 font-medium">Select any method to update location</p>
               </div>
               <button
                 type="button"
-                onClick={() => setViewMode('detected')}
-                className="text-xs font-bold text-slate-500 hover:text-slate-900"
+                onClick={() => setViewMode(selectedLoc.address ? 'detected' : 'initial')}
+                className="text-xs font-bold text-slate-500 hover:text-slate-900 cursor-pointer"
               >
                 Back
               </button>
             </div>
 
             <div className="space-y-4">
-              {/* Option 1: Search Address */}
+              {/* Option 1: Search Address Input */}
               <div className="space-y-2">
                 <label className="text-xs font-extrabold text-slate-700 flex items-center gap-1.5">
                   <Search size={14} className="text-primary" /> 1. Search for an Address
@@ -287,8 +422,8 @@ const RapidoLocationSelector = ({
                     type="text"
                     value={searchQuery}
                     onChange={handleSearchChange}
-                    placeholder="Type area, locality, or landmark (e.g. Lalpur, Ranchi)..."
-                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                    placeholder="Search area, locality, landmark or address"
+                    className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm placeholder-slate-400"
                   />
                   <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
                   {searching && (
@@ -296,21 +431,23 @@ const RapidoLocationSelector = ({
                   )}
                 </div>
 
-                {/* Search Results Dropdown */}
                 {searchResults.length > 0 && (
                   <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden max-h-56 overflow-y-auto space-y-1 p-2">
                     {searchResults.map((res) => (
-                      <div
-                        key={res.id}
+                      <button
+                        key={res.id || res.address}
+                        type="button"
                         onClick={() => handleSelectSearchResult(res)}
-                        className="p-2.5 rounded-xl hover:bg-blue-50/70 cursor-pointer flex items-start gap-2.5 transition-colors text-left"
+                        className="w-full p-2.5 rounded-xl hover:bg-blue-50/70 cursor-pointer flex items-start gap-2.5 transition-colors text-left"
                       >
                         <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-xs font-bold text-slate-900 leading-snug">{res.formattedAddress}</p>
-                          <p className="text-[10px] text-slate-500 font-medium">{res.locality}, {res.district}, {res.state}</p>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-900 leading-snug truncate">{res.address}</p>
+                          <p className="text-[10px] text-slate-500 font-medium truncate">
+                            {[res.locality, res.district, res.state].filter(Boolean).join(' · ')}
+                          </p>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -321,7 +458,7 @@ const RapidoLocationSelector = ({
                 type="button"
                 onClick={handleUseCurrentLocation}
                 disabled={detecting}
-                className="w-full p-4 rounded-2xl border border-slate-200 hover:border-primary bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left"
+                className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center shrink-0">
@@ -335,7 +472,10 @@ const RapidoLocationSelector = ({
                 {detecting ? (
                   <Loader2 size={16} className="animate-spin text-primary" />
                 ) : (
-                  <span className="text-xs font-bold text-primary">Detect $\rightarrow$</span>
+                  <div className="text-xs font-bold text-primary flex items-center gap-1">
+                    <span>Detect</span>
+                    <ArrowRight size={14} />
+                  </div>
                 )}
               </button>
 
@@ -343,7 +483,7 @@ const RapidoLocationSelector = ({
               <button
                 type="button"
                 onClick={() => setViewMode('map')}
-                className="w-full p-4 rounded-2xl border border-slate-200 hover:border-primary bg-slate-50 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left"
+                className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
               >
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-all flex items-center justify-center shrink-0">
@@ -351,21 +491,24 @@ const RapidoLocationSelector = ({
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-slate-900">3. Choose on Map</h4>
-                    <p className="text-[11px] text-slate-500 font-medium">Drag interactive pin on Leaflet + OpenStreetMap</p>
+                    <p className="text-[11px] text-slate-500 font-medium">Drag interactive pin on OpenStreetMap</p>
                   </div>
                 </div>
-                <span className="text-xs font-bold text-emerald-600">Open Map $\rightarrow$</span>
+                <div className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                  <span>Open Map</span>
+                  <ArrowRight size={14} />
+                </div>
               </button>
 
-              {/* Collapsible Manual Dropdown Selector */}
+              {/* Option 4: Manual Dropdowns */}
               <div className="pt-2 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setShowManualDropdowns(!showManualDropdowns)}
-                  className="text-xs font-extrabold text-slate-500 hover:text-slate-900 flex items-center gap-1 cursor-pointer"
+                  className="text-xs font-extrabold text-slate-600 hover:text-primary flex items-center gap-1.5 cursor-pointer py-1"
                 >
                   <ChevronDown size={14} className={`transform transition-transform ${showManualDropdowns ? 'rotate-180' : ''}`} />
-                  Or pick via State $\rightarrow$ District $\rightarrow$ Locality dropdowns
+                  Or pick via State → District → Locality dropdowns
                 </button>
 
                 {showManualDropdowns && (
@@ -374,21 +517,29 @@ const RapidoLocationSelector = ({
                       selectedState={selectedLoc.state}
                       selectedDistrict={selectedLoc.district}
                       selectedLocality={selectedLoc.locality}
-                      onChange={({ state, district, locality }) => {
-                        setSelectedLoc((prev) => ({
-                          ...prev,
+                      onChange={({ state, district, locality, customLocationText }) => {
+                        const cleanLoc = customLocationText || (locality ? locality.replace(/^Custom:\s*/, '') : '');
+                        const updated = createLocationObject({
                           state,
                           district,
-                          locality,
-                          formattedAddress: `${locality}, ${district}, ${state}`
-                        }));
+                          city: district,
+                          locality: cleanLoc,
+                          address: cleanLoc ? `${cleanLoc}, ${district}, ${state}` : `${district}, ${state}`,
+                          latitude: null,
+                          longitude: null,
+                          location_source: 'manual'
+                        });
+                        setSelectedLoc(updated);
                       }}
                       layout="col"
                     />
                     <button
                       type="button"
-                      onClick={() => setViewMode('detected')}
-                      className="w-full py-2.5 text-xs font-bold text-white bg-primary rounded-xl"
+                      onClick={() => {
+                        saveLocationToStorage(selectedLoc);
+                        setViewMode('detected');
+                      }}
+                      className="w-full py-3 text-xs font-black text-white bg-primary hover:bg-primary/90 rounded-xl transition-all shadow-md"
                     >
                       Set Dropdown Location
                     </button>
@@ -399,25 +550,25 @@ const RapidoLocationSelector = ({
           </motion.div>
         )}
 
-        {/* VIEW 4: INTERACTIVE MAP PICKER VIEW */}
+        {/* VIEW 4: MAP VIEW */}
         {viewMode === 'map' && (
           <motion.div
             key="map"
             initial={{ opacity: 0, scale: 0.98 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.98 }}
-            className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-4"
+            className="bg-white rounded-2xl p-5 sm:p-7 shadow-sm border border-slate-200/80 space-y-4"
           >
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-lg font-black text-slate-900 flex items-center gap-2">
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
                 <MapIcon size={18} className="text-primary" /> Drag Pin on Map
               </h3>
               <button
                 type="button"
                 onClick={() => setViewMode('change')}
-                className="text-xs font-bold text-slate-500 hover:text-slate-900"
+                className="text-xs font-bold text-slate-500 hover:text-slate-900 cursor-pointer"
               >
-                Cancel Map
+                Back to Options
               </button>
             </div>
 

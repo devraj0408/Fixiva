@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Loader2, Check } from 'lucide-react';
-import { reverseGeocodeCoords } from '../../services/locationService';
+import { MapPin, Loader2, Check, Search, Navigation } from 'lucide-react';
+import { reverseGeocodeCoords, searchAddressNominatim, createLocationObject } from '../../services/locationService';
 
 const OpenStreetMapPicker = ({
   initialLat = 23.3700,
   initialLng = 85.3300,
-  onConfirmLocation, // ({ latitude, longitude, formattedAddress, state, district, locality, pincode }) => void
+  onConfirmLocation,
   onCancel
 }) => {
   const mapRef = useRef(null);
@@ -16,7 +16,13 @@ const OpenStreetMapPicker = ({
   const [geocoding, setGeocoding] = useState(false);
   const [currentLoc, setCurrentLoc] = useState(null);
 
-  // Load Leaflet dynamically if not already available
+  // Search inside map state
+  const [mapSearchQuery, setMapSearchQuery] = useState('');
+  const [mapSearching, setMapSearching] = useState(false);
+  const [mapSearchResults, setMapSearchResults] = useState([]);
+  const debounceTimerRef = useRef(null);
+
+  // Load Leaflet dynamically if needed
   useEffect(() => {
     let isMounted = true;
 
@@ -64,22 +70,25 @@ const OpenStreetMapPicker = ({
     };
   }, []);
 
-  // Handle Location Reverse Geocode when coordinates change
+  // Update address when pin moves or map pans
   const updateAddressForCoords = async (lat, lng) => {
     setGeocoding(true);
     try {
       const res = await reverseGeocodeCoords(lat, lng);
       if (res) {
-        setCurrentLoc(res);
+        setCurrentLoc({
+          ...res,
+          location_source: 'map'
+        });
       }
     } catch (e) {
-      console.warn('Reverse geocode error on map drag:', e);
+      console.warn('Reverse geocode error on map:', e);
     } finally {
       setGeocoding(false);
     }
   };
 
-  // Initialize Map once Leaflet is ready
+  // Initialize Map
   useEffect(() => {
     if (loadingMap || !mapRef.current || leafletInstanceRef.current || !window.L) return;
 
@@ -98,29 +107,29 @@ const OpenStreetMapPicker = ({
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Custom pulse marker icon
     const customIcon = L.divIcon({
       className: 'custom-map-pin',
       html: `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 36px;
+          height: 36px;
           background: #2563eb;
           border: 3px solid #ffffff;
           border-radius: 50%;
-          box-shadow: 0 4px 12px rgba(37,99,235,0.4);
+          box-shadow: 0 6px 16px rgba(37,99,235,0.45);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          font-weight: bold;
+          font-size: 18px;
           cursor: move;
+          transform: translate(-2px, -2px);
         ">
           📍
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16]
+      iconSize: [36, 36],
+      iconAnchor: [18, 18]
     });
 
     const marker = L.marker([centerLat, centerLng], {
@@ -134,13 +143,11 @@ const OpenStreetMapPicker = ({
     // Initial reverse geocode
     updateAddressForCoords(centerLat, centerLng);
 
-    // Marker drag end event
     marker.on('dragend', () => {
       const pos = marker.getLatLng();
       updateAddressForCoords(pos.lat, pos.lng);
     });
 
-    // Map click event (moves pin to click location)
     map.on('click', (e) => {
       const { lat, lng } = e.latlng;
       marker.setLatLng([lat, lng]);
@@ -155,47 +162,161 @@ const OpenStreetMapPicker = ({
     };
   }, [loadingMap, initialLat, initialLng]);
 
+  // Handle Search Input in Map
+  const handleMapSearchChange = (e) => {
+    const query = e.target.value;
+    setMapSearchQuery(query);
+
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+
+    if (!query || query.trim().length < 3) {
+      setMapSearchResults([]);
+      setMapSearching(false);
+      return;
+    }
+
+    setMapSearching(true);
+    debounceTimerRef.current = setTimeout(async () => {
+      try {
+        const results = await searchAddressNominatim(query);
+        setMapSearchResults(results);
+      } catch (err) {
+        console.warn('Map search error:', err);
+      } finally {
+        setMapSearching(false);
+      }
+    }, 300);
+  };
+
+  // Select search result inside Map
+  const handleSelectMapSearchResult = (item) => {
+    const lat = Number(item.latitude);
+    const lng = Number(item.longitude);
+
+    if (!isNaN(lat) && !isNaN(lng) && leafletInstanceRef.current && markerRef.current) {
+      leafletInstanceRef.current.flyTo([lat, lng], 16, { animate: true, duration: 1.2 });
+      markerRef.current.setLatLng([lat, lng]);
+      const locObj = createLocationObject({
+        ...item,
+        location_source: 'map'
+      });
+      setCurrentLoc(locObj);
+    }
+    setMapSearchQuery('');
+    setMapSearchResults([]);
+  };
+
+  // Jump to user's current GPS location on map
+  const handleJumpToGPS = () => {
+    if (!navigator.geolocation) return;
+    setGeocoding(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        if (leafletInstanceRef.current && markerRef.current) {
+          leafletInstanceRef.current.flyTo([lat, lng], 16, { animate: true, duration: 1.2 });
+          markerRef.current.setLatLng([lat, lng]);
+          updateAddressForCoords(lat, lng);
+        }
+      },
+      () => setGeocoding(false),
+      { enableHighAccuracy: true, timeout: 5000 }
+    );
+  };
+
   return (
     <div className="space-y-4">
-      {/* Readable Address Banner */}
-      <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-100 flex items-start gap-3">
-        <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-          <MapPin size={18} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-black uppercase text-primary bg-white px-2 py-0.5 rounded border border-blue-200">
-              Drag Pin to Adjust
-            </span>
-            {geocoding && (
-              <span className="text-[11px] text-slate-500 flex items-center gap-1 font-semibold">
-                <Loader2 size={12} className="animate-spin text-primary" /> Resolving address...
-              </span>
-            )}
-          </div>
-          <p className="text-xs font-black text-slate-900 mt-1 truncate">
-            {currentLoc?.formattedAddress || 'Tap map or drag pin to select location'}
-          </p>
-          {currentLoc && (
-            <p className="text-[11px] font-medium text-slate-500 mt-0.5">
-              {currentLoc.locality}, {currentLoc.district}, {currentLoc.state} {currentLoc.pincode}
-            </p>
+      {/* Top Search Bar over Map */}
+      <div className="relative z-20">
+        <div className="relative">
+          <input
+            type="text"
+            value={mapSearchQuery}
+            onChange={handleMapSearchChange}
+            placeholder="Search this area, landmark or address..."
+            className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-sm"
+          />
+          <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+          {mapSearching && (
+            <Loader2 size={16} className="absolute right-3.5 top-3.5 animate-spin text-primary" />
           )}
         </div>
+
+        {/* Live Search Suggestions Dropdown */}
+        {mapSearchResults.length > 0 && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden max-h-52 overflow-y-auto z-30 p-2 space-y-1">
+            {mapSearchResults.map((res) => (
+              <button
+                key={res.id || res.address}
+                type="button"
+                onClick={() => handleSelectMapSearchResult(res)}
+                className="w-full p-2.5 rounded-xl hover:bg-blue-50/70 cursor-pointer flex items-start gap-2.5 transition-colors text-left"
+              >
+                <MapPin size={16} className="text-primary shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-slate-900 leading-snug truncate">{res.address}</p>
+                  <p className="text-[10px] text-slate-500 font-medium truncate">
+                    {[res.locality, res.district, res.state].filter(Boolean).join(' · ')}
+                  </p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Map Container */}
-      <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100 min-h-[260px] h-64">
+      <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100 min-h-[280px] h-72">
         {loadingMap && (
           <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-slate-500 text-xs font-bold">
             <Loader2 size={24} className="animate-spin text-primary" />
             Loading Map...
           </div>
         )}
+
         <div ref={mapRef} className="w-full h-full" />
+
+        {/* In-Map GPS Jump Button */}
+        <button
+          type="button"
+          onClick={handleJumpToGPS}
+          title="Jump to my location"
+          className="absolute bottom-4 right-4 z-[400] p-3 bg-white hover:bg-slate-50 text-primary rounded-xl shadow-lg border border-slate-200 transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+        >
+          <Navigation size={15} />
+          <span>My GPS</span>
+        </button>
       </div>
 
-      {/* Confirmation Actions */}
+      {/* Bottom Selected Location Preview Banner */}
+      <div className="p-4 rounded-2xl bg-blue-50/80 border border-blue-100 flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl bg-primary text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+          <MapPin size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-black uppercase tracking-wide text-primary bg-white px-2 py-0.5 rounded border border-blue-200">
+              Selected Map Location
+            </span>
+            {geocoding && (
+              <span className="text-[11px] text-slate-500 flex items-center gap-1 font-semibold">
+                <Loader2 size={12} className="animate-spin text-primary" /> Reverse geocoding...
+              </span>
+            )}
+          </div>
+          <p className="text-xs font-black text-slate-900 mt-1 truncate">
+            {currentLoc?.address || 'Drag pin or click map to select location'}
+          </p>
+          {currentLoc && (
+            <p className="text-[11px] font-medium text-slate-500 mt-0.5 truncate">
+              {[currentLoc.locality, currentLoc.district, currentLoc.state, currentLoc.pincode].filter(Boolean).join(' · ')}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Action Buttons */}
       <div className="flex items-center gap-3">
         {onCancel && (
           <button
@@ -213,7 +334,7 @@ const OpenStreetMapPicker = ({
           className="flex-1 py-3 text-xs font-black text-white bg-primary hover:bg-primary/90 rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all disabled:opacity-50"
         >
           <Check size={16} />
-          Confirm Map Location
+          Confirm Location
         </button>
       </div>
     </div>

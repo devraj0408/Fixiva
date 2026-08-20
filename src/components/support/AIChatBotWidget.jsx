@@ -134,6 +134,7 @@ export default function AIChatBotWidget() {
     try {
       const res = await generateAIResponse({
         userMessage: query,
+        chatHistory: messages,
         userRole,
         userProfile: user,
         userLanguage: speakLang || language,

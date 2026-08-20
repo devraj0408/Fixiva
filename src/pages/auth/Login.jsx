@@ -65,7 +65,7 @@ const Login = () => {
     }
 
     setLoading(true);
-    const { success, error, email } = await requestOtp(identifier, 'sign-in');
+    const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
     setLoading(false);
 
     if (!success) {
@@ -78,7 +78,7 @@ const Login = () => {
     setAttempts(0);
     setOtpValues(['', '', '', '', '', '']);
     setOtp('');
-    setMessage(`Verification code sent to ${email || 'your inbox'}.`);
+    setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
   };
 
   const handleResendOtp = async () => {
@@ -90,7 +90,7 @@ const Login = () => {
     setOtp('');
     setAttempts(0);
     
-    const { success, error, email } = await requestOtp(identifier, 'sign-in');
+    const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
     setLoading(false);
     
     if (!success) {
@@ -99,7 +99,7 @@ const Login = () => {
     }
     
     setCountdown(60);
-    setMessage(`Verification code sent to ${email || 'your inbox'}.`);
+    setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
   };
 
   const handleVerifyOtp = async (e) => {
