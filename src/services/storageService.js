@@ -20,37 +20,49 @@ export const uploadImage = async (file, bucket = 'cms-assets', folder = 'catalog
     return { success: false, url: '', error: 'No file provided' };
   }
 
-  // If file is already a string URL/Base64, return it directly
   if (typeof file === 'string') {
+    if (file.startsWith('blob:')) {
+      return { success: false, url: '', error: 'Blob URL not supported for persistence' };
+    }
     return { success: true, url: file };
   }
 
   if (!supabase) {
-    const localUrl = await fileToDataUrl(file);
-    return { success: true, url: localUrl, fallback: true };
+    return { success: false, url: '', error: 'Supabase storage client not available' };
   }
 
   try {
     const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
     const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${fileExt}`;
 
-    const { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
+    let { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
       cacheControl: '3600',
       upsert: true,
     });
 
+    if (error && (error.message.includes('not found') || error.message.includes('Bucket'))) {
+      const retryFallback = await supabase.storage.from('services').upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+      if (!retryFallback.error && retryFallback.data) {
+        data = retryFallback.data;
+        error = null;
+        bucket = 'services';
+      }
+    }
+
     if (error) {
-      console.warn('Supabase storage upload failed, using Base64 data URL fallback:', error.message);
-      const localDataUrl = await fileToDataUrl(file);
-      return { success: true, url: localDataUrl, fallback: true, error: error.message };
+      console.warn('Supabase storage upload failed:', error.message);
+      return { success: false, url: '', error: error.message };
     }
 
     const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-    return { success: true, url: publicUrlData?.publicUrl || '' };
+    const finalUrl = publicUrlData?.publicUrl || '';
+    return { success: true, url: finalUrl, error: null };
   } catch (err) {
-    console.warn('Exception during image upload, using Base64 fallback:', err);
-    const localDataUrl = await fileToDataUrl(file);
-    return { success: true, url: localDataUrl, fallback: true };
+    console.warn('Exception during image upload:', err);
+    return { success: false, url: '', error: err instanceof Error ? err.message : String(err) };
   }
 };
 

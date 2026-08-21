@@ -138,28 +138,28 @@ export const findAvailableProfessionals = async ({
       return s.includes(req) || req.includes(s) || s === 'all' || s.includes('general');
     };
 
+    const isValidCoordinate = (lat, lng) => {
+      if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+      const numLat = Number(lat);
+      const numLng = Number(lng);
+      return !isNaN(numLat) && !isNaN(numLng) && numLat >= -90 && numLat <= 90 && numLng >= -180 && numLng <= 180 && (numLat !== 0 || numLng !== 0);
+    };
+
+    const hasUserCoords = isValidCoordinate(userLat, userLng);
+
     // Filter active registered workers
     const formattedWorkers = Array.from(workerMap.values())
       .filter(w => isAccountActive(w.status || w.account_status) && isLocationMatch(w.district, w.city, district) && isSkillMatch(w.skills, serviceId))
       .map(w => {
-        let distKm;
-        if (userLat && userLng && w.location_latitude && w.location_longitude) {
-          distKm = calculateDistanceInKm(userLat, userLng, Number(w.location_latitude), Number(w.location_longitude));
-        } else {
-          const idHash = Math.abs(String(w.id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
-          distKm = Number((1.5 + (idHash % 35) / 10).toFixed(1));
+        let distKm = null;
+        let etaText = null;
+        if (hasUserCoords && isValidCoordinate(w.location_latitude, w.location_longitude)) {
+          distKm = Number(calculateDistanceInKm(Number(userLat), Number(userLng), Number(w.location_latitude), Number(w.location_longitude)).toFixed(1));
+          if (distKm <= 3) etaText = '15 - 25 mins';
+          else if (distKm <= 7) etaText = '25 - 35 mins';
+          else if (distKm <= 12) etaText = '35 - 50 mins';
+          else etaText = '45 - 60 mins';
         }
-
-        if (distKm > 25 && isLocationMatch(w.district, w.city, district)) {
-          const idHash = Math.abs(String(w.id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
-          distKm = Number((1.5 + (idHash % 35) / 10).toFixed(1));
-        }
-
-        let etaText;
-        if (distKm <= 3) etaText = '15 - 25 mins';
-        else if (distKm <= 7) etaText = '25 - 35 mins';
-        else if (distKm <= 12) etaText = '35 - 50 mins';
-        else etaText = '45 - 60 mins';
 
         return {
           id: w.id,
@@ -169,7 +169,7 @@ export const findAvailableProfessionals = async ({
           rating: Number(w.rating || 4.8).toFixed(1),
           completed_jobs: Number(w.completed_jobs || 15),
           experience: w.experience || '3+ Years Exp',
-          starting_price: Number(w.starting_price || w.visit_charge || 199),
+          starting_price: Number(w.starting_price || w.visit_charge || 0),
           distance_km: distKm,
           eta_text: etaText,
           status: 'Available',
@@ -183,23 +183,15 @@ export const findAvailableProfessionals = async ({
     const formattedContractors = Array.from(contractorMap.values())
       .filter(c => isAccountActive(c.status || c.account_status) && isLocationMatch(c.district, c.city, district) && isSkillMatch(c.services_offered || c.skills, serviceId))
       .map(c => {
-        let distKm;
-        if (userLat && userLng && c.location_latitude && c.location_longitude) {
-          distKm = calculateDistanceInKm(userLat, userLng, Number(c.location_latitude), Number(c.location_longitude));
-        } else {
-          const idHash = Math.abs(String(c.id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
-          distKm = Number((2.1 + (idHash % 30) / 10).toFixed(1));
+        let distKm = null;
+        let etaText = null;
+        if (hasUserCoords && isValidCoordinate(c.location_latitude, c.location_longitude)) {
+          distKm = Number(calculateDistanceInKm(Number(userLat), Number(userLng), Number(c.location_latitude), Number(c.location_longitude)).toFixed(1));
+          if (distKm <= 3) etaText = '15 - 25 mins';
+          else if (distKm <= 7) etaText = '25 - 35 mins';
+          else if (distKm <= 12) etaText = '35 - 50 mins';
+          else etaText = '45 - 60 mins';
         }
-
-        if (distKm > 25 && isLocationMatch(c.district, c.city, district)) {
-          const idHash = Math.abs(String(c.id || '').split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0));
-          distKm = Number((2.1 + (idHash % 30) / 10).toFixed(1));
-        }
-
-        let etaText;
-        if (distKm <= 3) etaText = '15 - 25 mins';
-        else if (distKm <= 7) etaText = '25 - 35 mins';
-        else etaText = '35 - 50 mins';
 
         return {
           id: c.id,
@@ -209,7 +201,7 @@ export const findAvailableProfessionals = async ({
           rating: Number(c.rating || 4.9).toFixed(1),
           completed_jobs: Number(c.completed_jobs || 50),
           experience: 'Certified Enterprise',
-          starting_price: Number(c.starting_price || 299),
+          starting_price: Number(c.starting_price || 0),
           distance_km: distKm,
           eta_text: etaText,
           status: 'Available',
@@ -222,9 +214,11 @@ export const findAvailableProfessionals = async ({
     let allMatched = [...formattedWorkers, ...formattedContractors];
 
     allMatched.sort((a, b) => {
-      if (a.distance_km !== b.distance_km) {
+      if (a.distance_km !== null && b.distance_km !== null) {
         return a.distance_km - b.distance_km;
       }
+      if (a.distance_km !== null) return -1;
+      if (b.distance_km !== null) return 1;
       if (b.rating !== a.rating) {
         return Number(b.rating) - Number(a.rating);
       }
@@ -297,8 +291,11 @@ export const createBooking = async (bookingData, actor = {}) => {
       customer_address: bookingData.address || '',
       worker_name: bookingData.worker_name || 'Specialist Assigned',
       worker_phone: bookingData.worker_phone || '',
-      price: Number(bookingData.price || 199),
-      platform_fee: Number(bookingData.platform_fee || 49),
+      price: Number(bookingData.price || 0),
+      platform_fee: 0,
+      payment_method: 'CASH',
+      payment_status: 'PENDING',
+      paid_at: null,
       status: 'New Request',
       booking_date: bookingData.booking_date || new Date().toISOString()
     };
@@ -442,6 +439,31 @@ export const updateSystemSettings = (updates) => {
 export const getPayments = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
   try {
+    const { data: bData, error: bErr } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!bErr && bData) {
+      const mappedPayments = bData.map((b) => ({
+        id: b.id,
+        booking_id: b.id,
+        customer_name: b.customer_name || 'Customer',
+        worker_name: b.worker_name || 'Unassigned',
+        contractor_id: b.contractor_id,
+        service_name: b.service_name || 'Home Service',
+        amount: Number(b.price || 0),
+        platform_fee: Number(b.platform_fee || 0),
+        payment_method: b.payment_method || 'CASH',
+        status: b.payment_status || 'PENDING',
+        paid_at: b.paid_at || null,
+        booking_status: b.status,
+        created_at: b.created_at,
+        transaction_id: `CASH-${b.id}`
+      }));
+      return { data: mappedPayments, error: null };
+    }
+
     const { data, error } = await supabase.from('payments').select('*').order('created_at', { ascending: false });
     return { data: data || [], error: error?.message || null };
   } catch (err) {
@@ -449,14 +471,75 @@ export const getPayments = async () => {
   }
 };
 
-export const updatePaymentStatus = async (id, status) => {
+export const updatePaymentStatus = async (id, status, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
   try {
-    const { data, error } = await supabase.from('payments').update({ status }).eq('id', id).select().maybeSingle();
-    return { data, error: error?.message || null };
+    const isPaid = status === 'PAID' || status === 'Paid';
+    const updates = {
+      payment_method: 'CASH',
+      payment_status: isPaid ? 'PAID' : status,
+      platform_fee: 0,
+      paid_at: isPaid ? new Date().toISOString() : null,
+    };
+
+    const { data, error } = await supabase
+      .from('bookings')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('updatePaymentStatus error:', error);
+      return { data: null, error: error.message };
+    }
+
+    try {
+      await supabase.from('payments').upsert({
+        id,
+        booking_id: id,
+        amount: data?.price || 0,
+        payment_method: 'CASH',
+        status: isPaid ? 'Paid' : status,
+        created_at: data?.created_at || new Date().toISOString()
+      });
+    } catch (e) {
+      void e;
+    }
+
+    await logAdminAction({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'update_payment_status',
+      objectType: 'booking_payment',
+      objectId: id,
+      payload: updates,
+    });
+
+    return { data, error: null };
   } catch (err) {
-    return { data: null, error: String(err) };
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
+};
+
+export const collectCashPayment = async (bookingId, actor = {}) => {
+  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
+
+  try {
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('payment_status, price')
+      .eq('id', bookingId)
+      .maybeSingle();
+
+    if (existing && (existing.payment_status === 'PAID' || existing.payment_status === 'Paid')) {
+      return { data: existing, error: 'Cash has already been collected for this booking.' };
+    }
+  } catch (e) {
+    void e;
+  }
+
+  return updatePaymentStatus(bookingId, 'PAID', actor);
 };
 
 export const getSupportTickets = async () => {

@@ -134,6 +134,9 @@ CREATE TABLE IF NOT EXISTS public.bookings (
   booking_date timestamp with time zone,
   price numeric DEFAULT 0,
   platform_fee numeric DEFAULT 0,
+  payment_method text DEFAULT 'CASH',
+  payment_status text DEFAULT 'PENDING',
+  paid_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now()
 );
 
@@ -358,6 +361,22 @@ DROP POLICY IF EXISTS "coupons_all" ON public.coupons;
 CREATE POLICY "coupons_all" ON public.coupons FOR ALL USING (true);
 DROP POLICY IF EXISTS "notifications_all" ON public.notifications;
 CREATE POLICY "notifications_all" ON public.notifications FOR ALL USING (true);
+
+ALTER TABLE IF EXISTS public.bookings
+  ADD COLUMN IF NOT EXISTS payment_method text DEFAULT 'CASH',
+  ADD COLUMN IF NOT EXISTS payment_status text DEFAULT 'PENDING',
+  ADD COLUMN IF NOT EXISTS paid_at timestamp with time zone;
+
+ALTER TABLE IF EXISTS public.profiles
+  ADD COLUMN IF NOT EXISTS location_latitude numeric,
+  ADD COLUMN IF NOT EXISTS location_longitude numeric,
+  ADD COLUMN IF NOT EXISTS location_text text,
+  ADD COLUMN IF NOT EXISTS location_source text;
+
+ALTER TABLE IF EXISTS public.services
+  ADD COLUMN IF NOT EXISTS image_url text,
+  ADD COLUMN IF NOT EXISTS image text,
+  ADD COLUMN IF NOT EXISTS icon_url text;
 
 -- Add tables to supabase_realtime publication
 DO $$

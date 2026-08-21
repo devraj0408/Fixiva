@@ -405,7 +405,7 @@ export const submitCoverageRequest = async (arg1, arg2, arg3) => {
     email = arg1.email || '';
     service_id = arg1.service_id || arg1.serviceId || '';
     service_name = arg1.service_name || arg1.serviceName || 'General Home Services';
-    state = arg1.state || arg1.region || 'Jharkhand';
+    state = arg1.state || arg1.region || '';
     district = arg1.district || arg1.city || '';
     locality = arg1.locality || arg1.area || '';
     pincode = arg1.pincode || '';
@@ -415,7 +415,7 @@ export const submitCoverageRequest = async (arg1, arg2, arg3) => {
     customer_id = null;
     customer_name = '';
     district = String(arg1 || '').trim();
-    state = String(arg2 || '').trim() || 'Jharkhand';
+    state = String(arg2 || '').trim() || '';
     email = String(arg3 || '').trim();
     phone = email;
     service_id = '';
@@ -427,8 +427,8 @@ export const submitCoverageRequest = async (arg1, arg2, arg3) => {
   }
 
   const cleanDistrict = String(district || '').trim();
-  const cleanState = String(state || '').trim() || 'Jharkhand';
-  const cleanLocality = String(locality || '').trim() || 'Entire District';
+  const cleanState = String(state || '').trim() || '';
+  const cleanLocality = String(locality || '').trim() || '';
   const cleanContact = String(phone || email || '').trim();
 
   if (!cleanDistrict || !cleanContact) {

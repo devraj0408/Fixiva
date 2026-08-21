@@ -390,35 +390,6 @@ const Register = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <input type="email" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="name@email.com" />
-                    </div>
-                    {errors.email && <p className="text-danger text-[10px] font-bold text-red-500">{errors.email}</p>}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('cityLabel', 'Operating City')}</label>
-                    <HierarchicalLocationSelector
-                      selectedState={typeof formData.state === 'string' ? formData.state : (formData.state?.state || '')}
-                      selectedDistrict={typeof formData.city === 'string' ? formData.city : (formData.city?.district || '')}
-                      onChange={({ state, district }) => setFormData((prev) => ({
-                        ...prev,
-                        state: String(state || ''),
-                        city: String(district || '')
-                      }))}
-                      statePlaceholder="Select State"
-                      districtPlaceholder="Select City"
-                      layout="row"
-                      className="w-full"
-                    />
-                    {errors.city && <p className="text-danger text-[10px] font-bold text-red-500">{errors.city}</p>}
-                  </div>
-
-                  <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('phoneLabel', 'Mobile Number')}</label>
                     <div className="relative">
                       <Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
@@ -428,11 +399,98 @@ const Register = () => {
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input type="text" className="flex-1 h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.locationText} onChange={(e) => setFormData({ ...formData, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' })} placeholder="Precise locality or landmark" />
-                  <button type="button" onClick={handleUseCurrentLocation} disabled={geoLoading} className="h-11 px-4 rounded-xl border border-sky-200/80 bg-gradient-to-r from-sky-200 via-cyan-100 to-sky-100 text-slate-700 text-xs font-black shadow-sm shadow-sky-200/40 flex items-center justify-center gap-2 disabled:opacity-60"><span>{geoLoading ? <Loader2 size={18} className="animate-spin" /> : <LocateFixed size={18} />}</span>{geoLoading ? 'Detecting...' : 'Use Current Location'}</button>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
+                  <div className="relative">
+                    <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                    <input type="email" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="name@email.com" />
+                  </div>
+                  {errors.email && <p className="text-danger text-[10px] font-bold text-red-500">{errors.email}</p>}
                 </div>
-                {geoMessage && <p className={`text-[10px] font-semibold ${geoMessage.includes('successfully') ? 'text-green-600' : 'text-amber-600'}`}>{geoMessage}</p>}
+
+                {/* Location Section - Full Width Responsive Layout */}
+                <div className="space-y-4 pt-3 border-t border-slate-100">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
+                      {t('cityLabel', 'Operating Location (State, District, Locality)')}
+                    </label>
+                    <div className="w-full">
+                      <HierarchicalLocationSelector
+                        selectedState={typeof formData.state === 'string' ? formData.state : (formData.state?.state || '')}
+                        selectedDistrict={typeof formData.city === 'string' ? formData.city : (formData.city?.district || '')}
+                        selectedLocality={typeof formData.locality === 'string' ? formData.locality : (formData.locality?.locality || '')}
+                        onChange={({ state, district, locality }) => setFormData((prev) => ({
+                          ...prev,
+                          state: String(state || ''),
+                          city: String(district || ''),
+                          locality: String(locality || '')
+                        }))}
+                        statePlaceholder="Select State"
+                        districtPlaceholder="Select District"
+                        localityPlaceholder="Select Locality"
+                        layout="row"
+                        className="w-full"
+                      />
+                    </div>
+                    {errors.city && <p className="text-danger text-[10px] font-bold text-red-500 mt-1">{errors.city}</p>}
+                  </div>
+
+                  {/* Clean Current Location GPS Card & Trigger Button */}
+                  <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="space-y-1 min-w-0">
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+                          <LocateFixed size={14} className="text-primary shrink-0" /> Current location
+                        </span>
+                        {formData.locationLatitude && formData.locationLongitude ? (
+                          <p className="text-xs font-black text-slate-800 font-mono tracking-tight pl-5">
+                            {Number(formData.locationLatitude).toFixed(4)}, {Number(formData.locationLongitude).toFixed(4)}
+                          </p>
+                        ) : (
+                          <p className="text-xs font-semibold text-slate-400 pl-5">
+                            Not detected
+                          </p>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleUseCurrentLocation}
+                        disabled={geoLoading}
+                        className="w-full sm:w-auto h-10 px-4 rounded-xl border border-sky-200 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
+                      >
+                        {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
+                        <span>{geoLoading ? 'Detecting...' : '📍 Use Current Location'}</span>
+                      </button>
+                    </div>
+
+                    {/* Address Landmark Field */}
+                    <div className="pt-2 border-t border-slate-200/60">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                        Precise Locality / Landmark Address
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800 shadow-xs"
+                        value={formData.locationText || ''}
+                        onChange={(e) => setFormData({ ...formData, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' })}
+                        placeholder="Precise locality, street, or landmark"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Success / Warning Status Message */}
+                  {geoMessage && (
+                    <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
+                      geoMessage.includes('successfully')
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                    }`}>
+                      <span>{geoMessage.includes('successfully') ? '✅' : '⚠️'}</span>
+                      <span>{geoMessage}</span>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {role === 'worker' && (

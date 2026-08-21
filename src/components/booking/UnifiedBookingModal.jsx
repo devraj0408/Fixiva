@@ -18,9 +18,15 @@ const UnifiedBookingModal = () => {
   );
 
   const [serviceId, setServiceId] = useState(initialData.serviceId || activeServices[0]?.id || 'plumber');
-  const [selectedState, setSelectedState] = useState('Jharkhand');
-  const [selectedDistrict, setSelectedDistrict] = useState('Ranchi');
-  const [selectedLocality, setSelectedLocality] = useState('Lalpur');
+  const [selectedState, setSelectedState] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-state') || ''; } catch { return ''; }
+  });
+  const [selectedDistrict, setSelectedDistrict] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-district') || ''; } catch { return ''; }
+  });
+  const [selectedLocality, setSelectedLocality] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-locality') || ''; } catch { return ''; }
+  });
 
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [isDistrictActiveStatus, setIsDistrictActiveStatus] = useState(true);
@@ -94,8 +100,8 @@ const UnifiedBookingModal = () => {
         locality: selectedLocality,
         customer_name: customerName,
         customer_phone: customerPhone,
-        price: activeService.base_price || 199,
-        platform_fee: activeService.platform_fee || 49
+        price: activeService.base_price || 0,
+        platform_fee: 0
       });
 
       if (res.data) {
@@ -127,9 +133,18 @@ const UnifiedBookingModal = () => {
             <X size={18} />
           </button>
 
-          <div className="flex items-center gap-2 mb-4">
-            <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-1 rounded-md">Instant Booking</span>
-            <h2 className="text-lg font-black text-slate-900">{activeService.name} Service</h2>
+          <div className="flex items-center gap-3 mb-4">
+            {activeService && (activeService.image_url || activeService.image || (activeService.icon && activeService.icon.startsWith('http'))) ? (
+              <img
+                src={activeService.image_url || activeService.image || activeService.icon}
+                alt={activeService.name}
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
+              />
+            ) : null}
+            <div>
+              <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">Instant Booking</span>
+              <h2 className="text-lg font-black text-slate-900 leading-tight">{activeService?.name || 'Home'} Service</h2>
+            </div>
           </div>
 
           {!bookingSuccess ? (
@@ -206,7 +221,9 @@ const UnifiedBookingModal = () => {
                             <img src={pro.profile_photo_url} alt={pro.name} className="w-9 h-9 rounded-xl object-cover" />
                             <div>
                               <h4 className="font-bold text-slate-900">{pro.name}</h4>
-                              <span className="text-[10px] text-slate-500 font-semibold">{pro.distance_km} km away • ETA {pro.eta_text}</span>
+                              <span className="text-[10px] text-slate-500 font-semibold">
+                                {pro.distance_km !== null && pro.distance_km !== undefined ? `${pro.distance_km} km away • ETA ${pro.eta_text || 'Nearby'}` : 'Verified Professional'}
+                              </span>
                             </div>
                           </div>
 

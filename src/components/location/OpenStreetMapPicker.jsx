@@ -140,6 +140,13 @@ const OpenStreetMapPicker = ({
     markerRef.current = marker;
     leafletInstanceRef.current = map;
 
+    // Trigger invalidateSize to prevent rendering issues in modal/animated containers
+    setTimeout(() => {
+      if (map) {
+        map.invalidateSize();
+      }
+    }, 150);
+
     // Initial reverse geocode
     updateAddressForCoords(centerLat, centerLng);
 
@@ -267,7 +274,7 @@ const OpenStreetMapPicker = ({
       </div>
 
       {/* Map Container */}
-      <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100 min-h-[280px] h-72">
+      <div className="relative rounded-2xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100 min-h-[300px] h-80 w-full">
         {loadingMap && (
           <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center gap-2 text-slate-500 text-xs font-bold">
             <Loader2 size={24} className="animate-spin text-primary" />
@@ -275,7 +282,7 @@ const OpenStreetMapPicker = ({
           </div>
         )}
 
-        <div ref={mapRef} className="w-full h-full" />
+        <div ref={mapRef} className="w-full h-full min-h-[300px]" />
 
         {/* In-Map GPS Jump Button */}
         <button

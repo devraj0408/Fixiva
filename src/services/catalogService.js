@@ -34,13 +34,17 @@ export const createService = async (serviceData, actor = {}) => {
       ? String(serviceData.category).trim()
       : (serviceData.category_id ? String(serviceData.category_id).trim() : 'General');
 
+    const imageUrl = String(serviceData.image_url || serviceData.image || serviceData.icon || '').trim();
+
     const fullPayload = {
       id: slugId,
       name: String(serviceData.name || '').trim(),
       category: normalizedCategory,
       category_id: serviceData.category_id || null,
       description: String(serviceData.description || '').trim(),
-      icon: String(serviceData.icon || '').trim() || 'wrench',
+      icon: imageUrl || 'wrench',
+      image_url: imageUrl || null,
+      image: imageUrl || null,
       base_price: Number.isFinite(Number(serviceData.base_price)) ? Number(serviceData.base_price) : 0,
       platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
       inspection_fee: Number.isFinite(Number(serviceData.inspection_fee)) ? Number(serviceData.inspection_fee) : 0,
@@ -50,18 +54,23 @@ export const createService = async (serviceData, actor = {}) => {
     // Attempt 1: Full payload insert
     let { data, error } = await supabase.from('services').insert(fullPayload).select().maybeSingle();
 
-    // Attempt 2: If 'category_id' column is missing from schema
+    // Attempt 2: If 'image_url' or 'image' or 'category_id' column is missing from schema
+    if (error && error.message && (error.message.includes('image_url') || error.message.includes('column "image"'))) {
+      delete fullPayload.image_url;
+      delete fullPayload.image;
+      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error && error.message && error.message.includes('category_id')) {
-      console.warn('createService: category_id column missing, retrying without category_id:', error.message);
       delete fullPayload.category_id;
       const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
       data = retry.data;
       error = retry.error;
     }
 
-    // Attempt 3: If 'category' column is missing from schema
     if (error && error.message && (error.message.includes("'category'") || error.message.includes('column "category"'))) {
-      console.warn('createService: category column missing, retrying without category:', error.message);
       delete fullPayload.category;
       const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
       data = retry.data;

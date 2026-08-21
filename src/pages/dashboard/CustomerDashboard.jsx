@@ -49,18 +49,31 @@ const WorkerLiveTrackingCard = ({ booking }) => {
     };
   }, [booking?.worker_id]);
 
-  const customerLat = booking.location_latitude || 23.3700;
-  const customerLng = booking.location_longitude || 85.3300;
-  const workerLat = workerLoc?.latitude || customerLat + 0.012;
-  const workerLng = workerLoc?.longitude || customerLng + 0.010;
+  const isValidCoord = (lat, lng) => {
+    if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+    const nLat = Number(lat);
+    const nLng = Number(lng);
+    return !isNaN(nLat) && !isNaN(nLng) && nLat >= -90 && nLat <= 90 && nLng >= -180 && nLng <= 180 && (nLat !== 0 || nLng !== 0);
+  };
 
-  const distanceKm = calculateDistanceInKm(customerLat, customerLng, workerLat, workerLng) || 2.1;
+  const customerLat = Number(booking.location_latitude);
+  const customerLng = Number(booking.location_longitude);
+  const workerLat = Number(workerLoc?.latitude);
+  const workerLng = Number(workerLoc?.longitude);
 
-  let etaText = '15 - 25 mins';
-  if (distanceKm <= 2) etaText = '5 - 10 mins';
-  else if (distanceKm <= 5) etaText = '10 - 20 mins';
-  else if (distanceKm <= 10) etaText = '20 - 35 mins';
-  else etaText = '35 - 50 mins';
+  const hasCustomerCoords = isValidCoord(customerLat, customerLng);
+  const hasWorkerCoords = isValidCoord(workerLat, workerLng);
+
+  let distanceKm = null;
+  let etaText = null;
+
+  if (hasCustomerCoords && hasWorkerCoords) {
+    distanceKm = Number(calculateDistanceInKm(customerLat, customerLng, workerLat, workerLng).toFixed(1));
+    if (distanceKm <= 2) etaText = '5 - 10 mins';
+    else if (distanceKm <= 5) etaText = '10 - 20 mins';
+    else if (distanceKm <= 10) etaText = '20 - 35 mins';
+    else etaText = '35 - 50 mins';
+  }
 
   return (
     <div className="p-5 rounded-3xl bg-slate-900 text-white space-y-4 shadow-xl border border-slate-800 my-3">
@@ -74,9 +87,11 @@ const WorkerLiveTrackingCard = ({ booking }) => {
             Worker is on the way
           </span>
         </div>
-        <span className="text-[11px] font-extrabold text-slate-300 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-          ETA: {etaText}
-        </span>
+        {etaText && (
+          <span className="text-[11px] font-extrabold text-slate-300 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
+            ETA: {etaText}
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between text-xs p-3.5 bg-slate-800/90 rounded-2xl border border-slate-700 font-semibold">
@@ -91,24 +106,32 @@ const WorkerLiveTrackingCard = ({ booking }) => {
         </div>
         <div className="text-right">
           <span className="text-[10px] uppercase font-bold text-slate-400 block">Distance</span>
-          <span className="font-black text-emerald-400 text-sm">{distanceKm} km</span>
+          <span className="font-black text-emerald-400 text-sm">
+            {distanceKm !== null ? `${distanceKm} km` : 'Live GPS active'}
+          </span>
         </div>
       </div>
 
       {/* Live Map Frame */}
-      <div className="rounded-2xl overflow-hidden h-36 border border-slate-700 relative bg-slate-800">
-        <iframe
-          title="Worker Live Map"
-          width="100%"
-          height="100%"
-          frameBorder="0"
-          scrolling="no"
-          src={`https://www.openstreetmap.org/export/embed.html?bbox=${workerLng - 0.015}%2C${workerLat - 0.015}%2C${workerLng + 0.015}%2C${workerLat + 0.015}&layer=mapnik&marker=${workerLat}%2C${workerLng}`}
-        />
-        <div className="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur-sm text-[10px] text-white font-bold px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-sm">
-          📍 Live Location Tracking Active
+      {hasWorkerCoords ? (
+        <div className="rounded-2xl overflow-hidden h-36 border border-slate-700 relative bg-slate-800">
+          <iframe
+            title="Worker Live Map"
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            scrolling="no"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${workerLng - 0.015}%2C${workerLat - 0.015}%2C${workerLng + 0.015}%2C${workerLat + 0.015}&layer=mapnik&marker=${workerLat}%2C${workerLng}`}
+          />
+          <div className="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur-sm text-[10px] text-white font-bold px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-sm">
+            📍 Live GPS Location Tracking Active
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-center text-xs text-slate-400 font-semibold">
+          📍 Real-time GPS signal active — awaiting device coordinates...
+        </div>
+      )}
     </div>
   );
 };
@@ -696,18 +719,29 @@ const CustomerDashboard = () => {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-100">
                       <div>
                         <span className="text-slate-400 font-bold block text-[10px] uppercase">Specialist</span>
                         <span className="font-extrabold text-slate-900">{b.worker_name || 'Dispatch Pending'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Location</span>
-                        <span className="font-extrabold text-slate-900">{b.locality || b.district || 'Ranchi'}</span>
+                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Payment Method</span>
+                        <span className="font-extrabold text-slate-900">{b.payment_method || 'Cash'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Total Payable</span>
-                        <span className="font-black text-slate-900">₹{(b.price || 0) + (b.platform_fee || 49)}</span>
+                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Payment Status</span>
+                        <span className={`font-black px-2 py-0.5 rounded-md inline-block text-[11px] ${
+                          (b.payment_status === 'PAID' || b.payment_status === 'Paid')
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          ● {b.payment_status || 'PENDING'}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 font-bold block text-[10px] uppercase">Total Amount</span>
+                        <span className="font-black text-slate-900 text-sm">₹{b.price || 0}</span>
+                        <span className="text-[10px] text-emerald-600 block font-bold">Platform Fee: ₹0</span>
                       </div>
                     </div>
 
@@ -1055,9 +1089,29 @@ const CustomerDashboard = () => {
                       {/* Reusable Booking Lifecycle Status Timeline */}
                       <BookingStatusTimeline status={b.status} />
 
-                      <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
-                        <span className="text-slate-600 font-bold">📍 {b.locality || profileLocality}, {b.district || profileDistrict}</span>
-                        <span className="font-black text-slate-900">Total: ₹{(b.price || 0) + (b.platform_fee || 49)}</span>
+                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
+                        <div className="flex justify-between items-center text-slate-600 font-medium">
+                          <span>📍 Location</span>
+                          <span className="font-bold text-slate-900">{b.locality || profileLocality}, {b.district || profileDistrict}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600 font-medium">
+                          <span>Payment Method</span>
+                          <span className="font-bold text-slate-900">{b.payment_method || 'Cash'}</span>
+                        </div>
+                        <div className="flex justify-between items-center text-slate-600 font-medium">
+                          <span>Payment Status</span>
+                          <span className={`font-black px-2 py-0.5 rounded-md text-[11px] ${
+                            (b.payment_status === 'PAID' || b.payment_status === 'Paid')
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            ● {b.payment_status || 'PENDING'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1 border-t border-slate-200/60 font-black text-slate-900">
+                          <span>Total Amount (Fee: ₹0)</span>
+                          <span className="text-sm font-black">₹{b.price || 0}</span>
+                        </div>
                       </div>
 
                       {/* Post-Completion Actions: Review & Invoice */}

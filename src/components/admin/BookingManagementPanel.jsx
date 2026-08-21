@@ -102,7 +102,17 @@ const BookingManagementPanel = () => {
                       </select>
                     )}
                   </td>
-                  <td className="px-4 py-3 font-black text-slate-900">₹{booking.total_price || booking.price || 0}</td>
+                  <td className="px-4 py-3">
+                    <p className="font-black text-slate-900">₹{booking.price || 0}</p>
+                    <p className="text-[10px] text-slate-500 font-semibold">Fee: ₹0 • {booking.payment_method || 'CASH'}</p>
+                    <span className={`inline-block mt-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-extrabold ${
+                      (booking.payment_status === 'PAID' || booking.payment_status === 'Paid')
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-amber-50 text-amber-700'
+                    }`}>
+                      {booking.payment_status || 'PENDING'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3">
                     <BookingStatusTimeline status={booking.status || 'NEW'} compact={true} />
                   </td>

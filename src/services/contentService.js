@@ -119,6 +119,7 @@ export const createBanner = async (bannerData, actor = {}) => {
     subtitle: String(bannerData.subtitle || '').trim(),
     image_url: String(bannerData.image_url || '').trim(),
     link_url: String(bannerData.link_url || '').trim(),
+    cta_text: String(bannerData.cta_text || 'Explore Offer').trim(),
     position: String(bannerData.position || 'home_hero').trim(),
     display_order: Number(bannerData.display_order || 0),
     active: bannerData.active !== false,
@@ -134,6 +135,7 @@ export const createBanner = async (bannerData, actor = {}) => {
         subtitle: newBanner.subtitle,
         image_url: newBanner.image_url,
         link_url: newBanner.link_url,
+        cta_text: newBanner.cta_text,
         position: newBanner.position,
         display_order: newBanner.display_order,
         active: newBanner.active,
@@ -141,9 +143,9 @@ export const createBanner = async (bannerData, actor = {}) => {
 
       let { data, error } = await supabase.from('banners').insert(payload).select().maybeSingle();
 
-      // If DB error occurs (e.g. missing 'link_url' column in Supabase schema), retry stripped payload
+      // If DB error occurs (e.g. missing column in Supabase schema), retry stripped payload
       if (error) {
-        console.warn('createBanner full payload error, retrying without link_url column:', error.message);
+        console.warn('createBanner full payload error, retrying without optional columns:', error.message);
         const strippedPayload = {
           title: newBanner.title,
           subtitle: newBanner.subtitle,
@@ -154,7 +156,7 @@ export const createBanner = async (bannerData, actor = {}) => {
         };
         const retry = await supabase.from('banners').insert(strippedPayload).select().maybeSingle();
         if (retry.data) {
-          createdData = { ...retry.data, link_url: newBanner.link_url };
+          createdData = { ...retry.data, link_url: newBanner.link_url, cta_text: newBanner.cta_text };
         }
       } else if (data) {
         createdData = data;

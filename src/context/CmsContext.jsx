@@ -408,6 +408,13 @@ export const CmsProvider = ({ children }) => {
     return res;
   };
 
+  const handleCollectCashPayment = async (bookingId) => {
+    const res = await bookingService.collectCashPayment(bookingId, actor);
+    if (!res.error) { showToast('💵 Cash payment collected! Status set to PAID.', 'success'); await refreshCmsData(); }
+    else { showToast('Error: ' + res.error, 'error'); }
+    return res;
+  };
+
   const handleUpdateTicketStatus = async (id, status, replyText = '') => {
     const res = await bookingService.updateTicketStatus(id, status, replyText, actor);
     if (!res.error) { showToast(`Ticket status updated to ${status}.`, 'success'); await refreshCmsData(); }
@@ -454,7 +461,7 @@ export const CmsProvider = ({ children }) => {
 
     // Phase 3 CRUD
     updateBookingStatus: handleUpdateBookingStatus, assignWorkerToBooking: handleAssignWorkerToBooking,
-    updatePaymentStatus: handleUpdatePaymentStatus, updateTicketStatus: handleUpdateTicketStatus,
+    updatePaymentStatus: handleUpdatePaymentStatus, collectCashPayment: handleCollectCashPayment, updateTicketStatus: handleUpdateTicketStatus,
     updateSettings: handleUpdateSettings,
   };
 

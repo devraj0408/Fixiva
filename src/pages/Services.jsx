@@ -10,6 +10,7 @@ import {
 import { useApp } from '../context/AuthContext';
 import { scrollToFeatureContent } from '../components/ScrollToTop';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import { detectCurrentLocation } from '../services/locationService';
 
 const IconMap = {
   zap: Zap,
@@ -48,8 +49,35 @@ const Services = () => {
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [selectedCity, setSelectedCity] = useState(initialCity);
   const [selectedState, setSelectedState] = useState(initialState);
+  const [selectedLocality, setSelectedLocality] = useState(() => queryParams.get('locality') || '');
   const [activeCategory, setActiveCategory] = useState('all');
-  const [maxPrice, setMaxPrice] = useState(3000);
+  const [detectingLocationState, setDetectingLocationState] = useState('default'); // 'default' | 'loading' | 'success' | 'error'
+
+  const handleDetectLocation = async () => {
+    setDetectingLocationState('loading');
+    try {
+      const loc = await detectCurrentLocation();
+      const st = loc.state || '';
+      const dist = loc.district || '';
+      const locName = loc.locality || '';
+
+      if (st) setSelectedState(st);
+      if (dist) setSelectedCity(dist);
+      if (locName) setSelectedLocality(locName);
+
+      try {
+        if (st) localStorage.setItem('fixiva:last-state', st);
+        if (dist) localStorage.setItem('fixiva:last-district', dist);
+        if (locName) localStorage.setItem('fixiva:last-locality', locName);
+      } catch { void 0; }
+
+      setDetectingLocationState('success');
+      showToast(`📍 Location detected: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
+    } catch {
+      setDetectingLocationState('error');
+      showToast('Could not detect current location. Try again.', 'error');
+    }
+  };
 
   // Modal State for Coverage Request
   const [coverageModalService, setCoverageModalService] = useState(null);
@@ -63,6 +91,7 @@ const Services = () => {
     setSearchTerm(queryParams.get('search') || '');
     setSelectedCity(queryParams.get('city') || '');
     setSelectedState(queryParams.get('state') || '');
+    setSelectedLocality(queryParams.get('locality') || '');
   }, [location.search, queryParams]);
 
   const isServiceAvailable = (serviceId) => {
@@ -210,26 +239,28 @@ const Services = () => {
 
   // Filtering Logic
   const filteredServices = activeServices.filter(service => {
-    const matchesSearch = service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = !searchTerm.trim() ||
+                          service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (service.description || '').toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesCategory = activeCategory === 'all' || 
                             (service.category || '').toLowerCase() === activeCategory.toLowerCase();
-    
-    const basePrice = service.base_price || service.inspection_fee || 0;
-    const matchesPrice = basePrice <= maxPrice;
 
-    // Optional city verification filter - if selectedCity is specified, check if there's any active workers in this city or if there's any config. 
-    // In our context, all services are visible, but the city selector helps customer pick city before clicking book.
-    return matchesSearch && matchesCategory && matchesPrice;
+    return matchesSearch && matchesCategory;
   });
 
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedCity('');
     setSelectedState('');
+    setSelectedLocality('');
     setActiveCategory('all');
-    setMaxPrice(3000);
+    setDetectingLocationState('default');
+    try {
+      localStorage.removeItem('fixiva:last-state');
+      localStorage.removeItem('fixiva:last-district');
+      localStorage.removeItem('fixiva:last-locality');
+    } catch { void 0; }
   };
 
   return (
@@ -255,71 +286,70 @@ const Services = () => {
           
           {/* Left Sidebar Filters */}
           <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-6">
-              <div className="flex justify-between items-center pb-4 border-b border-slate-100">
-                <span className="font-bold text-slate-800 text-sm flex items-center gap-1.5">
-                  <Filter size={16} className="text-slate-400" /> Filter Options
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
+                <span className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 uppercase tracking-wider">
+                  <Filter size={16} className="text-slate-400" /> FILTER OPTIONS
                 </span>
                 <button 
+                  type="button"
                   onClick={resetFilters}
-                  className="text-[10px] font-extrabold text-slate-400 hover:text-primary transition-colors uppercase tracking-wider flex items-center gap-1"
+                  className="text-[10px] font-extrabold text-slate-400 hover:text-primary transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                 >
-                  <RotateCcw size={10} /> Reset
+                  <RotateCcw size={10} /> RESET
                 </button>
               </div>
 
               {/* Text Search Input */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Search Keyword</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">SEARCH KEYWORD</label>
                 <div className="relative">
                   <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
                   <input 
                     type="text" 
                     placeholder="Search services..."
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>
 
-              {/* City Selection dropdown */}
+              {/* Target Location */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Target Location</label>
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">TARGET LOCATION</label>
                 <HierarchicalLocationSelector
                   selectedState={selectedState}
                   selectedDistrict={selectedCity}
-                  onChange={({ state, district }) => {
-                    setSelectedCity(district || '');
+                  selectedLocality={selectedLocality}
+                  onChange={({ state, district, locality }) => {
                     setSelectedState(state || '');
+                    setSelectedCity(district || '');
+                    setSelectedLocality(locality || '');
                   }}
-                  statePlaceholder="All States"
-                  districtPlaceholder="All Districts"
-                  showAllOption={true}
+                  statePlaceholder="Select State"
+                  districtPlaceholder="Select District"
+                  localityPlaceholder="Select Locality"
+                  showLocality={true}
                   layout="col"
                   className="w-full"
                 />
-              </div>
 
-              {/* Price Range Slider */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                  <span>Max Base Tariff</span>
-                  <span className="text-primary font-bold">₹{maxPrice}</span>
-                </div>
-                <input 
-                  type="range" 
-                  min="99" 
-                  max="3000" 
-                  step="50"
-                  className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-primary focus:outline-none"
-                  value={maxPrice}
-                  onChange={(e) => setMaxPrice(Number(e.target.value))}
-                />
-                <div className="flex justify-between text-[9px] text-slate-400 font-bold">
-                  <span>₹99</span>
-                  <span>₹3,000</span>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={detectingLocationState === 'loading'}
+                  className="w-full text-xs font-extrabold py-2.5 px-3 rounded-xl border border-slate-200 hover:border-primary text-slate-700 hover:text-primary flex items-center justify-center gap-2 transition-all bg-slate-50 hover:bg-primary/5 active:scale-95 disabled:opacity-50 mt-3 cursor-pointer"
+                >
+                  <span className="text-primary text-sm">📍</span>
+                  {detectingLocationState === 'loading'
+                    ? 'Detecting location...'
+                    : detectingLocationState === 'success'
+                    ? 'Location detected'
+                    : detectingLocationState === 'error'
+                    ? 'Unable to detect location. Try again'
+                    : 'Use Current Location'}
+                </button>
               </div>
             </div>
           </div>
@@ -363,6 +393,7 @@ const Services = () => {
                   {filteredServices.map(service => {
                     const Icon = IconMap[service.name] || IconMap[service.icon] || Zap;
                     const startingPrice = service.base_price || service.inspection_fee || 0;
+                    const serviceImg = service.image_url || service.image || (service.icon && service.icon.startsWith('http') ? service.icon : null);
                     
                     return (
                       <div key={service.id} className="h-full flex">
@@ -375,8 +406,12 @@ const Services = () => {
                               <div>
                                 {/* Card Top Icon & Starting tariff */}
                                 <div className="flex justify-between items-start gap-4 mb-6">
-                                  <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300">
-                                    <Icon size={22} />
+                                  <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300 overflow-hidden shrink-0">
+                                    {serviceImg ? (
+                                      <img src={serviceImg} alt={service.name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <Icon size={22} />
+                                    )}
                                   </div>
                                   <div className="text-right space-y-0.5">
                                     <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>

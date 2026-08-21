@@ -52,7 +52,7 @@ const RapidoLocationSelector = ({
   const searchDebounceRef = useRef(null);
 
   useEffect(() => {
-    if (initialAddress || selectedLoc.address) {
+    if (initialAddress && String(initialAddress).trim().length > 0) {
       setViewMode('detected');
     }
   }, [initialAddress]);

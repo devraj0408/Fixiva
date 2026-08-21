@@ -33,6 +33,8 @@ const ServicesPanel = () => {
     platform_fee: '',
     inspection_fee: '',
     icon: 'wrench',
+    image_url: '',
+    image: '',
     active: true,
   });
   const [uploading, setUploading] = useState(false);
@@ -102,13 +104,27 @@ const ServicesPanel = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const ext = file.name ? file.name.split('.').pop().toLowerCase() : '';
+    const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
+
+    if (!allowedTypes.includes(file.type) && !allowedExts.includes(ext)) {
+      showToast('Unsupported format. Please select JPG, JPEG, PNG, or WEBP.', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image file size must be 5MB or less.', 'error');
+      return;
+    }
+
     setUploading(true);
     const { success, url, error } = await uploadImage(file, 'cms-assets', 'services');
     setUploading(false);
 
-    if (url) {
-      setForm((prev) => ({ ...prev, icon: url }));
-      if (success) showToast('Service icon uploaded.', 'success');
+    if (url && !url.startsWith('blob:')) {
+      setForm((prev) => ({ ...prev, icon: url, image_url: url, image: url }));
+      if (success) showToast('Service image uploaded to storage.', 'success');
     } else if (error) {
       showToast('Image upload warning: ' + error, 'error');
     }
@@ -122,8 +138,13 @@ const ServicesPanel = () => {
     }
 
     const selectedCategoryObj = categories.find((cat) => String(cat.id) === String(form.category_id));
+    const imgUrl = form.image_url || form.image || (form.icon && form.icon.startsWith('http') ? form.icon : '');
+
     const payload = {
       ...form,
+      icon: imgUrl || form.icon || 'wrench',
+      image_url: imgUrl || null,
+      image: imgUrl || null,
       category: selectedCategoryObj?.name || form.category || 'General',
       category_id: selectedCategoryObj?.id || form.category_id || null,
       base_price: Number(form.base_price) || 0,
@@ -159,6 +180,8 @@ const ServicesPanel = () => {
       platform_fee: '',
       inspection_fee: '',
       icon: 'wrench',
+      image_url: '',
+      image: '',
       active: true,
     });
     setSelectedCityIds([]);
@@ -166,6 +189,7 @@ const ServicesPanel = () => {
 
   const handleEdit = (service) => {
     const matchingCategory = categories.find((cat) => String(cat.name).toLowerCase() === String(service.category || '').toLowerCase());
+    const imgUrl = service.image_url || service.image || (service.icon && service.icon.startsWith('http') ? service.icon : '');
     setEditingService(service);
     setForm({
       name: service.name || '',
@@ -176,6 +200,8 @@ const ServicesPanel = () => {
       platform_fee: service.platform_fee || 0,
       inspection_fee: service.inspection_fee || 0,
       icon: service.icon || 'wrench',
+      image_url: imgUrl,
+      image: imgUrl,
       active: service.active !== false,
     });
 
@@ -252,9 +278,13 @@ const ServicesPanel = () => {
                       className="flex items-center gap-3 cursor-pointer flex-1"
                       title="Click to view district availability"
                     >
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-black uppercase text-xs group-hover:bg-primary group-hover:text-white transition-all">
-                        {(service.name || 'S').slice(0, 2)}
-                      </div>
+                      {service.image_url || service.image || (service.icon && service.icon.startsWith('http')) ? (
+                        <img src={service.image_url || service.image || service.icon} alt={service.name} className="h-11 w-11 shrink-0 rounded-xl object-cover border border-slate-200" />
+                      ) : (
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-black uppercase text-xs group-hover:bg-primary group-hover:text-white transition-all">
+                          {(service.name || 'S').slice(0, 2)}
+                        </div>
+                      )}
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-bold text-slate-900 group-hover:text-primary transition-colors">
@@ -465,14 +495,66 @@ const ServicesPanel = () => {
           </div>
 
           <div>
-            <label className="text-xs font-bold text-slate-600">Icon / Image Upload</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              className="mt-1 block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/90"
-            />
-            {uploading && <p className="text-[11px] text-slate-400 mt-1">Uploading image to storage...</p>}
+            <label className="text-xs font-bold text-slate-600 block mb-1">Service Image</label>
+            {(form.image_url || form.image || (form.icon && form.icon.startsWith('http'))) ? (
+              <div className="p-3 bg-white rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={form.image_url || form.image || form.icon}
+                    alt="Service Preview"
+                    className="w-16 h-14 rounded-xl object-cover border border-slate-200 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block mb-1">
+                      ✓ Image Active
+                    </span>
+                    <p className="text-[11px] font-semibold text-slate-500 truncate">{form.image_url || form.image || form.icon}</p>
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-2 border-t border-slate-100">
+                  <label className="flex-1 cursor-pointer">
+                    <span className="w-full inline-flex items-center justify-center gap-1 py-1.5 px-3 rounded-xl bg-slate-100 text-slate-700 text-xs font-extrabold hover:bg-slate-200 transition-colors">
+                      Replace Image
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      onChange={handleImageUpload}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setForm((prev) => ({ ...prev, image_url: '', image: '', icon: 'wrench' }))}
+                    className="py-1.5 px-3 rounded-xl bg-rose-50 text-rose-700 text-xs font-extrabold hover:bg-rose-100 transition-colors"
+                  >
+                    Remove Image
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-4 bg-white rounded-2xl border border-dashed border-slate-300 text-center space-y-2">
+                <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mx-auto text-base">
+                  📷
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-700">Upload Service Image</p>
+                  <p className="text-[10px] text-slate-400 font-medium">JPG, JPEG, PNG, WEBP (Max 5MB)</p>
+                </div>
+                <label className="inline-block cursor-pointer">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-extrabold shadow-sm hover:bg-blue-700 transition-colors">
+                    Upload Image
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            )}
+            {uploading && <p className="text-[11px] text-primary font-bold mt-1.5 animate-pulse">Uploading image to storage...</p>}
           </div>
 
           <div className="flex items-center justify-between pt-2">

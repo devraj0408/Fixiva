@@ -30,9 +30,9 @@ const BookingFlow = () => {
   // Parse URL query parameters
   const queryParams = new URLSearchParams(location.search);
   const initialServiceId = paramServiceId || queryParams.get('service') || 'electrician';
-  const initialParamState = queryParams.get('state') || 'Jharkhand';
-  const initialParamDistrict = queryParams.get('district') || 'Ranchi';
-  const initialParamLocality = queryParams.get('locality') || 'Lalpur';
+  const initialParamState = queryParams.get('state') || localStorage.getItem('fixiva:last-state') || '';
+  const initialParamDistrict = queryParams.get('district') || localStorage.getItem('fixiva:last-district') || '';
+  const initialParamLocality = queryParams.get('locality') || localStorage.getItem('fixiva:last-locality') || '';
 
   // Step state: 1: Service, 2: Location, 3: Match Pros, 4: Schedule & Contact, 5: Confirmation
   const [step, setStep] = useState(2);
@@ -55,9 +55,9 @@ const BookingFlow = () => {
   const [detectingGps, setDetectingGps] = useState(false);
 
   // Active computed location strictly based on active locationMode
-  const selectedState = locationMode === 'gps' ? (detectedState || user?.state || 'Jharkhand') : manualState;
-  const selectedDistrict = locationMode === 'gps' ? (detectedDistrict || user?.district || user?.city || 'Ranchi') : manualDistrict;
-  const selectedLocality = locationMode === 'gps' ? (detectedLocality || user?.locality || 'Lalpur') : manualLocality;
+  const selectedState = locationMode === 'gps' ? (detectedState || user?.state || '') : manualState;
+  const selectedDistrict = locationMode === 'gps' ? (detectedDistrict || user?.district || user?.city || '') : manualDistrict;
+  const selectedLocality = locationMode === 'gps' ? (detectedLocality || user?.locality || '') : manualLocality;
   const userLat = locationMode === 'gps' ? (detectedLat || user?.location_latitude || null) : null;
   const userLng = locationMode === 'gps' ? (detectedLng || user?.location_longitude || null) : null;
 
@@ -149,28 +149,28 @@ const BookingFlow = () => {
     setLocationMode('gps');
     try {
       const loc = await detectCurrentLocation();
-      const st = loc.state || user?.state || 'Jharkhand';
-      const dt = loc.district || user?.district || user?.city || 'Ranchi';
-      const lc = loc.locality || user?.locality || 'Lalpur';
-      const lat = loc.latitude || user?.location_latitude || 23.3700;
-      const lng = loc.longitude || user?.location_longitude || 85.3300;
+      const st = loc.state || user?.state || '';
+      const dt = loc.district || user?.district || user?.city || '';
+      const lc = loc.locality || user?.locality || '';
+      const lat = loc.latitude || user?.location_latitude || null;
+      const lng = loc.longitude || user?.location_longitude || null;
 
       setDetectedState(st);
       setDetectedDistrict(dt);
       setDetectedLocality(lc);
       setDetectedLat(lat);
       setDetectedLng(lng);
-      showToast(`🎯 Current location detected: ${lc}, ${dt}`, 'success');
+      if (dt) showToast(`🎯 Current location detected: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'success');
     } catch {
-      const st = user?.state || 'Jharkhand';
-      const dt = user?.district || user?.city || 'Ranchi';
-      const lc = user?.locality || 'Lalpur';
+      const st = user?.state || '';
+      const dt = user?.district || user?.city || '';
+      const lc = user?.locality || '';
       setDetectedState(st);
       setDetectedDistrict(dt);
       setDetectedLocality(lc);
-      setDetectedLat(user?.location_latitude || 23.3700);
-      setDetectedLng(user?.location_longitude || 85.3300);
-      showToast(`📍 Location set to: ${lc}, ${dt}`, 'info');
+      setDetectedLat(user?.location_latitude || null);
+      setDetectedLng(user?.location_longitude || null);
+      if (dt) showToast(`📍 Location set to: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'info');
     } finally {
       setDetectingGps(false);
     }
@@ -234,7 +234,7 @@ const BookingFlow = () => {
         worker_name: selectedPro?.name || 'Assigned Specialist',
         worker_phone: selectedPro?.whatsapp || '',
         price: activeService.base_price || 199,
-        platform_fee: activeService.platform_fee || 49,
+        platform_fee: 0,
         booking_date: bookingDate
       });
 
@@ -305,28 +305,35 @@ const BookingFlow = () => {
               <h2 className="text-lg font-bold text-slate-900 mb-4">Choose Required Service</h2>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {activeServices.map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      setSelectedServiceId(s.id);
-                      setStep(2);
-                    }}
-                    className={`p-4 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all ${
-                      selectedServiceId === s.id 
-                        ? 'border-primary bg-primary/5 text-slate-900 shadow-md ring-2 ring-primary/20'
-                        : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold">
-                      <Sparkles size={20} />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-sm">{s.name}</h3>
-                      <span className="text-xs text-slate-500">Starting ₹{s.base_price || 199}</span>
-                    </div>
-                  </button>
-                ))}
+                {activeServices.map(s => {
+                  const imgUrl = s.image_url || s.image || (s.icon && s.icon.startsWith('http') ? s.icon : null);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setSelectedServiceId(s.id);
+                        setStep(2);
+                      }}
+                      className={`p-4 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all ${
+                        selectedServiceId === s.id 
+                          ? 'border-primary bg-primary/5 text-slate-900 shadow-md ring-2 ring-primary/20'
+                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden shrink-0">
+                        {imgUrl ? (
+                          <img src={imgUrl} alt={s.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Sparkles size={20} />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm">{s.name}</h3>
+                        <span className="text-xs text-slate-500">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </motion.div>
@@ -535,12 +542,19 @@ const BookingFlow = () => {
                       {/* Distance & ETA Info */}
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                         <div className="flex items-center gap-3">
-                          <span className="font-bold text-slate-700 flex items-center gap-1">
-                            📍 {pro.distance_km} km away
-                          </span>
-                          <span className="font-semibold text-slate-500 flex items-center gap-1">
-                            ⏱ ETA: {pro.eta_text}
-                          </span>
+                          {pro.distance_km !== null && pro.distance_km !== undefined ? (
+                            <>
+                              <span className="font-bold text-slate-700 flex items-center gap-1">
+                                📍 {pro.distance_km} km away
+                              </span>
+                              <span>•</span>
+                              <span className="font-semibold text-slate-500 flex items-center gap-1">
+                                ⏱ ETA: {pro.eta_text || 'Nearby'}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium text-slate-500">Verified Service Pro</span>
+                          )}
                         </div>
 
                         <span className="font-black text-sm text-slate-900">
@@ -654,15 +668,26 @@ const BookingFlow = () => {
               </div>
 
               {/* Order Price Summary */}
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between text-xs">
-                <div>
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-2">
+                <div className="flex justify-between items-center pb-1 border-b border-slate-200/60">
                   <span className="font-extrabold text-slate-900">{activeService.name} Service Charge</span>
-                  <p className="text-slate-500 font-medium">Assigned Pro: {selectedPro?.name}</p>
+                  <span className="font-bold text-slate-900">₹{activeService.base_price || 0}</span>
                 </div>
-
-                <div className="text-right">
-                  <span className="text-base font-black text-slate-900">₹{(activeService.base_price || 199) + (activeService.platform_fee || 49)}</span>
-                  <p className="text-[10px] text-slate-400">Includes ₹{activeService.platform_fee || 49} Platform Fee</p>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Platform Fee</span>
+                  <span className="font-bold text-emerald-600">₹0</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Payment Method</span>
+                  <span className="font-bold text-slate-900">Cash</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Payment Status</span>
+                  <span className="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Pending</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200/60 pt-2 font-black text-slate-900">
+                  <span>Total Amount</span>
+                  <span className="text-base">₹{activeService.base_price || 0}</span>
                 </div>
               </div>
 
@@ -716,9 +741,25 @@ const BookingFlow = () => {
                   <span className="text-slate-500 font-bold">Location</span>
                   <span className="font-extrabold text-slate-900">{selectedLocality}, {selectedDistrict}</span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Service Amount</span>
+                  <span className="font-extrabold text-slate-900">₹{createdBooking?.price || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Platform Fee</span>
+                  <span className="font-extrabold text-emerald-600">₹0</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Payment Method</span>
+                  <span className="font-extrabold text-slate-900">Cash</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Payment Status</span>
+                  <span className="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Pending</span>
+                </div>
                 <div className="flex justify-between border-t border-slate-200/60 pt-2">
-                  <span className="text-slate-700 font-extrabold">Total Payable</span>
-                  <span className="font-black text-slate-900 text-sm">₹{createdBooking?.price ? Number(createdBooking.price) + Number(createdBooking.platform_fee || 49) : 248}</span>
+                  <span className="text-slate-700 font-extrabold">Total Amount</span>
+                  <span className="font-black text-slate-900 text-sm">₹{createdBooking?.price || 0}</span>
                 </div>
               </div>
 

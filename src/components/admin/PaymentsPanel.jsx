@@ -51,39 +51,51 @@ const PaymentsPanel = () => {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-slate-50 text-slate-500 font-bold">
               <tr>
-                <th className="px-4 py-3">Transaction ID</th>
                 <th className="px-4 py-3">Booking ID</th>
-                <th className="px-4 py-3">Customer & Service</th>
+                <th className="px-4 py-3">Customer & Specialist</th>
+                <th className="px-4 py-3">Service</th>
                 <th className="px-4 py-3">Amount</th>
-                <th className="px-4 py-3">Payment Method</th>
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Platform Fee</th>
+                <th className="px-4 py-3">Method</th>
+                <th className="px-4 py-3">Payment Status</th>
+                <th className="px-4 py-3">Paid At</th>
                 <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {paginated.data.map((txn) => (
                 <tr key={txn.id} className="border-t border-slate-100">
-                  <td className="px-4 py-3 font-mono font-extrabold text-slate-900">{txn.transaction_id || `TXN_${txn.id.slice(0, 8)}`}</td>
-                  <td className="px-4 py-3 text-xs font-semibold text-slate-600">#{txn.booking_id}</td>
+                  <td className="px-4 py-3 font-mono font-extrabold text-slate-900">#{txn.booking_id}</td>
                   <td className="px-4 py-3">
                     <p className="font-bold text-slate-800">{txn.customer_name || 'Customer'}</p>
-                    <p className="text-xs text-slate-500">{txn.service_name || 'Home Service'}</p>
+                    <p className="text-xs text-slate-500">Pro: {txn.worker_name || 'Unassigned'}</p>
                   </td>
+                  <td className="px-4 py-3 text-xs font-semibold text-slate-700">{txn.service_name || 'Home Service'}</td>
                   <td className="px-4 py-3 font-black text-slate-900">₹{txn.amount || 0}</td>
-                  <td className="px-4 py-3 text-xs font-semibold text-slate-600">{txn.payment_method || 'Cash on Service'}</td>
+                  <td className="px-4 py-3 font-bold text-emerald-600">₹0</td>
+                  <td className="px-4 py-3 text-xs font-bold text-slate-700">{txn.payment_method || 'CASH'}</td>
                   <td className="px-4 py-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${txn.status === 'Paid' ? 'bg-emerald-50 text-emerald-700' : txn.status === 'Refunded' ? 'bg-amber-50 text-amber-700' : txn.status === 'Failed' ? 'bg-red-50 text-red-700' : 'bg-slate-100 text-slate-700'}`}>
-                      {txn.status || 'Pending'}
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${
+                      (txn.status === 'PAID' || txn.status === 'Paid')
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : txn.status === 'Refunded'
+                        ? 'bg-amber-50 text-amber-700'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}>
+                      {txn.status || 'PENDING'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500 font-medium">
+                    {txn.paid_at ? new Date(txn.paid_at).toLocaleString() : '—'}
                   </td>
                   <td className="px-4 py-3 text-right">
                     <select
-                      value={txn.status || 'Pending'}
+                      value={txn.status || 'PENDING'}
                       onChange={(e) => updatePaymentStatus(txn.id, e.target.value)}
                       className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-semibold"
                     >
-                      <option value="Paid">Paid</option>
-                      <option value="Pending">Pending</option>
+                      <option value="PAID">PAID</option>
+                      <option value="PENDING">PENDING</option>
                       <option value="Failed">Failed</option>
                       <option value="Refunded">Refunded</option>
                     </select>

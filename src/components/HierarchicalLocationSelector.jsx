@@ -24,10 +24,10 @@ const HierarchicalLocationSelector = ({
   // Load from localStorage on mount if no initial props are provided
   useEffect(() => {
     if (!selectedState && !selectedDistrict) {
-      const savedState = localStorage.getItem('fixiva:last-state') || 'Jharkhand';
-      const savedDistrict = localStorage.getItem('fixiva:last-district') || 'Ranchi';
-      const savedLocality = localStorage.getItem('fixiva:last-locality') || 'Lalpur';
-      if (onChange) {
+      const savedState = localStorage.getItem('fixiva:last-state') || '';
+      const savedDistrict = localStorage.getItem('fixiva:last-district') || '';
+      const savedLocality = localStorage.getItem('fixiva:last-locality') || '';
+      if (onChange && (savedState || savedDistrict)) {
         setTimeout(() => {
           onChange({ state: savedState, district: savedDistrict, locality: savedLocality });
         }, 0);

@@ -925,6 +925,63 @@ export const AuthProvider = ({ children }) => {
     return { error };
   };
 
+  const collectCashPayment = async (bookingId) => {
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (booking && (booking.payment_status === 'PAID' || booking.payment_status === 'Paid')) {
+      showToast('Cash has already been collected for this booking.', 'info');
+      return { success: false, message: 'Already collected' };
+    }
+
+    const paidAt = new Date().toISOString();
+    const updates = {
+      payment_method: 'CASH',
+      payment_status: 'PAID',
+      platform_fee: 0,
+      paid_at: paidAt
+    };
+
+    const { error } = await supabase
+      .from('bookings')
+      .update(updates)
+      .eq('id', bookingId);
+
+    if (!error) {
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
+      showToast('💵 Cash collected successfully! Payment status set to PAID.', 'success');
+      await fetchMarketplaceData();
+      return { success: true };
+    } else {
+      showToast('Failed to collect cash: ' + error.message, 'error');
+      return { error };
+    }
+  };
+
+  const updatePaymentStatus = async (bookingId, paymentStatus) => {
+    const isPaid = paymentStatus === 'PAID' || paymentStatus === 'Paid';
+    const paidAt = isPaid ? new Date().toISOString() : null;
+    const updates = {
+      payment_method: 'CASH',
+      payment_status: isPaid ? 'PAID' : paymentStatus,
+      platform_fee: 0,
+      paid_at: paidAt
+    };
+
+    const { error } = await supabase
+      .from('bookings')
+      .update(updates)
+      .eq('id', bookingId);
+
+    if (!error) {
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
+      showToast(`Payment status updated to ${updates.payment_status}.`, 'success');
+      await fetchMarketplaceData();
+      return { success: true };
+    } else {
+      showToast('Failed to update payment status: ' + error.message, 'error');
+      return { error };
+    }
+  };
+
   const updateWorkerTrust = async (id, delta) => {
     const worker = workers.find((w) => w.id === id);
     if (!worker) return { error: new Error('Worker not found') };
@@ -1417,6 +1474,8 @@ export const AuthProvider = ({ children }) => {
     bookings,
     addBooking,
     updateBookingStatus,
+    updatePaymentStatus,
+    collectCashPayment,
     workers: mergedWorkers,
     updateWorkerStatus,
     updateWorkerTrust,

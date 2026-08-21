@@ -22,18 +22,20 @@ import {
   Headphones,
   ShieldCheck,
   Send,
-  Loader2
+  Loader2,
+  Navigation
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
 import { uploadImage } from '../../services/storageService';
-import { updateWorkerLiveLocation } from '../../services/locationService';
+import { updateWorkerLiveLocation, saveUserGpsLocation, calculateDistanceInKm } from '../../services/locationService';
 
 const WorkerDashboard = () => {
   const {
     user,
     bookings,
     updateBookingStatus,
+    collectCashPayment,
     refreshData,
     reviews: allReviews = [],
     updateUserProfile,
@@ -84,6 +86,46 @@ const WorkerDashboard = () => {
     } else {
       showToast('Live location is off', 'info');
     }
+  };
+
+  const [updatingGps, setUpdatingGps] = useState(false);
+
+  const hasValidLocation = useMemo(() => {
+    const lat = Number(user?.location_latitude);
+    const lng = Number(user?.location_longitude);
+    return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0);
+  }, [user?.location_latitude, user?.location_longitude]);
+
+  const handleCaptureGpsLocation = async () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported in this browser.', 'error');
+      return;
+    }
+    setUpdatingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const res = await saveUserGpsLocation({
+          userId: user.id,
+          role: 'worker',
+          latitude: lat,
+          longitude: lng
+        });
+        setUpdatingGps(false);
+        if (res.data) {
+          showToast('GPS location set successfully!', 'success');
+          if (refreshData) refreshData();
+        } else {
+          showToast(res.error || 'Failed to save location', 'error');
+        }
+      },
+      () => {
+        setUpdatingGps(false);
+        showToast('GPS location access was denied or timed out.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   // Worker Realtime Support Chat State
@@ -294,8 +336,13 @@ const WorkerDashboard = () => {
   }, [myJobs]);
 
   const activeAssignedJob = useMemo(() => {
-    return myJobs.find((b) => ['Assigned', 'In Progress', 'Accepted', 'On The Way'].includes(b.status));
+    return myJobs.find((b) => {
+      const s = String(b.status || '').trim().toLowerCase();
+      return ['assigned', 'in progress', 'accepted', 'on the way', 'arrived', 'work started', 'work in progress', 'worker assigned'].includes(s);
+    });
   }, [myJobs]);
+
+  const lastGpsRef = useRef({ timestamp: 0, lat: null, lng: null, hasWrittenFirst: false });
 
   // GPS Watcher for Active Assigned Job
   useEffect(() => {
@@ -304,20 +351,64 @@ const WorkerDashboard = () => {
     let watchId = null;
     try {
       watchId = navigator.geolocation.watchPosition(
-        (pos) => {
+        async (pos) => {
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
-          updateWorkerLiveLocation({
+          const accuracy = pos.coords.accuracy;
+          const heading = pos.coords.heading;
+          const speed = pos.coords.speed;
+
+          // 1. Coordinate Validity Check
+          if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180 || (lat === 0 && lng === 0)) {
+            return;
+          }
+
+          const now = Date.now();
+          const last = lastGpsRef.current;
+
+          // 2. Apply filtering & throttling ONLY AFTER the first successful write
+          if (last.hasWrittenFirst && last.lat !== null && last.lng !== null) {
+            // Accuracy Check (skip if > 500m)
+            if (accuracy !== null && accuracy !== undefined && Number(accuracy) > 500) {
+              return;
+            }
+            // Jitter / Spike Check
+            const distKm = calculateDistanceInKm(last.lat, last.lng, lat, lng);
+            const timeDiffSec = (now - last.timestamp) / 1000;
+            if (distKm > 50 && timeDiffSec < 60) {
+              console.warn('Skipping GPS noise spike:', distKm, 'km in', timeDiffSec, 's');
+              return;
+            }
+            // Throttle Check (3s or 10m displacement)
+            if (timeDiffSec < 3 && distKm < 0.01) {
+              return;
+            }
+          }
+
+          // Direct Supabase UPSERT to public.worker_locations
+          const res = await updateWorkerLiveLocation({
             workerId: user.id,
             latitude: lat,
             longitude: lng,
-            address: 'Active Job GPS'
+            heading: heading,
+            speed: speed,
+            accuracy: accuracy,
+            address: `Active Job #${activeAssignedJob.id}`
           });
+
+          if (res.data) {
+            lastGpsRef.current = { timestamp: now, lat, lng, hasWrittenFirst: true };
+          } else if (res.error) {
+            console.error('[Worker Locations Direct UPSERT Error]', res.error);
+          }
         },
         (err) => {
           console.warn('Worker GPS watch error:', err);
+          if (err.code === 1) {
+            showToast('GPS permission denied. Please allow location access for live tracking.', 'error');
+          }
         },
-        { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
       );
     } catch (e) {
       console.warn('Failed to start worker geolocation watchPosition:', e);
@@ -328,7 +419,7 @@ const WorkerDashboard = () => {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [liveLocationEnabled, activeAssignedJob, user?.id]);
+  }, [liveLocationEnabled, activeAssignedJob, user?.id, showToast]);
 
   const activeJobs = useMemo(() => {
     return myJobs.filter((b) => ['Accepted', 'Worker Assigned', 'Confirmed', 'On The Way', 'Work Started', 'In Progress'].includes(b.status));
@@ -584,7 +675,7 @@ const WorkerDashboard = () => {
                         </p>
                         <div className="flex items-center justify-between pt-2 border-t border-slate-200">
                           <span className="text-xs text-slate-500 font-bold">Total Service Fee</span>
-                          <span className="text-base font-black text-slate-900">₹{job.price || 299}</span>
+                          <span className="text-base font-black text-slate-900">₹{job.price || 0}</span>
                         </div>
                       </div>
 
@@ -664,9 +755,23 @@ const WorkerDashboard = () => {
                           <strong>Address:</strong> {job.customer_address || job.address || job.locality}, {job.district || job.city || 'Ranchi'} ({job.state || 'Jharkhand'})
                         </p>
                         
-                        <div className="flex items-center justify-between text-xs pt-1">
-                          <span className="text-slate-500 font-medium">Job Tariff Payout:</span>
-                          <span className="text-sm font-black text-slate-900">₹{job.price || 299}</span>
+                        <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
+                          <span className="text-slate-500 font-medium">Amount to Collect:</span>
+                          <span className="text-sm font-black text-slate-900">₹{job.price || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-500 font-medium">Payment Method:</span>
+                          <span className="font-bold text-slate-900">{job.payment_method || 'Cash'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-semibold">
+                          <span className="text-slate-500 font-medium">Payment Status:</span>
+                          <span className={`font-black px-2 py-0.5 rounded-md text-[11px] ${
+                            (job.payment_status === 'PAID' || job.payment_status === 'Paid')
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border border-amber-200'
+                          }`}>
+                            ● {job.payment_status || 'PENDING'}
+                          </span>
                         </div>
                       </div>
 
@@ -675,6 +780,18 @@ const WorkerDashboard = () => {
 
                       {/* Status Action Buttons Progression */}
                       <div className="flex gap-2 flex-wrap">
+                        {(job.payment_status === 'PAID' || job.payment_status === 'Paid') ? (
+                          <div className="flex-1 rounded-2xl bg-emerald-50 border border-emerald-200 py-3 text-xs font-extrabold text-emerald-800 text-center flex items-center justify-center gap-1.5">
+                            ✓ Cash Collected (Paid)
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => collectCashPayment(job.id)}
+                            className="flex-1 rounded-2xl bg-emerald-600 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5"
+                          >
+                            💵 Cash Collected (₹{job.price || 0})
+                          </button>
+                        )}
                         {['Accepted', 'ACCEPTED', 'Assigned', 'Confirmed', 'Worker Assigned', 'WORKER ASSIGNED'].includes(job.status) && (
                           <button
                             onClick={() => handleJobStatusUpdate(job.id, 'ON THE WAY')}
@@ -758,9 +875,9 @@ const WorkerDashboard = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3 bg-slate-50 rounded-2xl font-semibold text-slate-700">
                       <p><strong>Customer:</strong> {job.customer_name || 'Client'}</p>
-                      <p><strong>Location:</strong> {job.locality || 'Locality'}, {job.district || job.city || 'Ranchi'}</p>
+                      <p><strong>Location:</strong> {[job.locality, job.district || job.city].filter(Boolean).join(', ') || 'Address not specified'}</p>
                       <p><strong>Completed On:</strong> {new Date(job.booking_date || job.preferred_date || job.created_at).toLocaleDateString()}</p>
-                      <p><strong>Payout Tariff:</strong> ₹{job.price || 299}</p>
+                      <p><strong>Payout Tariff:</strong> ₹{job.price || 0}</p>
                     </div>
 
                     {job.review && (
@@ -832,7 +949,7 @@ const WorkerDashboard = () => {
                         <span className="font-extrabold text-slate-900 block">{job.service_name || 'Service Dispatch'}</span>
                         <span className="text-[11px] text-slate-500 font-medium">{new Date(job.booking_date || job.preferred_date || job.created_at).toLocaleDateString()}</span>
                       </div>
-                      <span className="text-sm font-black text-emerald-700">+₹{job.price || 299}</span>
+                      <span className="text-sm font-black text-emerald-700">+₹{job.price || 0}</span>
                     </div>
                   ))}
                 </div>
@@ -1209,6 +1326,30 @@ const WorkerDashboard = () => {
                 <p className="text-sm text-slate-500">Welcome back, {user?.name || 'Partner'}! Here is your daily work dispatch overview.</p>
               </div>
             </div>
+
+            {/* Location Prompt Banner when coordinates missing */}
+            {!hasValidLocation && (
+              <div className="p-4 sm:p-5 rounded-3xl border border-amber-200 bg-amber-50/90 text-amber-900 flex items-center justify-between gap-4 flex-wrap shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black">Set your current location to receive nearby jobs.</h4>
+                    <p className="text-xs text-amber-700 font-medium mt-0.5">Your device GPS coordinates are required for distance-based matching with customers.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCaptureGpsLocation}
+                  disabled={updatingGps}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  <span>{updatingGps ? 'Detecting Location...' : 'Set Current Location'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Live Location Toggle Banner */}
             <div className="p-4 sm:p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center justify-between gap-4 flex-wrap">

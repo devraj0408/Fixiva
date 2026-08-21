@@ -824,18 +824,120 @@ export const getCoverageRequests = async () => {
 // WORKER LIVE LOCATION RLS ENGINE
 // ==========================================
 
-export const updateWorkerLiveLocation = async ({ workerId, latitude, longitude, address = '' }) => {
-  if (!supabase || !workerId) return { data: null, error: 'Supabase client or workerId missing' };
+export const saveUserGpsLocation = async ({ userId, role, latitude, longitude, address = '', locationSource = 'gps' }) => {
+  if (!supabase || !userId) return { data: null, error: 'User ID missing' };
+
+  const latNum = Number(latitude);
+  const lngNum = Number(longitude);
+
+  if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180 || (latNum === 0 && lngNum === 0)) {
+    return { data: null, error: 'Invalid GPS coordinates' };
+  }
+
+  let formattedAddress = address;
+  let state = '';
+  let district = '';
+  let locality = '';
+  let pincode = '';
 
   try {
-    const payload = {
-      worker_id: workerId,
-      latitude: Number(latitude),
-      longitude: Number(longitude),
-      address: String(address || ''),
-      updated_at: new Date().toISOString()
-    };
+    const geoRes = await reverseGeocodeCoords(latNum, lngNum);
+    if (geoRes) {
+      formattedAddress = formattedAddress || geoRes.address || geoRes.location_text;
+      state = geoRes.state || '';
+      district = geoRes.district || geoRes.city || '';
+      locality = geoRes.locality || '';
+      pincode = geoRes.pincode || '';
+    }
+  } catch (e) {
+    console.warn('saveUserGpsLocation reverseGeocode error:', e);
+  }
 
+  const normRole = String(role || '').trim().toLowerCase();
+
+  const updateFields = {
+    location_latitude: latNum,
+    location_longitude: lngNum,
+    location_source: locationSource || 'gps'
+  };
+
+  if (formattedAddress) updateFields.location_text = formattedAddress;
+  if (district) {
+    updateFields.district = district;
+    updateFields.city = district;
+  }
+  if (state) updateFields.state = state;
+  if (locality) updateFields.locality = locality;
+  if (pincode) updateFields.pincode = pincode;
+
+  try {
+    await supabase.from('profiles').update(updateFields).eq('id', userId);
+
+    if (normRole === 'worker') {
+      await supabase.from('workers').update(updateFields).eq('id', userId);
+      await supabase.from('worker_locations').upsert({
+        worker_id: userId,
+        latitude: latNum,
+        longitude: lngNum,
+        address: formattedAddress || 'GPS Location',
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'worker_id' });
+    } else if (normRole === 'contractor') {
+      await supabase.from('contractors').update(updateFields).eq('id', userId);
+    }
+
+    return {
+      data: {
+        latitude: latNum,
+        longitude: lngNum,
+        address: formattedAddress,
+        state,
+        district,
+        locality,
+        pincode
+      },
+      error: null
+    };
+  } catch (err) {
+    console.warn('saveUserGpsLocation exception:', err);
+    return { data: null, error: err instanceof Error ? err.message : String(err) };
+  }
+};
+
+export const updateWorkerLiveLocation = async ({
+  workerId,
+  latitude,
+  longitude,
+  heading = null,
+  speed = null,
+  accuracy = null,
+  address = ''
+}) => {
+  if (!supabase || !workerId) return { data: null, error: 'Supabase client or workerId missing' };
+
+  const latNum = Number(latitude);
+  const lngNum = Number(longitude);
+  const accNum = accuracy !== null && accuracy !== undefined && !isNaN(Number(accuracy)) ? Number(accuracy) : null;
+  const headNum = heading !== null && heading !== undefined && !isNaN(Number(heading)) ? Number(heading) : null;
+  const spdNum = speed !== null && speed !== undefined && !isNaN(Number(speed)) ? Number(speed) : null;
+
+  if (isNaN(latNum) || isNaN(lngNum) || latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180 || (latNum === 0 && lngNum === 0)) {
+    return { data: null, error: 'Invalid coordinates' };
+  }
+
+  const nowIso = new Date().toISOString();
+
+  const payload = {
+    worker_id: workerId,
+    latitude: latNum,
+    longitude: lngNum,
+    heading: headNum,
+    speed: spdNum,
+    accuracy: accNum,
+    last_seen: nowIso
+  };
+
+  try {
     const { data, error } = await supabase
       .from('worker_locations')
       .upsert(payload, { onConflict: 'worker_id' })
@@ -843,12 +945,34 @@ export const updateWorkerLiveLocation = async ({ workerId, latitude, longitude, 
       .maybeSingle();
 
     if (error) {
-      console.warn('updateWorkerLiveLocation error:', error.message);
+      console.error('[Worker Locations Upsert Failed]', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint
+      });
       return { data: null, error: error.message };
+    }
+
+    try {
+      await supabase.from('workers').update({
+        location_latitude: latNum,
+        location_longitude: lngNum,
+        ...(address ? { location_text: address } : {})
+      }).eq('id', workerId);
+
+      await supabase.from('profiles').update({
+        location_latitude: latNum,
+        location_longitude: lngNum,
+        ...(address ? { location_text: address } : {})
+      }).eq('id', workerId);
+    } catch (syncErr) {
+      console.warn('Profile/worker table location sync warning:', syncErr);
     }
 
     return { data, error: null };
   } catch (err) {
+    console.error('[Worker Locations Exception]', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };

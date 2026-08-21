@@ -24,16 +24,21 @@ import {
   ShieldCheck,
   Check,
   Sparkles,
-  Camera
+  Camera,
+  MapPin,
+  Loader2,
+  Navigation
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import { uploadImage } from '../../services/storageService';
+import { saveUserGpsLocation } from '../../services/locationService';
 
 const ContractorDashboard = () => {
   const {
     user,
     bookings = [],
     updateBookingStatus,
+    collectCashPayment,
     logout,
     refreshData,
     showToast,
@@ -49,7 +54,45 @@ const ContractorDashboard = () => {
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
 
-  const activeTab = tabParam || 'overview';
+  const [updatingGps, setUpdatingGps] = useState(false);
+
+  const hasValidLocation = useMemo(() => {
+    const lat = Number(user?.location_latitude);
+    const lng = Number(user?.location_longitude);
+    return !isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && (lat !== 0 || lng !== 0);
+  }, [user?.location_latitude, user?.location_longitude]);
+
+  const handleCaptureGpsLocation = async () => {
+    if (!navigator.geolocation) {
+      showToast('Geolocation is not supported in this browser.', 'error');
+      return;
+    }
+    setUpdatingGps(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const res = await saveUserGpsLocation({
+          userId: user.id,
+          role: 'contractor',
+          latitude: lat,
+          longitude: lng
+        });
+        setUpdatingGps(false);
+        if (res.data) {
+          showToast('GPS location set successfully!', 'success');
+          if (refreshData) refreshData();
+        } else {
+          showToast(res.error || 'Failed to save location', 'error');
+        }
+      },
+      () => {
+        setUpdatingGps(false);
+        showToast('GPS location access was denied or timed out.', 'error');
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   // Modals & Form States
   const [staffList, setStaffList] = useState([]);
@@ -762,10 +805,40 @@ const ContractorDashboard = () => {
                       <p><strong>Customer:</strong> {b.customer_name || 'Customer'}</p>
                       <p><strong>Location:</strong> {b.locality || b.customer_address || b.address || 'Address'}, {b.district || b.city || contractorCity}</p>
                       <p><strong>Assigned Worker:</strong> <span className="font-extrabold text-slate-900">{b.worker_name || 'Unassigned'}</span></p>
-                      <p className="text-sm font-black text-slate-900 pt-1">Price Tariff: ₹{b.price || 999}</p>
+                      <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                        <span className="font-bold text-slate-600">Amount to Collect:</span>
+                        <span className="text-sm font-black text-slate-900">₹{b.price || 0}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Payment Method:</span>
+                        <span className="font-bold text-slate-900">{b.payment_method || 'Cash'}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-slate-600">
+                        <span>Payment Status:</span>
+                        <span className={`font-black px-2 py-0.5 rounded-md text-[11px] ${
+                          (b.payment_status === 'PAID' || b.payment_status === 'Paid')
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        }`}>
+                          ● {b.payment_status || 'PENDING'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="flex gap-2 flex-wrap">
+                      {(b.payment_status === 'PAID' || b.payment_status === 'Paid') ? (
+                        <div className="flex-1 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs font-extrabold text-emerald-800 text-center flex items-center justify-center gap-1">
+                          ✓ Cash Collected (Paid)
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => collectCashPayment(b.id)}
+                          className="flex-1 py-2.5 rounded-2xl bg-emerald-600 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-1"
+                        >
+                          💵 Cash Collected (₹{b.price || 0})
+                        </button>
+                      )}
+
                       {(b.status === 'Pending' || b.status === 'New Request') && (
                         <button
                           onClick={() => handleAcceptBooking(b.id)}
@@ -1198,6 +1271,30 @@ const ContractorDashboard = () => {
                 <p className="text-sm text-slate-500">Welcome back, {user?.company || user?.name || 'Contractor Partner'}! Platform activity overview.</p>
               </div>
             </div>
+
+            {/* Location Prompt Banner when coordinates missing */}
+            {!hasValidLocation && (
+              <div className="p-4 sm:p-5 rounded-3xl border border-amber-200 bg-amber-50/90 text-amber-900 flex items-center justify-between gap-4 flex-wrap shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center shrink-0">
+                    <MapPin size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-black">Set your current location to receive nearby bookings.</h4>
+                    <p className="text-xs text-amber-700 font-medium mt-0.5">Your agency GPS coordinates are required for distance-based customer matching.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCaptureGpsLocation}
+                  disabled={updatingGps}
+                  className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  <span>{updatingGps ? 'Detecting Location...' : 'Set Current Location'}</span>
+                </button>
+              </div>
+            )}
 
             {/* Marketplace Metric Cards */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
