@@ -63,22 +63,33 @@ export const updateCustomerStatus = async (id, account_status, actor = {}) => {
 // WORKERS CRUD
 // ==========================================
 
+import { calculateWorkerTrustScore } from './trustScoreService';
+
 export const getWorkers = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
 
   try {
     let workers = [];
     let profiles = [];
+    let bookings = [];
+    let reviews = [];
+    let tickets = [];
     let wErr = null;
     let pErr = null;
 
     try {
-      const [wRes, pRes] = await Promise.all([
+      const [wRes, pRes, bRes, rRes, tRes] = await Promise.all([
         supabase.from('workers').select('*'),
         supabase.from('profiles').select('*').eq('role', 'worker'),
+        supabase.from('bookings').select('*'),
+        supabase.from('reviews').select('*'),
+        supabase.from('support_tickets').select('*'),
       ]);
       workers = wRes.data || [];
       profiles = pRes.data || [];
+      bookings = bRes.data || [];
+      reviews = rRes.data || [];
+      tickets = tRes.data || [];
       wErr = wRes.error;
       pErr = pRes.error;
     } catch (e) {
@@ -94,20 +105,29 @@ export const getWorkers = async () => {
     });
 
     (profiles || []).forEach((p) => {
-      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active', trust_score: 100 };
+      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active' };
       workerMap.set(p.id, { ...existing, profile: p });
     });
 
     const merged = Array.from(workerMap.values()).map((w) => {
       const p = w.profile || (profiles || []).find((prof) => prof.id === w.id);
-      return {
+      const fullWorker = {
         ...w,
         name: p?.name || 'Service Professional',
         email: p?.email || '',
         phone: p?.phone || '',
         city: w.city || p?.city || '',
-        trustScore: w.trust_score ?? 100,
         status: w.status || 'Active',
+        profile: p,
+      };
+
+      const trustDetails = calculateWorkerTrustScore(fullWorker, bookings, reviews, tickets);
+
+      return {
+        ...fullWorker,
+        trust_score: trustDetails.score,
+        trustScore: trustDetails.score,
+        trustScoreDetails: trustDetails,
       };
     });
 

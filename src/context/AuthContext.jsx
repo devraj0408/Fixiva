@@ -8,6 +8,7 @@ import * as staffService from '../services/staffService';
 import { submitCoverageRequest } from '../services/coverageService';
 import { getDistricts } from '../services/locationService';
 import { generateAIResponse } from '../services/aiChatService';
+import { calculateWorkerTrustScore, syncWorkerTrustScoreToDb, enrichWorkersWithTrustScores } from '../services/trustScoreService';
 
 const AppContext = createContext();
 
@@ -289,7 +290,6 @@ export const AuthProvider = ({ children }) => {
             id: userId,
             profile_id: userId,
             status: 'Active',
-            trust_score: 100,
             skills: regExtra.skills || activeRegistrationData?.skills || '',
             city: profile.city || activeRegistrationData?.city || '',
             location_text: activeRegistrationData?.locationText || '',
@@ -310,7 +310,15 @@ export const AuthProvider = ({ children }) => {
           }
         } catch (e) { void e; }
 
-        userData = { ...userData, ...workerData, trustScore: workerData?.trust_score ?? 100 };
+        const initialTrust = calculateWorkerTrustScore({ ...profile, ...workerData }, bookings, reviews, tickets);
+        userData = {
+          ...userData,
+          ...workerData,
+          trust_score: initialTrust.score,
+          trustScore: initialTrust.score,
+          trustScoreDetails: initialTrust,
+        };
+        syncWorkerTrustScoreToDb(userId, initialTrust.score, initialTrust.tier);
       } else if (normalizedRole === 'contractor') {
         let { data: contractorData } = await supabase.from('contractors').select('*').or(`profile_id.eq.${userId},id.eq.${userId}`).maybeSingle();
         if (!contractorData) {
@@ -630,18 +638,20 @@ export const AuthProvider = ({ children }) => {
         const regExtra = regData?.extra || {};
 
         if (normalizedRole === 'worker') {
+          const calcInitTrust = calculateWorkerTrustScore({ ...profileRow, skills: regExtra.skills || regData?.skills || '' }, bookings, reviews, tickets);
           const newWorker = {
             id: profileRow.id,
             profile_id: profileRow.id,
             status: 'Active',
-            trust_score: 100,
+            trust_score: calcInitTrust.score,
             skills: regExtra.skills || regData?.skills || '',
             city: profileRow.city || regData?.city || '',
             whatsapp: regExtra.whatsapp || regData?.whatsapp || '',
             experience: regExtra.experience || regData?.experience || '',
           };
           await supabase.from('workers').insert(newWorker).catch(() => null);
-          profileRow = { ...profileRow, ...newWorker, trustScore: 100 };
+          syncWorkerTrustScoreToDb(profileRow.id, calcInitTrust.score, calcInitTrust.tier);
+          profileRow = { ...profileRow, ...newWorker, trust_score: calcInitTrust.score, trustScore: calcInitTrust.score, trustScoreDetails: calcInitTrust };
         } else if (normalizedRole === 'contractor') {
           const newContractor = {
             id: profileRow.id,
@@ -1259,11 +1269,12 @@ export const AuthProvider = ({ children }) => {
   });
   (profiles || []).forEach((p) => {
     if (p.role === 'worker') {
-      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active', trust_score: 100 };
+      const existing = workerMap.get(p.id) || { id: p.id, status: 'Active' };
       workerMap.set(p.id, { ...existing, profile: p });
     }
   });
-  const mergedWorkers = Array.from(workerMap.values()).map((w) => {
+
+  const rawWorkersList = Array.from(workerMap.values()).map((w) => {
     const p = w.profile || profiles.find((prof) => prof.id === w.id);
     const c = contractors.find((cont) => cont.id === w.id);
     return {
@@ -1272,11 +1283,13 @@ export const AuthProvider = ({ children }) => {
       email: p?.email || '',
       phone: p?.phone || '',
       city: w.city || p?.city || '',
-      trustScore: w.trust_score ?? 100,
       isContractor: !!c,
       status: w.status || 'Active',
+      profile: p,
     };
   });
+
+  const mergedWorkers = enrichWorkersWithTrustScores(rawWorkersList, bookings, reviews, tickets);
 
   const contractorMap = new Map();
   (contractors || []).forEach((c) => {

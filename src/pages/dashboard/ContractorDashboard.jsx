@@ -53,6 +53,7 @@ const ContractorDashboard = () => {
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const tabParam = searchParams.get('tab');
+  const activeTab = tabParam || 'overview';
 
   const [updatingGps, setUpdatingGps] = useState(false);
 
@@ -470,7 +471,7 @@ const ContractorDashboard = () => {
         phone: phone || null,
         city: contractorCity || user?.city || 'Ranchi',
         status: 'Available',
-        trust_score: 98
+        trust_score: 50
       };
 
       const { error } = await createStaffMember(payload);
@@ -962,7 +963,7 @@ const ContractorDashboard = () => {
                             {w.status || 'Available'}
                           </span>
                         </td>
-                        <td className="px-5 py-4 font-black text-emerald-700">{w.trust_score ?? 98}%</td>
+                        <td className="px-5 py-4 font-black text-amber-600">★ {w.trust_score ?? w.trustScore ?? 50} / 100</td>
                         <td className="px-5 py-4 text-right space-x-1">
                           <button
                             onClick={() => {
@@ -1416,8 +1417,8 @@ const ContractorDashboard = () => {
                           <p className="text-xs font-extrabold text-slate-900">{w.name}</p>
                           <p className="mt-0.5 text-[11px] text-slate-500">{w.role} • {w.status || 'Available'}</p>
                         </div>
-                        <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full">
-                          {w.trust_score ?? 98}% Trust
+                        <span className="text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                          ★ {w.trust_score ?? w.trustScore ?? 50} / 100
                         </span>
                       </div>
                     ))

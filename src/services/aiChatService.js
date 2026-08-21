@@ -26,7 +26,7 @@ Key Fixiva Concepts & Features:
 3. WORKER WORKFLOW:
    - Account setup with skills, city selection, and identity verification documents.
    - Job Dispatch Board: Receives real-time dispatches based on location and skills.
-   - Worker Trust Score: Base score 100. Higher trust score leads to priority job dispatches and higher earning potential.
+   - Worker Trust Score: Dynamic canonical score (0-100) based on KYC verification, contact status, job completion history, customer reviews, punctuality, and reliability. Higher trust score leads to priority job dispatches.
    - Status updates: Accept job, start work, mark as completed.
    - Worker Payouts: Daily/weekly automatic payouts sent to verified bank/UPI accounts.
 

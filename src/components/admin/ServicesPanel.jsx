@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useCms } from '../../context/CmsContext';
 import { Edit2, Trash2, MapPin, X, Search, CheckCircle2, XCircle, Globe, CheckSquare, Square } from 'lucide-react';
 
@@ -7,6 +7,7 @@ const ServicesPanel = () => {
     services,
     categories,
     cities,
+    states,
     cityControl,
     toggleServiceInCity,
     createService,
@@ -43,6 +44,29 @@ const ServicesPanel = () => {
   const [coverageService, setCoverageService] = useState(null);
   const [coverageSearch, setCoverageSearch] = useState('');
   const [coverageFilter, setCoverageFilter] = useState('all'); // 'all' | 'active' | 'inactive'
+  const [selectedFormState, setSelectedFormState] = useState('All');
+
+  // Compute unique states list from loaded cities & states
+  const availableStatesList = useMemo(() => {
+    const setOfStates = new Set();
+    (states || []).forEach((s) => {
+      if (s?.name) setOfStates.add(s.name);
+    });
+    (cities || []).forEach((c) => {
+      const st = c.state_name || c.state || c.region;
+      if (st) setOfStates.add(st);
+    });
+    return Array.from(setOfStates).sort();
+  }, [states, cities]);
+
+  // Filter cities/districts by selectedFormState
+  const filteredCities = useMemo(() => {
+    if (selectedFormState === 'All') return cities || [];
+    return (cities || []).filter((c) => {
+      const st = c.state_name || c.state || c.region || '';
+      return String(st).toLowerCase() === String(selectedFormState).toLowerCase();
+    });
+  }, [cities, selectedFormState]);
 
   // Helper to check if service is active in a specific city/district
   const isServiceActiveInCity = (serviceId, city) => {
@@ -458,39 +482,104 @@ const ServicesPanel = () => {
             </div>
           </div>
 
-          {/* Available Cities / Districts Checklist */}
-          <div>
+          {/* Dynamic Available Districts / Cities Checklist */}
+          <div className="space-y-2 pt-2 border-t border-slate-100">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-600">District Coverage ({selectedCityIds.length}/{cities.length} Active)</label>
-              <div className="flex gap-2 text-[10px] font-extrabold text-primary">
-                <button type="button" onClick={() => setSelectedCityIds(cities.map(c => c.id))} className="hover:underline">All</button>
-                <button type="button" onClick={() => setSelectedCityIds([])} className="hover:underline text-slate-400">None</button>
+              <div>
+                <label className="text-xs font-bold text-slate-700 block">District Coverage</label>
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {selectedCityIds.length} / {cities.length} Active
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-[11px] font-extrabold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentFilteredIds = filteredCities.map((c) => c.id);
+                    setSelectedCityIds((prev) => Array.from(new Set([...prev, ...currentFilteredIds])));
+                  }}
+                  className="text-primary hover:underline"
+                >
+                  All
+                </button>
+                <span className="text-slate-300">|</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentFilteredIdsSet = new Set(filteredCities.map((c) => c.id));
+                    setSelectedCityIds((prev) => prev.filter((id) => !currentFilteredIdsSet.has(id)));
+                  }}
+                  className="text-slate-400 hover:text-slate-600 hover:underline"
+                >
+                  None
+                </button>
               </div>
             </div>
-            <div className="mt-1 grid grid-cols-2 gap-1.5 max-h-40 overflow-y-auto p-2 bg-white rounded-xl border border-slate-200">
-              {cities.map((city) => {
-                const isChecked = selectedCityIds.includes(city.id);
-                return (
-                  <label key={city.id} className={`flex items-center gap-2 text-xs font-semibold p-1.5 rounded-lg cursor-pointer transition-colors ${isChecked ? 'bg-emerald-50 text-emerald-800 font-bold' : 'text-slate-500 hover:bg-slate-50'}`}>
-                    <input
-                      type="checkbox"
-                      checked={isChecked}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCityIds([...selectedCityIds, city.id]);
-                        } else {
-                          setSelectedCityIds(selectedCityIds.filter((id) => id !== city.id));
-                        }
-                      }}
-                      className="h-3.5 w-3.5 rounded border-slate-300 text-primary"
-                    />
-                    <span className="truncate">{city.name}</span>
-                    <span className={`ml-auto text-[9px] px-1 rounded font-extrabold ${isChecked ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-400'}`}>
-                      {isChecked ? 'Active' : 'Off'}
-                    </span>
-                  </label>
-                );
-              })}
+
+            {/* State Selector Dropdown */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-slate-500 shrink-0">Filter State:</span>
+              <select
+                value={selectedFormState}
+                onChange={(e) => setSelectedFormState(e.target.value)}
+                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
+              >
+                <option value="All">All States ({cities.length} Districts)</option>
+                {availableStatesList.map((st) => {
+                  const count = (cities || []).filter((c) => (c.state_name || c.state || c.region) === st).length;
+                  return (
+                    <option key={st} value={st}>
+                      {st} ({count} districts)
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Scrollable Checklist */}
+            <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50/50 rounded-xl border border-slate-200">
+              {filteredCities.length === 0 ? (
+                <div className="col-span-2 p-4 text-center text-xs text-slate-400 font-semibold">
+                  No districts found for selected state.
+                </div>
+              ) : (
+                filteredCities.map((city) => {
+                  const isChecked = selectedCityIds.includes(city.id);
+                  return (
+                    <label
+                      key={city.id}
+                      className={`flex items-center justify-between gap-2 text-xs font-semibold p-2 rounded-lg cursor-pointer transition-colors border ${
+                        isChecked
+                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900 font-bold'
+                          : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-100/60'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCityIds((prev) => [...prev, city.id]);
+                            } else {
+                              setSelectedCityIds((prev) => prev.filter((id) => id !== city.id));
+                            }
+                          }}
+                          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary shrink-0 cursor-pointer"
+                        />
+                        <span className="truncate">{city.name}</span>
+                      </div>
+                      <span
+                        className={`text-[9px] px-1.5 py-0.5 rounded font-black shrink-0 ${
+                          isChecked ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-400'
+                        }`}
+                      >
+                        {isChecked ? 'Active' : 'Off'}
+                      </span>
+                    </label>
+                  );
+                })
+              )}
             </div>
           </div>
 

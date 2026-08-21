@@ -12,6 +12,8 @@ import * as bookingService from '../services/bookingService';
 import { uploadImage } from '../services/storageService';
 import { filterItems, paginateItems, sortItems } from '../services/commonService';
 
+import { enrichWorkersWithTrustScores } from '../services/trustScoreService';
+
 const CmsContext = createContext();
 
 export const CmsProvider = ({ children }) => {
@@ -64,11 +66,14 @@ export const CmsProvider = ({ children }) => {
 
   useEffect(() => {
     queueMicrotask(() => {
+      const bList = Array.isArray(authBookings) ? authBookings : [];
+      const rList = Array.isArray(reviews) ? reviews : [];
+      const tList = Array.isArray(tickets) ? tickets : [];
       if (Array.isArray(authBookings)) {
         setBookings(authBookings);
       }
       if (Array.isArray(authWorkers)) {
-        setWorkers(authWorkers);
+        setWorkers(enrichWorkersWithTrustScores(authWorkers, bList, rList, tList));
       }
       if (Array.isArray(authContractors)) {
         setContractors(authContractors);
@@ -77,7 +82,7 @@ export const CmsProvider = ({ children }) => {
         setCustomers(authProfiles.filter((p) => p.role === 'customer'));
       }
     });
-  }, [authBookings, authWorkers, authContractors, authProfiles]);
+  }, [authBookings, authWorkers, authContractors, authProfiles, reviews, tickets]);
 
   const refreshCmsData = useCallback(async () => {
     setLoading(true);
@@ -113,6 +118,11 @@ export const CmsProvider = ({ children }) => {
         bookingService.getSupportTickets(),
       ]);
 
+      const fetchedBookings = bookingsRes.data || [];
+      const fetchedReviews = reviewsRes.data || [];
+      const fetchedTickets = ticketsRes.data || [];
+      const fetchedWorkers = workersRes.data || [];
+
       setServices(servicesRes.data || []);
       setCategories(categoriesRes.data || []);
       setCities(citiesRes.data || []);
@@ -126,12 +136,14 @@ export const CmsProvider = ({ children }) => {
       setNotifications(notificationsRes.data || []);
       setFaqs(faqsRes.data || []);
       setCustomers(customersRes.data || []);
-      setWorkers(workersRes.data || []);
       setContractors(contractorsRes.data || []);
-      setReviews(reviewsRes.data || []);
-      setBookings(bookingsRes.data || []);
+      setReviews(fetchedReviews);
+      setBookings(fetchedBookings);
       setPayments(paymentsRes.data || []);
-      setTickets(ticketsRes.data || []);
+      setTickets(fetchedTickets);
+
+      const enriched = enrichWorkersWithTrustScores(fetchedWorkers, fetchedBookings, fetchedReviews, fetchedTickets);
+      setWorkers(enriched);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {

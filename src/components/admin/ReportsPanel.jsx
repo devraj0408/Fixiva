@@ -36,7 +36,7 @@ const ReportsPanel = () => {
         Name: w.name || 'Worker',
         Skills: w.skills || '',
         City: w.city || 'Ranchi',
-        TrustScore: w.trustScore ?? 100,
+        TrustScore: w.trustScore ?? w.trust_score ?? 50,
         Status: w.status || 'Active',
       }));
     }
