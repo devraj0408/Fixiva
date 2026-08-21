@@ -40,11 +40,17 @@ const ServicesPanel = () => {
   });
   const [uploading, setUploading] = useState(false);
 
-  // Coverage Modal State
+  // Coverage Modal State for existing services table
   const [coverageService, setCoverageService] = useState(null);
   const [coverageSearch, setCoverageSearch] = useState('');
   const [coverageFilter, setCoverageFilter] = useState('all'); // 'all' | 'active' | 'inactive'
-  const [selectedFormState, setSelectedFormState] = useState('All');
+
+  // Add Coverage Modal State for Service Creation / Edit form
+  const [isAddCoverageModalOpen, setIsAddCoverageModalOpen] = useState(false);
+  const [modalStateSearch, setModalStateSearch] = useState('');
+  const [modalDistrictSearch, setModalDistrictSearch] = useState('');
+  const [modalSelectedState, setModalSelectedState] = useState(null); // null = Step 1 (Select State)
+  const [tempSelectedCityIds, setTempSelectedCityIds] = useState([]);
 
   // Compute unique states list from loaded cities & states
   const availableStatesList = useMemo(() => {
@@ -59,14 +65,65 @@ const ServicesPanel = () => {
     return Array.from(setOfStates).sort();
   }, [states, cities]);
 
-  // Filter cities/districts by selectedFormState
-  const filteredCities = useMemo(() => {
-    if (selectedFormState === 'All') return cities || [];
-    return (cities || []).filter((c) => {
-      const st = c.state_name || c.state || c.region || '';
-      return String(st).toLowerCase() === String(selectedFormState).toLowerCase();
+  // Selected district objects & state grouping for main form card
+  const selectedDistrictObjects = useMemo(() => {
+    const selectedSet = new Set(selectedCityIds);
+    return (cities || []).filter((c) => selectedSet.has(c.id));
+  }, [cities, selectedCityIds]);
+
+  const groupedSelectedCoverage = useMemo(() => {
+    const map = new Map();
+    selectedDistrictObjects.forEach((dist) => {
+      const stName = dist.state_name || dist.state || dist.region || 'General Location';
+      if (!map.has(stName)) {
+        map.set(stName, []);
+      }
+      map.get(stName).push(dist);
     });
-  }, [cities, selectedFormState]);
+    return map;
+  }, [selectedDistrictObjects]);
+
+  // Filtered states for Modal Step 1
+  const filteredModalStates = useMemo(() => {
+    if (!modalStateSearch.trim()) return availableStatesList;
+    const query = modalStateSearch.toLowerCase().trim();
+    return availableStatesList.filter((st) => st.toLowerCase().includes(query));
+  }, [availableStatesList, modalStateSearch]);
+
+  // Filtered districts for Modal Step 2
+  const modalStateDistricts = useMemo(() => {
+    if (!modalSelectedState) return [];
+    const stateDistricts = (cities || []).filter((c) => {
+      const st = c.state_name || c.state || c.region || '';
+      return String(st).toLowerCase() === String(modalSelectedState).toLowerCase();
+    });
+    if (!modalDistrictSearch.trim()) return stateDistricts;
+    const query = modalDistrictSearch.toLowerCase().trim();
+    return stateDistricts.filter((c) => (c.name || '').toLowerCase().includes(query));
+  }, [cities, modalSelectedState, modalDistrictSearch]);
+
+  const handleOpenAddCoverageModal = () => {
+    setTempSelectedCityIds([...selectedCityIds]);
+    setModalSelectedState(null);
+    setModalStateSearch('');
+    setModalDistrictSearch('');
+    setIsAddCoverageModalOpen(true);
+  };
+
+  const handleApplyCoverageFromModal = () => {
+    setSelectedCityIds([...tempSelectedCityIds]);
+    setIsAddCoverageModalOpen(false);
+  };
+
+  const handleModalSelectAllForState = () => {
+    const currentDistrictIds = modalStateDistricts.map((c) => c.id);
+    setTempSelectedCityIds((prev) => Array.from(new Set([...prev, ...currentDistrictIds])));
+  };
+
+  const handleModalClearAllForState = () => {
+    const currentDistrictIdsSet = new Set(modalStateDistricts.map((c) => c.id));
+    setTempSelectedCityIds((prev) => prev.filter((id) => !currentDistrictIdsSet.has(id)));
+  };
 
   // Helper to check if service is active in a specific city/district
   const isServiceActiveInCity = (serviceId, city) => {
@@ -482,103 +539,89 @@ const ServicesPanel = () => {
             </div>
           </div>
 
-          {/* Dynamic Available Districts / Cities Checklist */}
-          <div className="space-y-2 pt-2 border-t border-slate-100">
+          {/* Compact Rapido-style Service Coverage Card */}
+          <div className="space-y-3 pt-3 border-t border-slate-100">
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-xs font-bold text-slate-700 block">District Coverage</label>
-                <span className="text-[11px] font-semibold text-slate-500">
-                  {selectedCityIds.length} / {cities.length} Active
+                <label className="text-xs font-black uppercase text-slate-700 tracking-wider block">Service Coverage</label>
+                <p className="text-[11px] font-semibold text-slate-400">Choose where this service is available.</p>
+              </div>
+              {selectedCityIds.length > 0 && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 shadow-2xs">
+                  <MapPin size={13} className="text-blue-600 shrink-0" />
+                  {selectedDistrictObjects.length} {selectedDistrictObjects.length === 1 ? 'District' : 'Districts'} · {groupedSelectedCoverage.size} {groupedSelectedCoverage.size === 1 ? 'State' : 'States'}
                 </span>
-              </div>
-              <div className="flex items-center gap-2 text-[11px] font-extrabold">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentFilteredIds = filteredCities.map((c) => c.id);
-                    setSelectedCityIds((prev) => Array.from(new Set([...prev, ...currentFilteredIds])));
-                  }}
-                  className="text-primary hover:underline"
-                >
-                  All
-                </button>
-                <span className="text-slate-300">|</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentFilteredIdsSet = new Set(filteredCities.map((c) => c.id));
-                    setSelectedCityIds((prev) => prev.filter((id) => !currentFilteredIdsSet.has(id)));
-                  }}
-                  className="text-slate-400 hover:text-slate-600 hover:underline"
-                >
-                  None
-                </button>
-              </div>
+              )}
             </div>
 
-            {/* State Selector Dropdown */}
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] font-bold text-slate-500 shrink-0">Filter State:</span>
-              <select
-                value={selectedFormState}
-                onChange={(e) => setSelectedFormState(e.target.value)}
-                className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-primary"
-              >
-                <option value="All">All States ({cities.length} Districts)</option>
-                {availableStatesList.map((st) => {
-                  const count = (cities || []).filter((c) => (c.state_name || c.state || c.region) === st).length;
-                  return (
-                    <option key={st} value={st}>
-                      {st} ({count} districts)
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            {/* Scrollable Checklist */}
-            <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto p-2 bg-slate-50/50 rounded-xl border border-slate-200">
-              {filteredCities.length === 0 ? (
-                <div className="col-span-2 p-4 text-center text-xs text-slate-400 font-semibold">
-                  No districts found for selected state.
+            <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
+              {selectedCityIds.length === 0 ? (
+                <div className="py-4 text-center space-y-2">
+                  <div className="h-10 w-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <MapPin size={20} />
+                  </div>
+                  <p className="text-xs font-bold text-slate-500">No locations added yet.</p>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddCoverageModal}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
+                  >
+                    + Add Coverage
+                  </button>
                 </div>
               ) : (
-                filteredCities.map((city) => {
-                  const isChecked = selectedCityIds.includes(city.id);
-                  return (
-                    <label
-                      key={city.id}
-                      className={`flex items-center justify-between gap-2 text-xs font-semibold p-2 rounded-lg cursor-pointer transition-colors border ${
-                        isChecked
-                          ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900 font-bold'
-                          : 'bg-white border-slate-100 text-slate-600 hover:bg-slate-100/60'
-                      }`}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedCityIds((prev) => [...prev, city.id]);
-                            } else {
-                              setSelectedCityIds((prev) => prev.filter((id) => id !== city.id));
-                            }
-                          }}
-                          className="h-3.5 w-3.5 rounded border-slate-300 text-primary focus:ring-primary shrink-0 cursor-pointer"
-                        />
-                        <span className="truncate">{city.name}</span>
+                <>
+                  <div className="max-h-52 overflow-y-auto space-y-3 pr-1">
+                    {Array.from(groupedSelectedCoverage.entries()).map(([stName, distList]) => (
+                      <div key={stName} className="bg-white rounded-xl p-3 border border-slate-200/80 space-y-2 shadow-2xs">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                          <span className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-primary inline-block"></span>
+                            {stName}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {distList.length} {distList.length === 1 ? 'district' : 'districts'}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-0.5">
+                          {distList.map((dist) => (
+                            <span
+                              key={dist.id}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200/60 hover:border-slate-300 transition-colors group"
+                            >
+                              <span>• {dist.name}</span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedCityIds((prev) => prev.filter((id) => id !== dist.id))}
+                                className="text-slate-400 hover:text-rose-600 transition-colors p-0.5 cursor-pointer"
+                                title={`Remove ${dist.name}`}
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
                       </div>
-                      <span
-                        className={`text-[9px] px-1.5 py-0.5 rounded font-black shrink-0 ${
-                          isChecked ? 'bg-emerald-200 text-emerald-900' : 'bg-slate-100 text-slate-400'
-                        }`}
-                      >
-                        {isChecked ? 'Active' : 'Off'}
-                      </span>
-                    </label>
-                  );
-                })
+                    ))}
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/60 flex justify-between items-center">
+                    <button
+                      type="button"
+                      onClick={handleOpenAddCoverageModal}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:text-blue-700 hover:underline cursor-pointer"
+                    >
+                      + Add another location
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedCityIds([])}
+                      className="text-[11px] font-bold text-slate-400 hover:text-rose-600 transition-colors cursor-pointer"
+                    >
+                      Clear all locations
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -919,6 +962,197 @@ const ServicesPanel = () => {
               >
                 Done
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Service Coverage Modal (State -> District Step Flow) */}
+      {isAddCoverageModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-slate-100 max-h-[85vh] flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
+              <div>
+                <div className="flex items-center gap-2">
+                  <MapPin className="text-primary" size={20} />
+                  <h3 className="text-lg font-black text-slate-900">Add Service Coverage</h3>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {modalSelectedState ? `Step 2: Select districts in ${modalSelectedState}` : 'Step 1: Select state'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCoverageModalOpen(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body Content */}
+            <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1">
+              {!modalSelectedState ? (
+                /* Step 1: Select State */
+                <div className="space-y-3">
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={modalStateSearch}
+                      onChange={(e) => setModalStateSearch(e.target.value)}
+                      placeholder="🔍 Search state..."
+                      className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-xs font-semibold focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                    {filteredModalStates.length === 0 ? (
+                      <div className="p-8 text-center text-xs font-bold text-slate-400">No states matching search.</div>
+                    ) : (
+                      filteredModalStates.map((st) => {
+                        const stateDistrictsCount = (cities || []).filter(
+                          (c) => (c.state_name || c.state || c.region) === st
+                        ).length;
+                        const selectedInState = (cities || []).filter(
+                          (c) => (c.state_name || c.state || c.region) === st && tempSelectedCityIds.includes(c.id)
+                        ).length;
+
+                        return (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={() => {
+                              setModalSelectedState(st);
+                              setModalDistrictSearch('');
+                            }}
+                            className="w-full flex items-center justify-between p-3 rounded-xl border border-slate-100 bg-slate-50/60 hover:bg-primary/5 hover:border-primary/30 transition-all text-left group cursor-pointer"
+                          >
+                            <div>
+                              <span className="font-extrabold text-xs text-slate-900 group-hover:text-primary transition-colors block">
+                                {st}
+                              </span>
+                              <span className="text-[10px] font-semibold text-slate-400">
+                                {stateDistrictsCount} districts available
+                              </span>
+                            </div>
+                            {selectedInState > 0 ? (
+                              <span className="text-[10px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                {selectedInState} selected
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-400 group-hover:text-primary">Select →</span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* Step 2: Select Districts for modalSelectedState */
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setModalSelectedState(null)}
+                      className="text-xs font-bold text-primary hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      ← Back to States
+                    </button>
+                    <div className="flex items-center gap-2 text-xs font-bold">
+                      <button
+                        type="button"
+                        onClick={handleModalSelectAllForState}
+                        className="text-primary hover:underline cursor-pointer"
+                      >
+                        Select All Districts
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={handleModalClearAllForState}
+                        className="text-slate-400 hover:text-slate-600 hover:underline cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="relative">
+                    <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={modalDistrictSearch}
+                      onChange={(e) => setModalDistrictSearch(e.target.value)}
+                      placeholder="🔍 Search district in state..."
+                      className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-xs font-semibold focus:outline-none focus:border-primary"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto p-1">
+                    {modalStateDistricts.length === 0 ? (
+                      <div className="col-span-2 p-8 text-center text-xs font-bold text-slate-400">
+                        No districts matching search.
+                      </div>
+                    ) : (
+                      modalStateDistricts.map((dist) => {
+                        const isChecked = tempSelectedCityIds.includes(dist.id);
+                        return (
+                          <label
+                            key={dist.id}
+                            className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border text-xs font-semibold cursor-pointer transition-all ${
+                              isChecked
+                                ? 'bg-emerald-50/80 border-emerald-300 text-emerald-900 font-bold shadow-2xs'
+                                : 'bg-white border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setTempSelectedCityIds((prev) => [...prev, dist.id]);
+                                  } else {
+                                    setTempSelectedCityIds((prev) => prev.filter((id) => id !== dist.id));
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary shrink-0 cursor-pointer"
+                              />
+                              <span className="truncate">{dist.name}</span>
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+              <span className="text-xs font-bold text-slate-500">
+                Selected Total: <strong className="text-slate-900">{tempSelectedCityIds.length}</strong> locations
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCoverageModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyCoverageFromModal}
+                  className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-extrabold hover:bg-blue-700 transition-colors shadow-sm cursor-pointer"
+                >
+                  Add {tempSelectedCityIds.length} {tempSelectedCityIds.length === 1 ? 'Location' : 'Locations'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
