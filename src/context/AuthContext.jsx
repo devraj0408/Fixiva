@@ -1174,9 +1174,15 @@ export const AuthProvider = ({ children }) => {
 
     if (supabase) {
       try {
-        await supabase
+        const csPayload = { id: `${cityId}_${serviceId}`, city_id: cityId, service_id: serviceId, enabled };
+        let { error: csErr } = await supabase
           .from('city_services')
-          .upsert({ city_id: cityId, service_id: serviceId, enabled }, { onConflict: 'city_id,service_id' });
+          .upsert(csPayload, { onConflict: 'city_id,service_id' });
+
+        if (csErr && csErr.message && (csErr.message.includes('column') || csErr.message.includes('id'))) {
+          delete csPayload.id;
+          await supabase.from('city_services').upsert(csPayload, { onConflict: 'city_id,service_id' });
+        }
       } catch (e) {
         void e;
       }

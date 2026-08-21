@@ -236,11 +236,24 @@ const ServicesPanel = () => {
     let savedServiceId = editingService?.id;
 
     if (editingService) {
-      await updateService(editingService.id, payload);
+      const updateRes = await updateService(editingService.id, payload);
+      if (updateRes?.error) {
+        showToast(`Failed to update service: ${updateRes.error}`, 'error');
+        return;
+      }
       setEditingService(null);
     } else {
       const res = await createService(payload);
-      if (res?.data?.id) savedServiceId = res.data.id;
+      if (res?.error) {
+        console.error('[ServicesPanel] createService error:', res.error);
+        showToast(`Failed to create service: ${res.error}`, 'error');
+        return;
+      }
+      if (!res?.data?.id) {
+        showToast('Service created but no valid service ID returned.', 'error');
+        return;
+      }
+      savedServiceId = res.data.id;
     }
 
     // Persist city availability checklist for this service

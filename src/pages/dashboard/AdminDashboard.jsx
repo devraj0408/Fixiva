@@ -100,11 +100,10 @@ const AdminDashboard = () => {
         return <ContractorsPanel />;
       case 'services':
       case 'coverage':
+      case 'areas':
         return <ServicesPanel />;
       case 'categories':
         return <CategoriesPanel />;
-      case 'areas':
-        return <AreasPanel />;
       case 'coverage-requests':
         return <CoverageRequestsPanel />;
       case 'pricing':

@@ -27,7 +27,6 @@ const navItems = [
   { id: 'services', label: 'Services Catalog', icon: Briefcase },
   { id: 'categories', label: 'Categories', icon: Layers },
   { id: 'coverage-requests', label: 'Coverage Requests', icon: TrendingUp },
-  { id: 'areas', label: 'Area Localities', icon: Map },
   { id: 'pricing', label: 'Pricing Rules', icon: Tag },
   { id: 'banners', label: 'Banners', icon: Image },
   { id: 'coupons', label: 'Coupons', icon: Ticket },

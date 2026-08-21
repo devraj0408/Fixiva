@@ -29,7 +29,15 @@ export const createService = async (serviceData, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
+    const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+        );
+
     const slugId = serviceData.id || String(serviceData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service-' + Date.now();
+    const serviceId = serviceData.id || generatedUuid;
+
     const normalizedCategory = serviceData.category && String(serviceData.category).trim()
       ? String(serviceData.category).trim()
       : (serviceData.category_id ? String(serviceData.category_id).trim() : 'General');
@@ -37,7 +45,7 @@ export const createService = async (serviceData, actor = {}) => {
     const imageUrl = String(serviceData.image_url || serviceData.image || serviceData.icon || '').trim();
 
     const fullPayload = {
-      id: slugId,
+      id: serviceId,
       name: String(serviceData.name || '').trim(),
       category: normalizedCategory,
       category_id: serviceData.category_id || null,
@@ -51,10 +59,18 @@ export const createService = async (serviceData, actor = {}) => {
       active: serviceData.active === true || serviceData.active === 'true' || serviceData.active === 1 || serviceData.active === '1',
     };
 
-    // Attempt 1: Full payload insert
+    // Attempt 1: UUID payload insert
     let { data, error } = await supabase.from('services').insert(fullPayload).select().maybeSingle();
 
-    // Attempt 2: If 'image_url' or 'image' or 'category_id' column is missing from schema
+    // Attempt 2: Slug ID insert if UUID rejected or slug preferred
+    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('uuid'))) {
+      fullPayload.id = slugId;
+      const retrySlug = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+      data = retrySlug.data;
+      error = retrySlug.error;
+    }
+
+    // Attempt 3: Strip missing columns if schema cache mismatch
     if (error && error.message && (error.message.includes('image_url') || error.message.includes('column "image"'))) {
       delete fullPayload.image_url;
       delete fullPayload.image;
@@ -77,36 +93,25 @@ export const createService = async (serviceData, actor = {}) => {
       error = retry.error;
     }
 
-    // Attempt 4: If invalid input syntax for type (e.g. PK is integer or UUID)
-    if (error && error.message && error.message.includes('invalid input syntax')) {
-      console.warn('createService: ID type mismatch, retrying without explicit id field:', error.message);
+    // Attempt 4: Auto-generated DB ID (retry without explicit id ONLY if DB supports default generator)
+    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('primary key'))) {
+      console.warn('[catalogService.createService] Retrying insert without explicit id:', error.message);
       const payloadNoId = { ...fullPayload };
       delete payloadNoId.id;
-      const retry = await supabase.from('services').insert(payloadNoId).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // Attempt 5: Minimal payload fallback if other column schema mismatches exist
-    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
-      console.warn('createService: column mismatch, retrying clean minimal payload:', error.message);
-      const cleanPayload = {
-        name: String(serviceData.name || '').trim(),
-        base_price: Number.isFinite(Number(serviceData.base_price)) ? Number(serviceData.base_price) : 0,
-        platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
-        active: serviceData.active !== false,
-      };
-      const retryMinimal = await supabase.from('services').insert(cleanPayload).select().maybeSingle();
-      if (!retryMinimal.error) {
-        data = retryMinimal.data;
+      const retryNoId = await supabase.from('services').insert(payloadNoId).select().maybeSingle();
+      if (!retryNoId.error) {
+        data = retryNoId.data;
         error = null;
-      } else {
-        error = retryMinimal.error;
       }
     }
 
     if (error) {
-      console.error('createService DB error final:', error);
+      console.error('[catalogService.createService] Supabase DB Insert Error Details:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+      });
       return { data: null, error: error.message };
     }
 
