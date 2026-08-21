@@ -1,574 +1,778 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import {
-  MapPin, Calendar, CheckSquare, ArrowRight,
-  ArrowLeft, Loader2, Info, ShieldCheck, Phone, Mail, User, ShieldAlert
+  Star,
+  CheckCircle,
+  ArrowRight,
+  Sparkles,
+  ArrowLeft,
+  Check
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import { supabase } from '../lib/supabaseClient';
-
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import RapidoLocationSelector from '../components/location/RapidoLocationSelector';
+import { detectCurrentLocation } from '../services/locationService';
+import { findAvailableProfessionals, createBooking } from '../services/bookingService';
+import { submitCoverageRequest } from '../services/coverageService';
 
 const BookingFlow = () => {
-  const { serviceId } = useParams();
+  const { serviceId: paramServiceId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { services, addBooking, user, isAuthenticated } = useApp();
-  const [cities, setCities] = useState([]);
 
-  useEffect(() => {
-    const fetchCities = async () => {
-      const { data, error } = await supabase.from('cities').select('*');
-      if (!error) setCities(data);
-    };
-    fetchCities();
-  }, []);
+  const {
+    services = [],
+    user,
+    showToast
+  } = useApp();
 
-  const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [bookingId, setBookingId] = useState('');
+  // Parse URL query parameters
+  const queryParams = new URLSearchParams(location.search);
+  const initialServiceId = paramServiceId || queryParams.get('service') || 'electrician';
+  const initialParamState = queryParams.get('state') || localStorage.getItem('fixiva:last-state') || '';
+  const initialParamDistrict = queryParams.get('district') || localStorage.getItem('fixiva:last-district') || '';
+  const initialParamLocality = queryParams.get('locality') || localStorage.getItem('fixiva:last-locality') || '';
 
-  // Pre-fill user data if logged in
-  const [formData, setFormData] = useState({
-    city: '',
-    service: serviceId || '',
-    address: '',
-    name: '',
-    email: '',
-    phone: '',
-    date: '',
-    payment: 'Cash on Service',
-    notes: '',
-    timeSlot: ''
-  });
+  // Step state: 1: Service, 2: Location, 3: Match Pros, 4: Schedule & Contact, 5: Confirmation
+  const [step, setStep] = useState(2);
+  const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId);
 
-  useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const cityFromUrl = queryParams.get('city');
-    if (cityFromUrl) {
-      setFormData(prev => ({ ...prev, city: cityFromUrl }));
-    }
-  }, [location.search]);
+  // Location selection mode: 'manual' | 'gps'
+  const [locationMode, setLocationMode] = useState('manual');
 
+  // Manual location state
+  const [manualState, setManualState] = useState(initialParamState);
+  const [manualDistrict, setManualDistrict] = useState(initialParamDistrict);
+  const [manualLocality, setManualLocality] = useState(initialParamLocality);
+
+  // GPS detected location state
+  const [detectedState, setDetectedState] = useState('');
+  const [detectedDistrict, setDetectedDistrict] = useState('');
+  const [detectedLocality, setDetectedLocality] = useState('');
+  const [detectedLat, setDetectedLat] = useState(null);
+  const [detectedLng, setDetectedLng] = useState(null);
+  const [detectingGps, setDetectingGps] = useState(false);
+
+  // Active computed location strictly based on active locationMode
+  const selectedState = locationMode === 'gps' ? (detectedState || user?.state || '') : manualState;
+  const selectedDistrict = locationMode === 'gps' ? (detectedDistrict || user?.district || user?.city || '') : manualDistrict;
+  const selectedLocality = locationMode === 'gps' ? (detectedLocality || user?.locality || '') : manualLocality;
+  const userLat = locationMode === 'gps' ? (detectedLat || user?.location_latitude || null) : null;
+  const userLng = locationMode === 'gps' ? (detectedLng || user?.location_longitude || null) : null;
+
+  // Matching Engine state
+  const [matchingLoading, setMatchingLoading] = useState(false);
+  const [isDistrictActiveStatus, setIsDistrictActiveStatus] = useState(true);
+  const [availablePros, setAvailablePros] = useState([]);
+  const [selectedPro, setSelectedPro] = useState(null);
+
+  // Service Unavailable & Coverage Request state
+  const [coverageRequested, setCoverageRequested] = useState(false);
+  const [coveragePhone, setCoveragePhone] = useState(user?.phone || '');
+  const [submittingCoverage, setSubmittingCoverage] = useState(false);
+
+  // Booking Details state
+  const [bookingDate, setBookingDate] = useState(new Date().toISOString().split('T')[0]);
+  const [bookingTimeSlot, setBookingTimeSlot] = useState('09:00 AM - 12:00 PM');
+  const [customerName, setCustomerName] = useState(user?.name || '');
+  const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+  const [addressLine, setAddressLine] = useState('');
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [createdBooking, setCreatedBooking] = useState(null);
+
+  // Pre-fill user data & initial detected location from registration
   useEffect(() => {
     if (user) {
-      setFormData(prev => ({
-        ...prev,
-        name: user.name || '',
-        email: user.email || '',
-        phone: user.phone || ''
-      }));
+      queueMicrotask(() => {
+        if (user.name) setCustomerName(user.name);
+        if (user.phone) {
+          setCustomerPhone(user.phone);
+          setCoveragePhone(user.phone);
+        }
+        if (user.state) setDetectedState(user.state);
+        if (user.district || user.city) setDetectedDistrict(user.district || user.city);
+        if (user.locality) setDetectedLocality(user.locality);
+        if (user.location_latitude) setDetectedLat(user.location_latitude);
+        if (user.location_longitude) setDetectedLng(user.location_longitude);
+      });
     }
   }, [user]);
 
-  const [errors, setErrors] = useState({});
+  const activeServices = (services || []).filter(
+    (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+  );
 
-  const selectedService = services.find(s => s.id === formData.service);
-  const basePrice = selectedService?.base_price || selectedService?.inspection_fee || 0;
-  const platformFee = selectedService?.platform_fee || 0;
-  const totalAmount = basePrice + platformFee;
+  // Active Service object
+  const activeService = activeServices.find(s => s.id === selectedServiceId) || services.find(s => s.id === selectedServiceId) || activeServices[0] || {
+    id: selectedServiceId,
+    name: selectedServiceId ? selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1) : 'Plumber',
+    base_price: 199,
+    platform_fee: 49
+  };
 
-  const validateStep = (s) => {
-    let newErrors = {};
-    if (s === 1) {
-      if (!formData.city) newErrors.city = 'Please select a city';
-      if (!formData.service) newErrors.service = 'Please select a service';
-    } else if (s === 2) {
-      if (!isAuthenticated) {
-        newErrors.auth = 'You must be logged in to book a service';
+  // Run Locality Matching Engine when step 3 or location/service changes
+  const runMatchingEngine = useCallback(async () => {
+    setMatchingLoading(true);
+    setCoverageRequested(false);
+    try {
+      const res = await findAvailableProfessionals({
+        serviceId: selectedServiceId,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        userLat,
+        userLng
+      });
+
+      setIsDistrictActiveStatus(res.districtActive);
+      setAvailablePros(res.professionals || []);
+      if (res.professionals && res.professionals.length > 0) {
+        setSelectedPro(res.professionals[0]);
       }
-      if (!formData.name) newErrors.name = 'Contact name is required';
-      if (!formData.address) newErrors.address = 'Full address is required';
-      if (!formData.email) newErrors.email = 'Email address is required';
-      if (!formData.phone) newErrors.phone = 'Mobile phone is required';
-    } else if (s === 3) {
-      if (!formData.date) newErrors.date = 'Appointment date is required';
-      if (!formData.timeSlot) newErrors.timeSlot = 'Time slot selection is required';
+    } catch {
+      showToast('Error matching nearby professionals', 'error');
+    } finally {
+      setMatchingLoading(false);
     }
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality, userLat, userLng, showToast]);
+
+  useEffect(() => {
+    queueMicrotask(() => {
+      runMatchingEngine();
+    });
+  }, [runMatchingEngine]);
+
+  // Handle GPS location detection (Switch strictly to GPS mode)
+  const handleDetectGps = async () => {
+    setDetectingGps(true);
+    setLocationMode('gps');
+    try {
+      const loc = await detectCurrentLocation();
+      const st = loc.state || user?.state || '';
+      const dt = loc.district || user?.district || user?.city || '';
+      const lc = loc.locality || user?.locality || '';
+      const lat = loc.latitude || user?.location_latitude || null;
+      const lng = loc.longitude || user?.location_longitude || null;
+
+      setDetectedState(st);
+      setDetectedDistrict(dt);
+      setDetectedLocality(lc);
+      setDetectedLat(lat);
+      setDetectedLng(lng);
+      if (dt) showToast(`🎯 Current location detected: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'success');
+    } catch {
+      const st = user?.state || '';
+      const dt = user?.district || user?.city || '';
+      const lc = user?.locality || '';
+      setDetectedState(st);
+      setDetectedDistrict(dt);
+      setDetectedLocality(lc);
+      setDetectedLat(user?.location_latitude || null);
+      setDetectedLng(user?.location_longitude || null);
+      if (dt) showToast(`📍 Location set to: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'info');
+    } finally {
+      setDetectingGps(false);
+    }
   };
 
-  const nextStep = () => {
-    if (validateStep(step)) {
-      setStep(step + 1);
-    }
-  };
-
-  const prevStep = () => setStep(step - 1);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!isAuthenticated) {
-      alert("Please login first to book a service.");
-      navigate('/login');
+  // Explicit Coverage Request Click
+  const handleRequestCoverage = async () => {
+    if (!coveragePhone.trim()) {
+      showToast('Please enter your mobile number.', 'error');
       return;
     }
-    if (validateStep(3)) {
-      setLoading(true);
-      const generatedId = `BK-${Math.floor(100000 + Math.random() * 900000)}`;
-      setBookingId(generatedId);
-      
-      setTimeout(async () => {
-        try {
-          const combinedAddress = `${formData.address}${formData.notes ? ` (Notes: ${formData.notes})` : ''}${formData.timeSlot ? ` (Slot: ${formData.timeSlot})` : ''}`;
-          const payload = {
-            id: generatedId,
-            customer_id: user?.id,
-            service_id: formData.service,
-            city_id: (cities && cities.length > 0 ? cities : DEFAULT_CITIES).find(c => c.name === formData.city)?.id,
-            address: combinedAddress,
-            preferred_date: formData.date,
-            status: "New Request",
-            
-            // Sync schema properties
-            customer_name: formData.name,
-            customer_phone: formData.phone,
-            customer_address: combinedAddress,
-            worker_id: null,
-            worker_name: null,
-            worker_phone: null,
-            service_name: selectedService?.name || formData.service,
-            city: formData.city,
-            booking_date: formData.date,
-            price: basePrice,
-            platform_fee: platformFee
-          };
-          
-          const { error } = await addBooking(payload);
-          setLoading(false);
-          if (error) {
-            alert('Booking creation failed: ' + error.message);
-          } else {
-            setSuccess(true);
-          }
-        } catch (err) {
-          setLoading(false);
-          alert('Booking dispatch failed.');
-        }
-      }, 1000);
+    setSubmittingCoverage(true);
+    try {
+      const res = await submitCoverageRequest({
+        customer_id: user?.id,
+        customer_name: customerName || user?.name || 'Customer',
+        phone: coveragePhone.trim(),
+        email: user?.email || '',
+        service_id: activeService.id,
+        service_name: activeService.name,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        latitude: userLat,
+        longitude: userLng
+      });
+
+      if (res.success) {
+        setCoverageRequested(true);
+        showToast(res.message || 'Coverage request submitted! We will notify you when services launch.', 'success');
+      } else {
+        showToast(res.error || 'Failed to submit request.', 'error');
+      }
+    } catch {
+      showToast('Failed to submit coverage request.', 'error');
+    } finally {
+      setSubmittingCoverage(false);
     }
   };
 
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
-  const allCities = displayCities.map(c => c.name).sort();
+  // Submit Final Booking
+  const handleConfirmBooking = async () => {
+    if (!customerName.trim() || !customerPhone.trim()) {
+      showToast('Please fill in your name and phone number.', 'error');
+      return;
+    }
 
-  if (success) {
-    return (
-      <div className="max-w-3xl mx-auto px-4 py-16">
-        <motion.div 
-          className="bg-white rounded-3xl border border-slate-100 p-10 md:p-16 text-center shadow-xl shadow-slate-100 space-y-8"
-          initial={{ scale: 0.95, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          transition={{ type: 'spring', damping: 20 }}
-        >
-          <div className="mx-auto bg-green-50 text-success h-20 w-20 rounded-full flex items-center justify-center shadow-inner">
-            <CheckSquare size={40} />
-          </div>
+    setBookingSubmitting(true);
+    try {
+      const res = await createBooking({
+        customer_id: user?.id,
+        worker_id: selectedPro?.id,
+        service_id: activeService.id,
+        service_name: activeService.name,
+        state: selectedState,
+        district: selectedDistrict,
+        locality: selectedLocality,
+        address: addressLine ? `${addressLine}, ${selectedLocality}, ${selectedDistrict}` : `${selectedLocality}, ${selectedDistrict}, ${selectedState}`,
+        customer_name: customerName.trim(),
+        customer_phone: customerPhone.trim(),
+        worker_name: selectedPro?.name || 'Assigned Specialist',
+        worker_phone: selectedPro?.whatsapp || '',
+        price: activeService.base_price || 199,
+        platform_fee: 0,
+        booking_date: bookingDate
+      });
 
-          <div className="space-y-2">
-            <h2 className="text-3xl font-black text-slate-900">Booking Confirmed!</h2>
-            <p className="text-slate-500 font-medium text-sm max-w-md mx-auto">
-              Your request has been registered. Our system is auto-dispatching a verified home professional in your area.
-            </p>
-          </div>
-
-          {/* Checkout billing table summaries */}
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 text-left text-xs font-semibold space-y-3">
-            <div className="flex justify-between pb-2.5 border-b border-slate-200/60">
-              <span className="text-slate-400 uppercase tracking-wider">Booking ID</span>
-              <span className="text-primary font-bold">{bookingId}</span>
-            </div>
-            <div className="flex justify-between pb-2.5 border-b border-slate-200/60">
-              <span className="text-slate-400 uppercase tracking-wider">Requested service</span>
-              <span className="text-slate-800">{selectedService?.name}</span>
-            </div>
-            <div className="flex justify-between pb-2.5 border-b border-slate-200/60">
-              <span className="text-slate-400 uppercase tracking-wider">Convenience City</span>
-              <span className="text-slate-800">{formData.city}</span>
-            </div>
-            <div className="flex justify-between pt-1">
-              <span className="text-slate-500 font-bold uppercase tracking-wider">Total Settlement Payout</span>
-              <span className="text-primary font-black text-sm">₹{totalAmount}</span>
-            </div>
-          </div>
-
-          <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center">
-            <Link 
-              to="/dashboard/customer" 
-              className="btn-primary text-sm px-8 py-3.5 rounded-xl shadow-md text-center"
-            >
-              Track booking Progress
-            </Link>
-            <Link 
-              to="/" 
-              className="btn-secondary text-sm px-8 py-3.5 rounded-xl text-center"
-            >
-              Back to Home
-            </Link>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
+      if (res.data) {
+        setCreatedBooking(res.data);
+        setStep(5);
+        showToast('🎉 Service booked successfully!', 'success');
+      } else {
+        showToast(res.error || 'Failed to place booking.', 'error');
+      }
+    } catch {
+      showToast('An error occurred while booking.', 'error');
+    } finally {
+      setBookingSubmitting(false);
+    }
+  };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
-      
-      {/* Visual Step Stepper */}
-      <div className="max-w-lg mx-auto mb-16 flex items-center justify-between">
-        {[1, 2, 3].map((num) => (
-          <React.Fragment key={num}>
-            <div className="flex flex-col items-center">
-              <div className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
-                step >= num 
-                  ? 'bg-primary text-white ring-4 ring-primary-light shadow-md' 
-                  : 'bg-white border border-slate-200 text-slate-400'
-              }`}>
-                {num}
-              </div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-2">
-                {num === 1 ? 'Service' : num === 2 ? 'Details' : 'Schedule'}
+    <div className="bg-slate-50 min-h-screen py-10">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6">
+        
+        {/* Top Header & Progress Stepper */}
+        <div className="mb-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+            <div>
+              <span className="text-[10px] font-black tracking-widest text-primary uppercase">Fixiva Dispatch</span>
+              <h1 className="text-2xl font-black text-slate-900">Book {activeService.name}</h1>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-extrabold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+                Step {step} of 5
               </span>
             </div>
-            {num < 3 && (
-              <div className={`flex-1 h-0.5 mx-2 transition-all duration-500 ${
-                step > num ? 'bg-primary' : 'bg-slate-200'
-              }`} />
-            )}
-          </React.Fragment>
-        ))}
-      </div>
+          </div>
 
-      {/* Main Flow Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Interactive Wizard steps */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-3xl border border-slate-100 p-8 shadow-sm min-h-[450px] flex flex-col justify-between">
-            <AnimatePresence mode="wait">
-              {step === 1 && (
-                <motion.div 
-                  key="step1"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
-                >
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Select Service & Operating City</h2>
-                    <p className="text-xs text-slate-400 mt-1 font-semibold">Choose where and what type of expert assistance is needed.</p>
-                  </div>
-
-                  {/* Select City */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Convenience City</label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <select
-                        className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-bold text-slate-700 cursor-pointer outline-none transition-all"
-                        value={formData.city}
-                        onChange={(e) => setFormData(prev => ({ ...prev, city: e.target.value }))}
-                      >
-                        <option value="">Select Target City</option>
-                        {allCities.map(city => <option key={city} value={city}>{city}</option>)}
-                      </select>
-                    </div>
-                    {errors.city && <p className="text-danger text-xs font-bold">{errors.city}</p>}
-                  </div>
-
-                  {/* Select Service */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Choose Service Category</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                      {services.map(s => (
-                        <div 
-                          key={s.id}
-                          onClick={() => setFormData(prev => ({ ...prev, service: s.id }))}
-                          className={`p-4 border rounded-xl cursor-pointer hover:border-slate-300 transition-all flex justify-between items-center ${
-                            formData.service === s.id 
-                              ? 'border-primary bg-blue-50/50 ring-2 ring-primary/10' 
-                              : 'border-slate-100 bg-slate-50/20'
-                          }`}
-                        >
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-800">{s.name}</h4>
-                            <p className="text-[10px] text-slate-400 mt-1 font-bold">Starts ₹{s.base_price || s.inspection_fee || 0}</p>
-                          </div>
-                          <div className={`h-4 w-4 rounded-full border flex items-center justify-center shrink-0 ${
-                            formData.service === s.id ? 'border-primary bg-primary' : 'border-slate-300'
-                          }`}>
-                            {formData.service === s.id && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    {errors.service && <p className="text-danger text-xs font-bold">{errors.service}</p>}
-                  </div>
-
-                  <div className="pt-6">
-                    <button 
-                      onClick={nextStep}
-                      disabled={!formData.city || !formData.service}
-                      className="w-full btn-primary text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5"
-                    >
-                      Continue to Details <ArrowRight size={16} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 2 && (
-                <motion.div 
-                  key="step2"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
-                >
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Deployment Coordinates</h2>
-                    <p className="text-xs text-slate-400 mt-1 font-semibold">Verify contact options and full delivery coordinates.</p>
-                  </div>
-
-                  {/* Auth Warning banner */}
-                  {!isAuthenticated && (
-                    <div className="p-4 bg-red-50 rounded-xl flex gap-3 items-start border border-red-100/50 text-xs font-semibold text-danger">
-                      <ShieldAlert className="shrink-0 mt-0.5" size={16} />
-                      <div>
-                        <h5 className="font-bold mb-0.5">Authentication Required</h5>
-                        <p className="text-red-700/80">Please <Link to="/login" className="underline font-bold text-danger">Login</Link> or <Link to="/register" className="underline font-bold text-danger">Register</Link> to secure booking protection features.</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Full Name</label>
-                      <div className="relative">
-                        <User className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                        <input
-                          className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                          placeholder="Contact name"
-                          value={formData.name}
-                          onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                        />
-                      </div>
-                      {errors.name && <p className="text-danger text-xs font-bold">{errors.name}</p>}
-                    </div>
-
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email Address</label>
-                      <div className="relative">
-                        <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                        <input
-                          className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                          placeholder="name@email.com"
-                          value={formData.email}
-                          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                        />
-                      </div>
-                      {errors.email && <p className="text-danger text-xs font-bold">{errors.email}</p>}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Mobile Number</label>
-                    <div className="relative">
-                      <Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <input
-                        className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                        placeholder="10-digit phone number"
-                        value={formData.phone}
-                        onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      />
-                    </div>
-                    {errors.phone && <p className="text-danger text-xs font-bold">{errors.phone}</p>}
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Deployment Address</label>
-                    <textarea
-                      className="w-full p-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                      rows="2"
-                      placeholder="Flat/House number, Street name, Landmark coordinates..."
-                      value={formData.address}
-                      onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                    />
-                    {errors.address && <p className="text-danger text-xs font-bold">{errors.address}</p>}
-                  </div>
-
-                  {/* Additional Notes Field */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Additional Notes / Instructions (Optional)</label>
-                    <textarea
-                      className="w-full p-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                      rows="2"
-                      placeholder="Any specific requests, entry instructions, or details about the issue..."
-                      value={formData.notes}
-                      onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    />
-                  </div>
-
-                  {errors.auth && <p className="text-danger text-xs font-bold text-center mt-2">{errors.auth}</p>}
-
-                  <div className="pt-6 flex gap-4">
-                    <button 
-                      onClick={prevStep}
-                      className="flex-1 btn-secondary text-sm py-3.5 rounded-xl"
-                    >
-                      Back
-                    </button>
-                    <button 
-                      onClick={nextStep}
-                      className="flex-1 btn-primary text-sm py-3.5 rounded-xl shadow-md"
-                      disabled={!isAuthenticated}
-                    >
-                      Continue to Schedule
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {step === 3 && (
-                <motion.div 
-                  key="step3"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  className="space-y-6"
-                >
-                  <div>
-                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Schedule Date & Slot</h2>
-                    <p className="text-xs text-slate-400 mt-1 font-semibold">Select appointment arrival timeline details.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Preferred Date</label>
-                    <div className="relative">
-                      <Calendar className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <input
-                        type="date"
-                        className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-bold text-slate-700 outline-none transition-all"
-                        min={new Date().toISOString().split('T')[0]}
-                        value={formData.date}
-                        onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
-                      />
-                    </div>
-                    {errors.date && <p className="text-danger text-xs font-bold">{errors.date}</p>}
-                  </div>
-
-                  {/* Time Slot Selection */}
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Preferred Time Slot</label>
-                    <div className="grid grid-cols-3 gap-3">
-                      {[
-                        { id: 'morning', label: 'Morning', time: '8 AM - 12 PM' },
-                        { id: 'afternoon', label: 'Afternoon', time: '12 PM - 4 PM' },
-                        { id: 'evening', label: 'Evening', time: '4 PM - 8 PM' }
-                      ].map((slot) => (
-                        <div
-                          key={slot.id}
-                          onClick={() => setFormData(prev => ({ ...prev, timeSlot: slot.label + ' (' + slot.time + ')' }))}
-                          className={`p-3 border rounded-xl cursor-pointer text-center hover:border-slate-300 transition-all ${
-                            formData.timeSlot.includes(slot.label)
-                              ? 'border-primary bg-blue-50/50 ring-2 ring-primary/10 font-bold'
-                              : 'border-slate-200 bg-slate-50/20'
-                          }`}
-                        >
-                          <span className="block text-xs text-slate-800">{slot.label}</span>
-                          <span className="block text-[8px] text-slate-400 mt-0.5">{slot.time}</span>
-                        </div>
-                      ))}
-                    </div>
-                    {errors.timeSlot && <p className="text-danger text-xs font-bold">{errors.timeSlot}</p>}
-                  </div>
-
-                  <div className="p-4 bg-blue-50/50 rounded-xl flex gap-3 items-start border border-blue-100/50 text-xs font-semibold text-primary">
-                    <ShieldCheck className="shrink-0 mt-0.5" size={16} />
-                    <div>
-                      <h5 className="font-bold mb-0.5">Transparent Tariffs Protection</h5>
-                      <p className="text-blue-700/80">Every expert holds verified background credentials. Pay flat rates after complete satisfaction check.</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 flex gap-4">
-                    <button 
-                      onClick={prevStep}
-                      className="flex-1 btn-secondary text-sm py-3.5 rounded-xl"
-                      disabled={loading}
-                    >
-                      Back
-                    </button>
-                    <button 
-                      onClick={handleSubmit}
-                      className="flex-1 btn-primary text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5"
-                      disabled={loading}
-                    >
-                      {loading ? <Loader2 className="animate-spin" size={16} /> : (
-                        <>
-                          Confirm Booking
-                          <ArrowRight size={16} />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+          {/* Stepper Steps */}
+          <div className="grid grid-cols-5 gap-2">
+            {[
+              { id: 1, name: 'Service' },
+              { id: 2, name: 'Location' },
+              { id: 3, name: 'Match Pros' },
+              { id: 4, name: 'Details' },
+              { id: 5, name: 'Confirmed' }
+            ].map(s => (
+              <div 
+                key={s.id} 
+                className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                  s.id <= step ? 'text-primary font-bold' : 'text-slate-400 font-medium'
+                }`}
+                onClick={() => s.id < step && setStep(s.id)}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border ${
+                  s.id < step ? 'bg-primary text-white border-primary' : s.id === step ? 'bg-primary/10 text-primary border-primary' : 'bg-slate-50 text-slate-400 border-slate-200'
+                }`}>
+                  {s.id < step ? <Check size={14} /> : s.id}
+                </div>
+                <span className="text-[11px] hidden sm:block">{s.name}</span>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Right Sticky Invoice Checkout summary */}
-        <div className="lg:col-span-1">
-          <div className="sticky top-24 bg-white rounded-3xl border border-slate-100 overflow-hidden shadow-sm">
-            <div className="p-5 bg-slate-900 text-white text-xs font-extrabold uppercase tracking-wider">
-              Checkout pricing summary
+        {/* STEP 1: SELECT SERVICE */}
+        {step === 1 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
+              <h2 className="text-lg font-bold text-slate-900 mb-4">Choose Required Service</h2>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {activeServices.map(s => {
+                  const imgUrl = s.image_url || s.image || (s.icon && s.icon.startsWith('http') ? s.icon : null);
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setSelectedServiceId(s.id);
+                        setStep(2);
+                      }}
+                      className={`p-4 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all ${
+                        selectedServiceId === s.id 
+                          ? 'border-primary bg-primary/5 text-slate-900 shadow-md ring-2 ring-primary/20'
+                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
+                      }`}
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden shrink-0">
+                        {imgUrl ? (
+                          <img src={imgUrl} alt={s.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Sparkles size={20} />
+                        )}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-sm">{s.name}</h3>
+                        <span className="text-xs text-slate-500">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <div className="p-6 space-y-6">
-              {selectedService ? (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
-                    <span>Base professional fee</span>
-                    <span className="text-slate-800">₹{basePrice}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
-                    <span className="flex items-center gap-1">
-                      Convenience convenience fee <Info size={12} className="text-slate-300" />
-                    </span>
-                    <span className="text-slate-800">₹{platformFee}</span>
-                  </div>
-                  
-                  <div className="border-t border-slate-100 pt-4 flex justify-between items-center text-xs">
-                    <span className="font-extrabold text-slate-900 uppercase">Estimated Invoice</span>
-                    <span className="font-black text-primary text-base">₹{totalAmount}</span>
-                  </div>
+          </motion.div>
+        )}
 
-                  <div className="p-3 bg-amber-50/50 text-warning text-xs font-extrabold border border-amber-100/50 rounded-xl text-center">
-                    CASH ON SERVICE ONLY
-                  </div>
-                  
-                  <p className="text-[9px] text-slate-400 text-center font-bold uppercase tracking-wider">
-                    Digital online billing coming soon
+        {/* STEP 2: CHOOSE LOCATION */}
+        {step === 2 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <RapidoLocationSelector
+              initialState={selectedState}
+              initialDistrict={selectedDistrict}
+              initialLocality={selectedLocality}
+              initialAddress={addressLine}
+              initialLat={userLat}
+              initialLng={userLng}
+              onLocationConfirmed={(loc) => {
+                setManualState(loc.state);
+                setManualDistrict(loc.district);
+                setManualLocality(loc.locality);
+                setDetectedState(loc.state);
+                setDetectedDistrict(loc.district);
+                setDetectedLocality(loc.locality);
+                setDetectedLat(loc.latitude);
+                setDetectedLng(loc.longitude);
+                if (loc.formattedAddress) setAddressLine(loc.formattedAddress);
+                setLocationMode('gps');
+                setStep(3);
+              }}
+            />
+
+            <div className="flex justify-between items-center px-2">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1 cursor-pointer"
+              >
+                <ArrowLeft size={14} /> Back to Services
+              </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* STEP 3: LOCALITY MATCHING / RESULTS */}
+        {step === 3 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            
+            {/* Matching Engine Loading State */}
+            {matchingLoading && (
+              <div className="bg-white rounded-3xl p-12 text-center shadow-sm border border-slate-100 space-y-4">
+                <div className="w-12 h-12 rounded-full border-4 border-primary border-t-transparent animate-spin mx-auto"></div>
+                <h3 className="text-base font-bold text-slate-900">Matching Nearby Professionals...</h3>
+                <p className="text-xs text-slate-500">Checking active coverage and distance parameters for {selectedLocality}, {selectedDistrict}</p>
+              </div>
+            )}
+
+            {/* IF DISTRICT IS NOT ACTIVE: SERVICE UNAVAILABLE SCREEN */}
+            {!matchingLoading && !isDistrictActiveStatus && (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center shadow-sm border border-slate-100 space-y-6 max-w-2xl mx-auto">
+                <div className="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto text-2xl">
+                  🚨
+                </div>
+
+                <div className="space-y-2">
+                  <h2 className="text-2xl font-black text-slate-900">Fixiva is currently unavailable in your district.</h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed">
+                    We're expanding rapidly! Would you like us to launch Fixiva home services in <span className="font-bold text-slate-900">{selectedDistrict}</span>?
                   </p>
                 </div>
-              ) : (
-                <div className="text-center py-12 space-y-2">
-                  <Info className="mx-auto text-slate-200" size={32} />
-                  <p className="text-xs text-slate-400 font-semibold">Select service category to compute checkout total invoice.</p>
+
+                {!coverageRequested ? (
+                  <div className="space-y-4 pt-2 max-w-md mx-auto">
+                    <input
+                      type="tel"
+                      placeholder="Enter mobile number for notification"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-semibold outline-none focus:border-primary"
+                      value={coveragePhone}
+                      onChange={(e) => setCoveragePhone(e.target.value)}
+                    />
+
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        type="button"
+                        onClick={handleRequestCoverage}
+                        disabled={submittingCoverage}
+                        className="btn-primary flex-1 text-xs py-3 rounded-xl shadow-md font-extrabold"
+                      >
+                        {submittingCoverage ? 'Submitting...' : 'Request Coverage'}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setStep(2)}
+                        className="flex-1 text-xs py-3 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50"
+                      >
+                        Change Location
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-800 text-xs font-bold border border-emerald-100">
+                    ✔ Coverage requested! We will alert you when services launch in {selectedDistrict}.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* IF DISTRICT IS ACTIVE BUT NO WORKERS/CONTRACTORS FOUND: COMING SOON SCREEN */}
+            {!matchingLoading && isDistrictActiveStatus && availablePros.length === 0 && (
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center shadow-sm border border-slate-100 space-y-6 max-w-2xl mx-auto">
+                <div className="w-16 h-16 rounded-full bg-blue-50 text-primary flex items-center justify-center mx-auto text-3xl shadow-sm border border-blue-100">
+                  🚀
                 </div>
-              )}
+
+                <div className="space-y-2">
+                  <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-xs font-black uppercase tracking-widest border border-primary/20">
+                    Coming Soon
+                  </span>
+                  <h2 className="text-2xl font-black text-slate-900 pt-2">
+                    Services Coming Soon to {selectedLocality}, {selectedDistrict}
+                  </h2>
+                  <p className="text-sm text-slate-600 font-medium leading-relaxed max-w-md mx-auto">
+                    There are currently no active registered workers or contractors available in your location for <strong className="text-slate-800">{activeService.name}</strong>. Fixiva is expanding rapidly to bring verified professionals near you soon!
+                  </p>
+                </div>
+
+                <div className="pt-4 flex flex-col sm:flex-row gap-3 justify-center max-w-md mx-auto">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="btn-primary text-xs py-3.5 px-6 rounded-xl shadow-md font-extrabold flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowLeft size={14} /> Change Location
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="text-xs py-3.5 px-6 rounded-xl border border-slate-200 font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Browse Other Services
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* IF DISTRICT IS ACTIVE & PROFESSIONALS MATCHED: DISPLAY LIST */}
+            {!matchingLoading && isDistrictActiveStatus && availablePros.length > 0 && (
+              <div className="space-y-6">
+                <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] font-black uppercase text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-md">District Active</span>
+                    <h2 className="text-lg font-extrabold text-slate-900 mt-1">Available Professionals near {selectedLocality}</h2>
+                    <p className="text-xs text-slate-500">Sorted by Nearest Distance → Rating → Completed Jobs → Availability</p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-primary hover:underline"
+                  >
+                    Change Locality ({selectedLocality})
+                  </button>
+                </div>
+
+                {/* Professional Cards List */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {availablePros.map(pro => (
+                    <div
+                      key={pro.id}
+                      onClick={() => setSelectedPro(pro)}
+                      className={`bg-white rounded-3xl p-5 border cursor-pointer transition-all flex flex-col justify-between space-y-4 ${
+                        selectedPro?.id === pro.id
+                          ? 'border-primary ring-2 ring-primary/20 shadow-lg'
+                          : 'border-slate-100 hover:border-slate-200 shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start gap-4">
+                        <img
+                          src={pro.profile_photo_url}
+                          alt={pro.name}
+                          className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shrink-0"
+                        />
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <h3 className="font-extrabold text-sm text-slate-900 truncate">{pro.name}</h3>
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                              {pro.status}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-500 font-medium">{pro.role}</p>
+
+                          <div className="flex items-center gap-3 text-xs mt-2 text-slate-600 font-semibold">
+                            <span className="flex items-center gap-1 text-amber-500 font-bold">
+                              <Star size={13} fill="currentColor" /> {pro.rating}
+                            </span>
+                            <span>•</span>
+                            <span>{pro.completed_jobs} Jobs</span>
+                            <span>•</span>
+                            <span>{pro.experience}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Distance & ETA Info */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-3">
+                          {pro.distance_km !== null && pro.distance_km !== undefined ? (
+                            <>
+                              <span className="font-bold text-slate-700 flex items-center gap-1">
+                                📍 {pro.distance_km} km away
+                              </span>
+                              <span>•</span>
+                              <span className="font-semibold text-slate-500 flex items-center gap-1">
+                                ⏱ ETA: {pro.eta_text || 'Nearby'}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium text-slate-500">Verified Service Pro</span>
+                          )}
+                        </div>
+
+                        <span className="font-black text-sm text-slate-900">
+                          ₹{pro.starting_price}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="pt-4 flex justify-between items-center">
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                  >
+                    <ArrowLeft size={14} /> Change Location
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setStep(4)}
+                    disabled={!selectedPro}
+                    className="btn-primary text-xs px-6 py-3 rounded-xl flex items-center gap-1.5 shadow-md"
+                  >
+                    Proceed with {selectedPro?.name || 'Selected Pro'}
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* STEP 4: SCHEDULE & CONTACT DETAILS */}
+        {step === 4 && (
+          <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+            <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-sm border border-slate-100 space-y-6">
+              <div className="border-b border-slate-100 pb-4">
+                <h2 className="text-xl font-black text-slate-900">Booking & Contact Details</h2>
+                <p className="text-xs text-slate-500 mt-1">Provide schedule and service address in {selectedLocality}, {selectedDistrict}.</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Schedule & Time */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">1. Preferred Schedule</h3>
+                  
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Date</label>
+                    <input
+                      type="date"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={bookingDate}
+                      onChange={(e) => setBookingDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Time Slot</label>
+                    <select
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={bookingTimeSlot}
+                      onChange={(e) => setBookingTimeSlot(e.target.value)}
+                    >
+                      <option value="09:00 AM - 12:00 PM">09:00 AM - 12:00 PM (Morning)</option>
+                      <option value="12:00 PM - 03:00 PM">12:00 PM - 03:00 PM (Afternoon)</option>
+                      <option value="03:00 PM - 06:00 PM">03:00 PM - 06:00 PM (Evening)</option>
+                      <option value="06:00 PM - 09:00 PM">06:00 PM - 09:00 PM (Night)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Contact & Address */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-bold text-slate-900">2. Customer Info & Address</h3>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      placeholder="Your Name"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">Phone Number</label>
+                    <input
+                      type="tel"
+                      placeholder="10-digit mobile number"
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={customerPhone}
+                      onChange={(e) => setCustomerPhone(e.target.value)}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-600 block mb-1">House / Flat No / Street Address</label>
+                    <input
+                      type="text"
+                      placeholder={`e.g. House #42, Main Road near Landmark`}
+                      className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      value={addressLine}
+                      onChange={(e) => setAddressLine(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Order Price Summary */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-xs space-y-2">
+                <div className="flex justify-between items-center pb-1 border-b border-slate-200/60">
+                  <span className="font-extrabold text-slate-900">{activeService.name} Service Charge</span>
+                  <span className="font-bold text-slate-900">₹{activeService.base_price || 0}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Platform Fee</span>
+                  <span className="font-bold text-emerald-600">₹0</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Payment Method</span>
+                  <span className="font-bold text-slate-900">Cash</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-500 font-medium">
+                  <span>Payment Status</span>
+                  <span className="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Pending</span>
+                </div>
+                <div className="flex justify-between items-center border-t border-slate-200/60 pt-2 font-black text-slate-900">
+                  <span>Total Amount</span>
+                  <span className="text-base">₹{activeService.base_price || 0}</span>
+                </div>
+              </div>
+
+              <div className="pt-4 flex justify-between items-center border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="text-xs font-bold text-slate-500 hover:text-slate-800 flex items-center gap-1"
+                >
+                  <ArrowLeft size={14} /> Back
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleConfirmBooking}
+                  disabled={bookingSubmitting}
+                  className="btn-primary text-xs px-8 py-3 rounded-xl flex items-center gap-1.5 shadow-md font-black"
+                >
+                  {bookingSubmitting ? 'Confirming...' : 'Confirm & Book Service'}
+                  <CheckCircle size={15} />
+                </button>
+              </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        )}
+
+        {/* STEP 5: CONFIRMATION & RECEIPT */}
+        {step === 5 && (
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-6 max-w-xl mx-auto">
+            <div className="bg-white rounded-3xl p-8 text-center shadow-lg border border-slate-100 space-y-6">
+              <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto text-3xl shadow-sm">
+                🎉
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] font-black uppercase text-emerald-600 tracking-widest">Booking Confirmed</span>
+                <h2 className="text-2xl font-black text-slate-900">Your Booking is Placed!</h2>
+                <p className="text-xs text-slate-500 font-medium">Booking ID: <span className="font-bold text-slate-900">{createdBooking?.id}</span></p>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 text-left text-xs space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Service</span>
+                  <span className="font-extrabold text-slate-900">{createdBooking?.service_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Assigned Specialist</span>
+                  <span className="font-extrabold text-slate-900">{createdBooking?.worker_name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Location</span>
+                  <span className="font-extrabold text-slate-900">{selectedLocality}, {selectedDistrict}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Service Amount</span>
+                  <span className="font-extrabold text-slate-900">₹{createdBooking?.price || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Platform Fee</span>
+                  <span className="font-extrabold text-emerald-600">₹0</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Payment Method</span>
+                  <span className="font-extrabold text-slate-900">Cash</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-bold">Payment Status</span>
+                  <span className="font-extrabold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">Pending</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-200/60 pt-2">
+                  <span className="text-slate-700 font-extrabold">Total Amount</span>
+                  <span className="font-black text-slate-900 text-sm">₹{createdBooking?.price || 0}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="btn-primary w-full text-xs py-3 rounded-xl font-bold shadow-md"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </motion.div>
+        )}
 
       </div>
     </div>

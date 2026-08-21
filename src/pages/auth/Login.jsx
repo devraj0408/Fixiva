@@ -1,39 +1,226 @@
-import React, { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { Loader2, Mail, Lock, ShieldCheck, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
+import { isAdminRole } from '../../lib/adminAccess';
+import { Loader2, Mail, ArrowRight } from 'lucide-react';
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { requestOtp, verifyOtp, user, isAuthenticated, showToast } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
-  const [rememberMe, setRememberMe] = useState(false);
+  const [identifier, setIdentifier] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
   const [errors, setErrors] = useState({});
+  const [message, setMessage] = useState('');
 
-  const validate = () => {
-    let newErrors = {};
-    if (!formData.email) newErrors.email = 'Email address is required';
-    if (!formData.password) newErrors.password = 'Password is required';
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  // OTP inputs references and states
+  const otpRefs = useRef([]);
+  const [otpValues, setOtpValues] = useState(['', '', '', '', '', '']);
+  const [countdown, setCountdown] = useState(60);
+  const resendDisabled = countdown > 0;
+  const [attempts, setAttempts] = useState(0);
+
+  const title = t('loginTitle', 'Welcome Back');
+  const subtitle = t('loginSubtitle', 'Enter your email to receive a secure OTP.');
+
+  // Redirect automatically if already logged in based on database role
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const role = String(user.role || '').trim().toLowerCase();
+      if (isAdminRole(role)) {
+        navigate('/dashboard/admin');
+      } else if (role === 'worker') {
+        navigate('/worker-dashboard');
+      } else if (role === 'contractor') {
+        navigate('/contractor-dashboard');
+      } else {
+        navigate('/dashboard/customer');
+      }
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // Countdown timer for resend OTP
+  useEffect(() => {
+    let timer;
+    if (otpSent && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [otpSent, countdown]);
+
+  const handleRequestOtp = async (e) => {
+    if (e) e.preventDefault();
+    setErrors({});
+    setMessage('');
+    
+    const normalizedIdentifier = identifier.trim();
+    if (!normalizedIdentifier) {
+      setErrors({ identifier: 'Enter your email address.' });
+      return;
+    }
+
+    setLoading(true);
+    const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
+    setLoading(false);
+
+    if (!success) {
+      setErrors({ identifier: error?.message || 'Unable to send verification code.' });
+      return;
+    }
+
+    setOtpSent(true);
+    setCountdown(60);
+    setAttempts(0);
+    setOtpValues(['', '', '', '', '', '']);
+    setOtp('');
+    setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (validate()) {
-      setLoading(true);
-      const { success, error } = await login(formData.email, formData.password);
-      setLoading(false);
-      if (success) {
-        // Direct navigation using window location or defer to dashboard role
-        navigate('/');
+  const handleResendOtp = async () => {
+    if (resendDisabled || loading) return;
+    setLoading(true);
+    setErrors({});
+    setMessage('');
+    setOtpValues(['', '', '', '', '', '']);
+    setOtp('');
+    setAttempts(0);
+    
+    const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
+    setLoading(false);
+    
+    if (!success) {
+      setErrors({ otp: error?.message || 'Unable to resend verification code.' });
+      return;
+    }
+    
+    setCountdown(60);
+    setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
+  };
+
+  const handleVerifyOtp = async (e) => {
+    if (e) e.preventDefault();
+    setErrors({});
+    
+    if (!identifier.trim()) {
+      setErrors({ identifier: 'Enter your email address.' });
+      return;
+    }
+    if (otp.length < 6) {
+      setErrors({ otp: 'Enter the 6-digit verification code.' });
+      return;
+    }
+
+    if (attempts >= 5) {
+      setErrors({ otp: 'Too many attempts. Please request a new verification code.' });
+      return;
+    }
+
+    setLoading(true);
+    setAttempts(prev => prev + 1);
+    const { success, error, profile } = await verifyOtp(identifier, otp, 'sign-in');
+    setLoading(false);
+
+    if (!success) {
+      const errorMsg = error?.message || '';
+      if (errorMsg.includes('OTP failure') || errorMsg.includes('Session failure') || errorMsg.includes('Profile query failure') || errorMsg.includes('RLS failure')) {
+        setErrors({ otp: errorMsg });
+      } else if (errorMsg.includes('expired') || errorMsg.includes('expire')) {
+        setErrors({ otp: 'Expired Code. Please request a new verification code.' });
+      } else if (errorMsg.includes('too many') || errorMsg.includes('rate limit') || attempts >= 4) {
+        setErrors({ otp: 'Too Many Attempts. Please request a new code.' });
+      } else if (errorMsg.includes('invalid') || errorMsg.includes('incorrect') || errorMsg.includes('does not match')) {
+        setErrors({ otp: `Invalid Code. (${5 - (attempts + 1)} attempts remaining)` });
       } else {
-        setErrors({ email: 'Login failed: ' + (error?.message || 'Invalid credentials') });
+        setErrors({ otp: errorMsg || 'Invalid Code.' });
       }
+      return;
+    }
+
+    showToast('Login Successful', 'success');
+
+    try {
+      const role = String(profile?.role || '').trim().toLowerCase();
+      if (isAdminRole(role)) {
+        navigate('/dashboard/admin');
+      } else if (role === 'worker') {
+        navigate('/worker-dashboard');
+      } else if (role === 'contractor') {
+        navigate('/contractor-dashboard');
+      } else {
+        navigate('/dashboard/customer');
+      }
+    } catch {
+      setErrors({ otp: 'Redirect failure: Unable to route to dashboard.' });
+    }
+  };
+
+  // Paste handler
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text').trim().replace(/\D/g, '').slice(0, 6);
+    if (pastedData.length > 0) {
+      const newOtp = [...otpValues];
+      for (let i = 0; i < 6; i++) {
+        newOtp[i] = pastedData[i] || '';
+      }
+      setOtpValues(newOtp);
+      const code = newOtp.join('');
+      setOtp(code);
+      
+      const focusIdx = Math.min(pastedData.length, 5);
+      if (otpRefs.current[focusIdx]) {
+        otpRefs.current[focusIdx].focus();
+      }
+    }
+  };
+
+  // Handle digit inputs
+  const handleOtpChange = (idx, value) => {
+    const cleanValue = value.replace(/\D/g, '');
+    if (!cleanValue) {
+      const newOtp = [...otpValues];
+      newOtp[idx] = '';
+      setOtpValues(newOtp);
+      setOtp(newOtp.join(''));
+      return;
+    }
+
+    const newOtp = [...otpValues];
+    const val = cleanValue[cleanValue.length - 1];
+    newOtp[idx] = val;
+    setOtpValues(newOtp);
+    const code = newOtp.join('');
+    setOtp(code);
+
+    if (idx < 5 && otpRefs.current[idx + 1]) {
+      otpRefs.current[idx + 1].focus();
+    }
+  };
+
+  // Handle backspaces and navigations
+  const handleOtpKeyDown = (idx, e) => {
+    if (e.key === 'Backspace') {
+      if (!otpValues[idx] && idx > 0 && otpRefs.current[idx - 1]) {
+        const newOtp = [...otpValues];
+        newOtp[idx - 1] = '';
+        setOtpValues(newOtp);
+        setOtp(newOtp.join(''));
+        otpRefs.current[idx - 1].focus();
+      } else if (otpValues[idx]) {
+        const newOtp = [...otpValues];
+        newOtp[idx] = '';
+        setOtpValues(newOtp);
+        setOtp(newOtp.join(''));
+      }
+    } else if (e.key === 'ArrowLeft' && idx > 0 && otpRefs.current[idx - 1]) {
+      otpRefs.current[idx - 1].focus();
+    } else if (e.key === 'ArrowRight' && idx < 5 && otpRefs.current[idx + 1]) {
+      otpRefs.current[idx + 1].focus();
     }
   };
 
@@ -45,12 +232,45 @@ const Login = () => {
         <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl"></div>
 
         <div className="relative z-10 flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-primary to-blue-500 flex items-center justify-center shadow-md">
-            <span className="text-white font-extrabold text-sm tracking-wider">F</span>
-          </div>
-          <span className="text-xl font-extrabold tracking-tight text-white">
-            FIXIVA
-          </span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="144" height="36" viewBox="0 0 160 40" className="shrink-0">
+            {/* Icon Mark Background */}
+            <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
+            
+            {/* Screwdriver Chimney */}
+            <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
+            <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
+
+            {/* Amber Shield-Roof */}
+            <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
+
+            {/* Blue House-Shield Body */}
+            <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
+
+            {/* Connected Service Windows */}
+            <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
+            <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
+            <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
+            <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
+
+            {/* White Door */}
+            <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
+
+            {/* Success Green Door Checkmark */}
+            <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+
+            {/* Foundation Beam */}
+            <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
+
+            {/* Wordmark */}
+            <g id="wordmark" fill="none" strokeWidth="3.3" strokeLinecap="round" strokeLinejoin="round">
+              <path id="letter-f" d="M60 13.5 H53.6 V26.5 M53.6 19.5 H58.5" stroke="#2563EB" />
+              <path id="letter-i-1" d="M65.5 13.5 V26.5" stroke="#FFFFFF" />
+              <path id="letter-x" d="M71.5 13.5 L79.5 26.5 M79.5 13.5 L71.5 26.5" stroke="#FFFFFF" />
+              <path id="letter-i-2" d="M85.5 13.5 V26.5" stroke="#10B981" />
+              <path id="letter-v" d="M91.5 13.5 L96.5 26.5 L101.5 13.5" stroke="#F59E0B" />
+              <path id="letter-a" d="M107.5 26.5 L112.5 13.5 L117.5 26.5 M110.1 21 H114.9" stroke="#FFFFFF" />
+            </g>
+          </svg>
         </div>
 
         <div className="relative z-10 space-y-6">
@@ -71,107 +291,130 @@ const Login = () => {
       {/* Right split-screen Form */}
       <div className="lg:col-span-7 flex flex-col justify-center px-4 py-12 sm:px-6 lg:px-20 xl:px-24 bg-slate-50/50">
         <div className="max-w-md w-full mx-auto space-y-8 bg-white p-8 sm:p-10 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/50">
-          
           <div className="space-y-2">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Welcome Back</h1>
-            <p className="text-xs text-slate-400 font-semibold">Enter your credentials to access your Fixiva dashboard.</p>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h1>
+            <p className="text-xs text-slate-400 font-semibold">{subtitle}</p>
           </div>
 
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            {/* Email Address */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                <input 
-                  type="email" 
-                  className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                  placeholder="name@email.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({...formData, email: e.target.value})}
-                  required
-                />
+          <form className="space-y-5" onSubmit={otpSent ? handleVerifyOtp : handleRequestOtp}>
+            {!otpSent ? (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
+                  <input
+                    type="email"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                    placeholder={t('emailPlaceholder', 'name@email.com')}
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                  />
+                </div>
+                {errors.identifier && <p className="text-danger text-xs font-bold">{errors.identifier}</p>}
               </div>
-              {errors.email && <p className="text-danger text-xs font-bold">{errors.email}</p>}
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="text-center bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
+                  <p className="text-xs text-slate-500 font-semibold mb-1.5">
+                    {t('codeSentTo', 'Verification code sent to:')}
+                  </p>
+                  <p className="text-xs font-black text-slate-850 break-all">{identifier}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOtpSent(false);
+                      setOtp('');
+                      setOtpValues(['', '', '', '', '', '']);
+                      setCountdown(60);
+                      setAttempts(0);
+                      setErrors({});
+                      setMessage('');
+                    }}
+                    className="text-primary hover:underline text-[11px] font-bold mt-2 inline-flex items-center gap-1"
+                  >
+                    {t('changeEmail', 'Change Email')}
+                  </button>
+                </div>
 
-            {/* Password */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Password</label>
-                <Link to="/forgot-password" className="text-[10px] font-bold text-primary hover:underline">
-                  Forgot password?
-                </Link>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block text-center">{t('enterCodeLabel', 'Enter Verification Code')}</label>
+                  <div className="flex gap-2 justify-center my-4" onPaste={handlePaste}>
+                    {otpValues.map((val, idx) => (
+                      <input
+                        key={idx}
+                        id={`otp-input-${idx}`}
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength="1"
+                        autoComplete="one-time-code"
+                        value={val}
+                        onChange={(e) => handleOtpChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className="w-11 h-11 text-center text-base font-black bg-slate-50 border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 rounded-xl outline-none transition-all text-slate-800"
+                        ref={(el) => (otpRefs.current[idx] = el)}
+                        autoFocus={idx === 0}
+                      />
+                    ))}
+                  </div>
+                  {errors.otp && <p className="text-danger text-xs font-bold text-center">{errors.otp}</p>}
+                </div>
+
+                <div className="text-center pt-1">
+                  {resendDisabled ? (
+                    <p className="text-[11px] text-slate-400 font-semibold">
+                      {t('resendIn', 'Resend code in')} <span className="text-slate-700 font-bold">{countdown}s</span>
+                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={loading}
+                      className="text-primary hover:underline text-[11px] font-bold disabled:opacity-50"
+                    >
+                      {t('resendBtn', 'Resend Verification Code')}
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                <input 
-                  type="password" 
-                  className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
-                  placeholder="••••••••"
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  required
-                />
-              </div>
-              {errors.password && <p className="text-danger text-xs font-bold">{errors.password}</p>}
-            </div>
+            )}
 
-            {/* Remember Me checkbox */}
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600">
-                <input 
-                  type="checkbox"
-                  checked={rememberMe}
-                  onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20 accent-primary"
-                />
-                <span>Remember me</span>
-              </label>
-            </div>
+            {message && <p className="text-xs text-success font-semibold text-center">{message}</p>}
 
-            <button 
-              type="submit" 
+            <button
+              type="submit"
               className="w-full btn-primary text-sm py-3.5 rounded-xl shadow-md flex items-center justify-center gap-1.5"
               disabled={loading}
             >
-              {loading ? <Loader2 className="animate-spin" size={16} /> : (
+              {loading ? (
+                <Loader2 className="animate-spin" size={16} />
+              ) : otpSent ? (
                 <>
-                  Sign In
+                  {t('verifyCodeBtn', 'Verify Code')}
+                  <ArrowRight size={16} />
+                </>
+              ) : (
+                <>
+                  {t('continueBtn', 'Continue')}
                   <ArrowRight size={16} />
                 </>
               )}
             </button>
           </form>
 
-          {/* Social login placeholders */}
           <div className="space-y-4 pt-4 border-t border-slate-100 text-center">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Or login with</span>
-            <div className="grid grid-cols-2 gap-3">
-              <button 
-                onClick={() => alert("Google Auth placeholder. Supabase dynamic controls ready.")}
-                className="flex justify-center items-center gap-2 btn-secondary py-2.5 rounded-xl text-xs"
-              >
-                Google
-              </button>
-              <button 
-                onClick={() => alert("Apple Auth placeholder. Supabase dynamic controls ready.")}
-                className="flex justify-center items-center gap-2 btn-secondary py-2.5 rounded-xl text-xs"
-              >
-                Apple
-              </button>
+            <div className="flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-wider text-slate-400">
+              {t('passwordlessNote', 'Passwordless secure access')}
+            </div>
+            <div className="text-center pt-2">
+              <p className="text-xs text-slate-500 font-medium">
+                {t('dontHaveAccount', "Don't have an account?")}{' '}
+                <Link to="/register" className="text-primary font-bold hover:underline">
+                  {t('createOneNow', 'Create one now')}
+                </Link>
+              </p>
             </div>
           </div>
-
-          <div className="text-center pt-2">
-            <p className="text-xs text-slate-500 font-medium">
-              Don't have an account?{' '}
-              <Link to="/register" className="text-primary font-bold hover:underline">
-                Create one now
-              </Link>
-            </p>
-          </div>
-
         </div>
       </div>
     </div>

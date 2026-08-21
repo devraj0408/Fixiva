@@ -3,38 +3,70 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import { AppProvider, useAuth } from './context/AuthContext';
-import { Loader2 } from 'lucide-react';
+import { CmsProvider } from './context/CmsContext';
+import { ToastProvider } from './context/ToastContext';
+import { LanguageProvider } from './context/LanguageContext';
+import { getRouterBasename } from './lib/routePaths';
 
-// Lazy loading all pages (Phase Performance)
-const Home = React.lazy(() => import('./pages/Home'));
-const Services = React.lazy(() => import('./pages/Services'));
-const BookingFlow = React.lazy(() => import('./pages/BookingFlow'));
-const Login = React.lazy(() => import('./pages/auth/Login'));
-const Register = React.lazy(() => import('./pages/auth/Register'));
-const ForgotPassword = React.lazy(() => import('./pages/auth/ForgotPassword'));
-const ResetPassword = React.lazy(() => import('./pages/auth/ResetPassword'));
-const CustomerDashboard = React.lazy(() => import('./pages/dashboard/CustomerDashboard'));
-const WorkerDashboard = React.lazy(() => import('./pages/dashboard/WorkerDashboard'));
-const AdminDashboard = React.lazy(() => import('./pages/dashboard/AdminDashboard'));
-const ContractorDashboard = React.lazy(() => import('./pages/dashboard/ContractorDashboard'));
-const HelpCenter = React.lazy(() => import('./pages/HelpCenter'));
-const Profile = React.lazy(() => import('./pages/Profile'));
-const ContactUs = React.lazy(() => import('./pages/ContactUs'));
-const TermsAndConditions = React.lazy(() => import('./pages/legal/TermsAndConditions'));
-const PrivacyPolicy = React.lazy(() => import('./pages/legal/PrivacyPolicy'));
-const RefundPolicy = React.lazy(() => import('./pages/legal/RefundPolicy'));
+
+import ScrollToTop from './components/ScrollToTop';
+import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
+import AIChatBotWidget from './components/support/AIChatBotWidget';
+
+import { lazyWithRetry } from './utils/lazyWithRetry';
+
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Services = lazyWithRetry(() => import('./pages/Services'));
+const BookingFlow = lazyWithRetry(() => import('./pages/BookingFlow'));
+const Login = lazyWithRetry(() => import('./pages/auth/Login'));
+const Register = lazyWithRetry(() => import('./pages/auth/Register'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazyWithRetry(() => import('./pages/auth/ResetPassword'));
+const CustomerDashboard = lazyWithRetry(() => import('./pages/dashboard/CustomerDashboard'));
+const WorkerDashboard = lazyWithRetry(() => import('./pages/dashboard/WorkerDashboard'));
+const AdminDashboard = lazyWithRetry(() => import('./pages/dashboard/AdminDashboard'));
+const ContractorDashboard = lazyWithRetry(() => import('./pages/dashboard/ContractorDashboard'));
+const HelpCenter = lazyWithRetry(() => import('./pages/HelpCenter'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const ContactUs = lazyWithRetry(() => import('./pages/ContactUs'));
+const TermsAndConditions = lazyWithRetry(() => import('./pages/legal/TermsAndConditions'));
+const PrivacyPolicy = lazyWithRetry(() => import('./pages/legal/PrivacyPolicy'));
+const RefundPolicy = lazyWithRetry(() => import('./pages/legal/RefundPolicy'));
+
+
+const routerBasename = getRouterBasename();
 
 const LoadingSkeleton = () => (
   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#F8FAFC' }}>
-    <div style={{ width: '48px', height: '48px', border: '4px solid #EFF4FF', borderTopColor: '#0F4CFF', borderRadius: '50%' }} className="animate-spin" />
-    <span style={{ fontSize: '0.875rem', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Loading Fixiva...</span>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 40 40" style={{ boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', borderRadius: '10px' }} className="animate-pulse">
+        <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
+        <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
+        <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
+        <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
+        <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
+        <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
+        <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
+        <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
+        <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
+        <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
+        <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
+      </svg>
+    </div>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div style={{ width: '16px', height: '16px', border: '2px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%' }} className="animate-spin" />
+      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Loading Fixiva</span>
+    </div>
   </div>
 );
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
+  const userRole = String(user?.role || '').trim().toLowerCase();
+  const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
 
-  if (loading) {
+  if (loading || (isAuthenticated && !user)) {
     return <LoadingSkeleton />;
   }
 
@@ -42,85 +74,92 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(user?.role)) {
-    return <Navigate to={`/dashboard/${user?.role}`} replace />;
+  if (allowedRoles && !normalizedAllowed.includes(userRole)) {
+    if (userRole === 'admin') {
+      return <Navigate to="/dashboard/admin" replace />;
+    }
+    if (userRole === 'worker') {
+      return <Navigate to="/worker-dashboard" replace />;
+    }
+    if (userRole === 'contractor') {
+      return <Navigate to="/contractor-dashboard" replace />;
+    }
+    return <Navigate to="/dashboard/customer" replace />;
   }
 
   return children;
 };
 
-function App() {
+const RoleBasedDashboardRedirect = () => {
+  const { user } = useAuth();
+  const role = String(user?.role || '').trim().toLowerCase();
+  if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
+  if (role === 'worker') return <Navigate to="/worker-dashboard" replace />;
+  if (role === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+  return <Navigate to="/dashboard/customer" replace />;
+};
+
+function AppShell() {
   return (
-    <Router>
-      <AppProvider>
-        <div className="app-container">
-          <Navbar />
-          <main className="content">
-            <Suspense fallback={<LoadingSkeleton />}>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/services" element={<Services />} />
-                <Route path="/book/:serviceId?" element={<BookingFlow />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
-                <Route path="/reset-password" element={<ResetPassword />} />
-                
-                <Route 
-                  path="/dashboard/customer" 
-                  element={
-                    <ProtectedRoute allowedRoles={['customer']}>
-                      <CustomerDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/worker" 
-                  element={
-                    <ProtectedRoute allowedRoles={['worker']}>
-                      <WorkerDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/contractor" 
-                  element={
-                    <ProtectedRoute allowedRoles={['contractor']}>
-                      <ContractorDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/dashboard/admin" 
-                  element={
-                    <ProtectedRoute allowedRoles={['admin']}>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  } 
-                />
-                
-                <Route path="/help" element={<HelpCenter />} />
-                <Route 
-                  path="/profile" 
-                  element={
-                    <ProtectedRoute>
-                      <Profile />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="/contact" element={<ContactUs />} />
-                <Route path="/terms" element={<TermsAndConditions />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/refund" element={<RefundPolicy />} />
-                <Route path="/cancellation" element={<RefundPolicy />} />
-              </Routes>
-            </Suspense>
-          </main>
-          <Footer />
-        </div>
-      </AppProvider>
+    <Router basename={routerBasename}>
+      <ScrollToTop />
+      <div className="app-container">
+        <Navbar />
+        <main className="content">
+          <Suspense fallback={<LoadingSkeleton />}>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/services" element={<Services />} />
+              <Route path="/book/:serviceId?" element={<BookingFlow />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+              <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+              <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard" element={<ProtectedRoute><RoleBasedDashboardRedirect /></ProtectedRoute>} />
+              <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
+              <Route path="/help" element={<HelpCenter />} />
+              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+              <Route path="/contact" element={<ContactUs />} />
+              <Route path="/terms" element={<TermsAndConditions />} />
+              <Route path="/privacy" element={<PrivacyPolicy />} />
+              <Route path="/refund" element={<RefundPolicy />} />
+              <Route path="/cancellation" element={<RefundPolicy />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </main>
+        <Footer />
+        <UnifiedBookingModal />
+        <AIChatBotWidget />
+      </div>
     </Router>
   );
 }
 
+import { ThemeProvider } from './context/ThemeContext';
+
+function App() {
+  return (
+    <ThemeProvider>
+      <ToastProvider>
+        <LanguageProvider>
+          <AppProvider>
+            <CmsProvider>
+              <AppShell />
+            </CmsProvider>
+          </AppProvider>
+        </LanguageProvider>
+      </ToastProvider>
+    </ThemeProvider>
+  );
+}
+
 export default App;
+
+
