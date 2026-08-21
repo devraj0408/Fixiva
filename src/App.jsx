@@ -13,23 +13,26 @@ import ScrollToTop from './components/ScrollToTop';
 import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
 import AIChatBotWidget from './components/support/AIChatBotWidget';
 
-const Home = React.lazy(() => import('./pages/Home'));
-const Services = React.lazy(() => import('./pages/Services'));
-const BookingFlow = React.lazy(() => import('./pages/BookingFlow'));
-const Login = React.lazy(() => import('./pages/auth/Login'));
-const Register = React.lazy(() => import('./pages/auth/Register'));
-const ForgotPassword = React.lazy(() => import('./pages/auth/ForgotPassword'));
-const ResetPassword = React.lazy(() => import('./pages/auth/ResetPassword'));
-const CustomerDashboard = React.lazy(() => import('./pages/dashboard/CustomerDashboard'));
-const WorkerDashboard = React.lazy(() => import('./pages/dashboard/WorkerDashboard'));
-const AdminDashboard = React.lazy(() => import('./pages/dashboard/AdminDashboard'));
-const ContractorDashboard = React.lazy(() => import('./pages/dashboard/ContractorDashboard'));
-const HelpCenter = React.lazy(() => import('./pages/HelpCenter'));
-const Profile = React.lazy(() => import('./pages/Profile'));
-const ContactUs = React.lazy(() => import('./pages/ContactUs'));
-const TermsAndConditions = React.lazy(() => import('./pages/legal/TermsAndConditions'));
-const PrivacyPolicy = React.lazy(() => import('./pages/legal/PrivacyPolicy'));
-const RefundPolicy = React.lazy(() => import('./pages/legal/RefundPolicy'));
+import { lazyWithRetry } from './utils/lazyWithRetry';
+
+const Home = lazyWithRetry(() => import('./pages/Home'));
+const Services = lazyWithRetry(() => import('./pages/Services'));
+const BookingFlow = lazyWithRetry(() => import('./pages/BookingFlow'));
+const Login = lazyWithRetry(() => import('./pages/auth/Login'));
+const Register = lazyWithRetry(() => import('./pages/auth/Register'));
+const ForgotPassword = lazyWithRetry(() => import('./pages/auth/ForgotPassword'));
+const ResetPassword = lazyWithRetry(() => import('./pages/auth/ResetPassword'));
+const CustomerDashboard = lazyWithRetry(() => import('./pages/dashboard/CustomerDashboard'));
+const WorkerDashboard = lazyWithRetry(() => import('./pages/dashboard/WorkerDashboard'));
+const AdminDashboard = lazyWithRetry(() => import('./pages/dashboard/AdminDashboard'));
+const ContractorDashboard = lazyWithRetry(() => import('./pages/dashboard/ContractorDashboard'));
+const HelpCenter = lazyWithRetry(() => import('./pages/HelpCenter'));
+const Profile = lazyWithRetry(() => import('./pages/Profile'));
+const ContactUs = lazyWithRetry(() => import('./pages/ContactUs'));
+const TermsAndConditions = lazyWithRetry(() => import('./pages/legal/TermsAndConditions'));
+const PrivacyPolicy = lazyWithRetry(() => import('./pages/legal/PrivacyPolicy'));
+const RefundPolicy = lazyWithRetry(() => import('./pages/legal/RefundPolicy'));
+
 
 const routerBasename = getRouterBasename();
 

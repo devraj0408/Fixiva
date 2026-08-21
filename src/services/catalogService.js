@@ -18,9 +18,13 @@ export const getServices = async () => {
       .select('*')
       .order('name', { ascending: true });
 
-    if (error) return { data: [], error: error.message };
+    if (error) {
+      console.error('[catalogService.getServices] Supabase error:', error.message);
+      return { data: [], error: error.message };
+    }
     return { data: data || [], error: null };
   } catch (err) {
+    console.error('[catalogService.getServices] Exception:', err);
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -29,14 +33,8 @@ export const createService = async (serviceData, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
-    const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
-          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
-        );
-
-    const slugId = serviceData.id || String(serviceData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'service-' + Date.now();
-    const serviceId = serviceData.id || generatedUuid;
+    const name = String(serviceData.name || '').trim();
+    if (!name) return { data: null, error: 'Service name is required' };
 
     const normalizedCategory = serviceData.category && String(serviceData.category).trim()
       ? String(serviceData.category).trim()
@@ -44,75 +42,104 @@ export const createService = async (serviceData, actor = {}) => {
 
     const imageUrl = String(serviceData.image_url || serviceData.image || serviceData.icon || '').trim();
 
-    const fullPayload = {
-      id: serviceId,
-      name: String(serviceData.name || '').trim(),
+    // Build payload without null or undefined values
+    const basePayload = {
+      name,
       category: normalizedCategory,
-      category_id: serviceData.category_id || null,
-      description: String(serviceData.description || '').trim(),
+      category_id: serviceData.category_id || undefined,
+      description: serviceData.description ? String(serviceData.description).trim() : undefined,
       icon: imageUrl || 'wrench',
-      image_url: imageUrl || null,
-      image: imageUrl || null,
+      image_url: imageUrl || undefined,
+      image: imageUrl || undefined,
       base_price: Number.isFinite(Number(serviceData.base_price)) ? Number(serviceData.base_price) : 0,
       platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
       inspection_fee: Number.isFinite(Number(serviceData.inspection_fee)) ? Number(serviceData.inspection_fee) : 0,
-      active: serviceData.active === true || serviceData.active === 'true' || serviceData.active === 1 || serviceData.active === '1',
+      active: serviceData.active !== false,
     };
 
-    // Attempt 1: UUID payload insert
-    let { data, error } = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+    // Remove undefined / null keys
+    const cleanPayload = Object.fromEntries(
+      Object.entries(basePayload).filter(([_, v]) => v !== undefined && v !== null)
+    );
 
-    // Attempt 2: Slug ID insert if UUID rejected or slug preferred
-    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('uuid'))) {
-      fullPayload.id = slugId;
-      const retrySlug = await supabase.from('services').insert(fullPayload).select().maybeSingle();
+    // Attempt 1: Auto-generated primary key (PostgreSQL gen_random_uuid() or default generator)
+    let { data, error } = await supabase
+      .from('services')
+      .insert(cleanPayload)
+      .select()
+      .maybeSingle();
+
+    // Attempt 2: If table id column is NOT-NULL and lacks DB default generator, supply RFC4122 UUID
+    if (error && error.message && (error.message.includes('null value in column "id"') || error.message.includes('violates not-null constraint'))) {
+      console.warn('[catalogService.createService] DB requires explicit ID, supplying generated UUID');
+      const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+          );
+
+      const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
+      const retryUuid = await supabase
+        .from('services')
+        .insert(payloadWithUuid)
+        .select()
+        .maybeSingle();
+
+      data = retryUuid.data;
+      error = retryUuid.error;
+    }
+
+    // Attempt 3: If string slug id is required by legacy varchar schema
+    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('slug'))) {
+      const slugId = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `service-${Date.now()}`;
+      const payloadWithSlug = { id: slugId, ...cleanPayload };
+      const retrySlug = await supabase
+        .from('services')
+        .insert(payloadWithSlug)
+        .select()
+        .maybeSingle();
+
       data = retrySlug.data;
       error = retrySlug.error;
     }
 
-    // Attempt 3: Strip missing columns if schema cache mismatch
-    if (error && error.message && (error.message.includes('image_url') || error.message.includes('column "image"'))) {
-      delete fullPayload.image_url;
-      delete fullPayload.image;
-      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
+    // Attempt 4: If optional column (image_url, category_id) does not exist in schema cache
+    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache'))) {
+      console.warn('[catalogService.createService] Column mismatch fallback:', error.message);
+      const minimalPayload = {
+        name,
+        base_price: basePayload.base_price,
+        platform_fee: basePayload.platform_fee,
+        active: basePayload.active,
+      };
 
-    if (error && error.message && error.message.includes('category_id')) {
-      delete fullPayload.category_id;
-      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
+      let retryMin = await supabase.from('services').insert(minimalPayload).select().maybeSingle();
+      if (retryMin.error && retryMin.error.message?.includes('null value in column "id"')) {
+        const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `srv-${Date.now()}`;
+        retryMin = await supabase.from('services').insert({ id: generatedUuid, ...minimalPayload }).select().maybeSingle();
+      }
 
-    if (error && error.message && (error.message.includes("'category'") || error.message.includes('column "category"'))) {
-      delete fullPayload.category;
-      const retry = await supabase.from('services').insert(fullPayload).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
-
-    // Attempt 4: Auto-generated DB ID (retry without explicit id ONLY if DB supports default generator)
-    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('primary key'))) {
-      console.warn('[catalogService.createService] Retrying insert without explicit id:', error.message);
-      const payloadNoId = { ...fullPayload };
-      delete payloadNoId.id;
-      const retryNoId = await supabase.from('services').insert(payloadNoId).select().maybeSingle();
-      if (!retryNoId.error) {
-        data = retryNoId.data;
+      if (!retryMin.error) {
+        data = retryMin.data;
         error = null;
+      } else {
+        error = retryMin.error;
       }
     }
 
     if (error) {
-      console.error('[catalogService.createService] Supabase DB Insert Error Details:', {
+      console.error('[catalogService.createService] FULL SUPABASE ERROR:', {
         message: error.message,
+        code: error.code,
         details: error.details,
         hint: error.hint,
-        code: error.code,
       });
       return { data: null, error: error.message };
+    }
+
+    if (!data?.id) {
+      console.error('[catalogService.createService] Error: Insert returned no service ID');
+      return { data: null, error: 'Service created but no service ID returned.' };
     }
 
     await logAdminAction({
@@ -120,13 +147,13 @@ export const createService = async (serviceData, actor = {}) => {
       actorEmail: actor.email,
       action: 'create',
       objectType: 'service',
-      objectId: data?.id || slugId,
+      objectId: data.id,
       payload: serviceData,
     });
 
-    return { data: data || fullPayload, error: null };
+    return { data, error: null };
   } catch (err) {
-    console.error('createService exception:', err);
+    console.error('[catalogService.createService] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -136,6 +163,8 @@ export const updateService = async (id, updates, actor = {}) => {
 
   try {
     const cleanUpdates = { ...updates };
+    delete cleanUpdates.id; // Never update primary key
+
     let { data, error } = await supabase
       .from('services')
       .update(cleanUpdates)
@@ -143,22 +172,35 @@ export const updateService = async (id, updates, actor = {}) => {
       .select()
       .maybeSingle();
 
-    if (error && error.message && (error.message.includes('category_id') || error.message.includes("'category'"))) {
-      delete cleanUpdates.category_id;
-      delete cleanUpdates.category;
-      const retry = await supabase.from('services').update(cleanUpdates).eq('id', id).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
+    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache'))) {
+      const minimalUpdates = {
+        name: updates.name,
+        base_price: updates.base_price,
+        platform_fee: updates.platform_fee,
+        active: updates.active,
+      };
+      const retryMin = await supabase
+        .from('services')
+        .update(minimalUpdates)
+        .eq('id', id)
+        .select()
+        .maybeSingle();
 
-    if (error && error.message && error.message.includes('invalid input syntax') && !isNaN(Number(id))) {
-      const retry = await supabase.from('services').update(cleanUpdates).eq('id', Number(id)).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
+      if (!retryMin.error) {
+        data = retryMin.data;
+        error = null;
+      } else {
+        error = retryMin.error;
+      }
     }
 
     if (error) {
-      console.error('updateService DB error:', error);
+      console.error('[catalogService.updateService] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       return { data: null, error: error.message };
     }
 
@@ -171,65 +213,46 @@ export const updateService = async (id, updates, actor = {}) => {
       payload: updates,
     });
 
-    return { data, error: null };
+    return { data: data || { id, ...updates }, error: null };
   } catch (err) {
-    console.error('updateService exception:', err);
+    console.error('[catalogService.updateService] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
 
-export const toggleServiceActive = async (id, active, actor = {}) => {
-  return updateService(id, { active }, actor);
-};
-
 export const deleteService = async (id, actor = {}) => {
-  if (!supabase) {
-    return { success: false, error: 'Supabase client not initialized' };
-  }
-
-  if (!id) {
-    return { success: false, error: 'Service ID is required for deletion', deleteType: null, message: null };
-  }
+  if (!supabase) return { success: false, error: 'Supabase client not initialized' };
 
   try {
-    const hardDeleteRes = await supabase
-      .from('services')
-      .delete()
-      .eq('id', id)
-      .select();
+    const { error } = await supabase.from('services').delete().eq('id', id);
 
-    let deleteType = 'hard_delete';
-    let message = 'Service permanently deleted.';
-
-    if (hardDeleteRes.error || !hardDeleteRes.data || hardDeleteRes.data.length === 0) {
-      const softDeleteRes = await supabase
-        .from('services')
-        .update({ active: false })
-        .eq('id', id)
-        .select();
-
-      if (softDeleteRes.error) {
-        return { success: false, error: softDeleteRes.error.message, deleteType: null, message: null };
-      }
-
-      deleteType = 'soft_delete';
-      message = 'This service is used in existing records and has been archived instead of permanently deleted.';
+    if (error) {
+      console.error('[catalogService.deleteService] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { success: false, error: error.message };
     }
 
     await logAdminAction({
       actorId: actor.id,
       actorEmail: actor.email,
-      action: 'delete_service',
+      action: 'delete',
       objectType: 'service',
       objectId: id,
-      payload: { delete_type: deleteType, reason: deleteType === 'soft_delete' ? 'foreign_key_dependencies_or_rls' : 'unused_service' },
     });
 
-    return { success: true, error: null, deleteType, message };
+    return { success: true, error: null };
   } catch (err) {
-    console.error('deleteService exception:', err);
-    return { success: false, error: err instanceof Error ? err.message : String(err), deleteType: null, message: null };
+    console.error('[catalogService.deleteService] EXCEPTION:', err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+};
+
+export const toggleServiceActive = async (id, active, actor = {}) => {
+  return updateService(id, { active }, actor);
 };
 
 // ==========================================
@@ -243,12 +266,15 @@ export const getCategories = async () => {
     const { data, error } = await supabase
       .from('categories')
       .select('*')
-      .order('display_order', { ascending: true });
+      .order('name', { ascending: true });
 
-    if (error) return { data: [], error: error.message };
+    if (error) {
+      console.error('[catalogService.getCategories] Supabase error:', error.message);
+      return { data: [], error: error.message };
+    }
     return { data: data || [], error: null };
   } catch (err) {
-    console.error('getCategories exception:', err);
+    console.error('[catalogService.getCategories] EXCEPTION:', err);
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -257,69 +283,40 @@ export const createCategory = async (categoryData, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
-    const rawIcon = categoryData.icon !== undefined && categoryData.icon !== null ? String(categoryData.icon).trim() : null;
-    const iconValue = rawIcon && rawIcon !== 'tag' && rawIcon !== '' ? rawIcon : null;
+    const name = String(categoryData.name || '').trim();
+    if (!name) return { data: null, error: 'Category name is required' };
 
-    const parsedOrder = parseInt(categoryData.display_order, 10);
-    const display_order = isNaN(parsedOrder) ? 0 : parsedOrder;
-    const active = Boolean(categoryData.active === true || categoryData.active === 'true' || categoryData.active === 1 || categoryData.active === '1');
-
-    const slugId = String(categoryData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'category-' + Date.now();
+    const slugId = categoryData.id || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `cat-${Date.now()}`;
+    const imageUrl = String(categoryData.image_url || categoryData.image || categoryData.icon || '').trim();
 
     const payloadWithSlug = {
-      id: categoryData.id || slugId,
-      name: String(categoryData.name || '').trim(),
-      icon: iconValue,
-      description: String(categoryData.description || '').trim(),
-      display_order,
-      active,
+      id: slugId,
+      name,
+      icon: imageUrl || 'folder',
+      image_url: imageUrl || null,
+      image: imageUrl || null,
+      active: categoryData.active !== false,
     };
 
-    const payloadWithoutId = {
-      name: String(categoryData.name || '').trim(),
-      icon: iconValue,
-      description: String(categoryData.description || '').trim(),
-      display_order,
-      active,
-    };
-
-    // Attempt 1: Try inserting with custom slug ID
     let { data, error } = await supabase.from('categories').insert(payloadWithSlug).select().maybeSingle();
 
-    // Attempt 2: If invalid input syntax for type (e.g. DB uses integer/serial or UUID PK), retry without explicit id field
-    if (error && error.message && error.message.includes('invalid input syntax')) {
-      console.warn('createCategory slug ID type mismatch, retrying without id field:', error.message);
+    if (error && error.message && (error.message.includes('primary key') || error.message.includes('syntax'))) {
+      const payloadWithoutId = { ...payloadWithSlug };
+      delete payloadWithoutId.id;
       const retryRes = await supabase.from('categories').insert(payloadWithoutId).select().maybeSingle();
       if (!retryRes.error) {
         data = retryRes.data;
         error = null;
-      } else {
-        error = retryRes.error;
-      }
-    }
-
-    // Attempt 3: Fallback for missing column schema errors
-    if (error && error.message && (error.message.includes('display_order') || error.message.includes('icon') || error.message.includes('active'))) {
-      console.warn('createCategory column mismatch, retrying minimal payload:', error.message);
-      const minimalPayload = {
-        name: String(categoryData.name || '').trim(),
-        description: String(categoryData.description || '').trim(),
-      };
-      if (!error.message.includes('icon')) minimalPayload.icon = iconValue;
-      if (!error.message.includes('display_order')) minimalPayload.display_order = display_order;
-      if (!error.message.includes('active')) minimalPayload.active = active;
-
-      const retryMinimal = await supabase.from('categories').insert(minimalPayload).select().maybeSingle();
-      if (!retryMinimal.error) {
-        data = retryMinimal.data;
-        error = null;
-      } else {
-        error = retryMinimal.error;
       }
     }
 
     if (error) {
-      console.error('createCategory DB error:', error);
+      console.error('[catalogService.createCategory] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       return { data: null, error: error.message };
     }
 
@@ -328,13 +325,13 @@ export const createCategory = async (categoryData, actor = {}) => {
       actorEmail: actor.email,
       action: 'create',
       objectType: 'category',
-      objectId: data?.id || payloadWithSlug.id,
+      objectId: data?.id || slugId,
       payload: categoryData,
     });
 
     return { data: data || payloadWithSlug, error: null };
   } catch (err) {
-    console.error('createCategory exception:', err);
+    console.error('[catalogService.createCategory] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -344,23 +341,22 @@ export const updateCategory = async (id, updates, actor = {}) => {
 
   try {
     const cleanUpdates = { ...updates };
-    if (cleanUpdates.icon === 'tag' || cleanUpdates.icon === '') cleanUpdates.icon = null;
-    if (cleanUpdates.display_order !== undefined) {
-      const order = parseInt(cleanUpdates.display_order, 10);
-      cleanUpdates.display_order = isNaN(order) ? 0 : order;
-    }
+    delete cleanUpdates.id;
 
-    let { data, error } = await supabase.from('categories').update(cleanUpdates).eq('id', id).select().maybeSingle();
-
-    if (error && error.message && error.message.includes('invalid input syntax') && !isNaN(Number(id))) {
-      const numId = Number(id);
-      const retry = await supabase.from('categories').update(cleanUpdates).eq('id', numId).select().maybeSingle();
-      data = retry.data;
-      error = retry.error;
-    }
+    const { data, error } = await supabase
+      .from('categories')
+      .update(cleanUpdates)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
 
     if (error) {
-      console.error('updateCategory DB error:', error);
+      console.error('[catalogService.updateCategory] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
       return { data: null, error: error.message };
     }
 
@@ -373,9 +369,9 @@ export const updateCategory = async (id, updates, actor = {}) => {
       payload: updates,
     });
 
-    return { data, error: null };
+    return { data: data || { id, ...updates }, error: null };
   } catch (err) {
-    console.error('updateCategory exception:', err);
+    console.error('[catalogService.updateCategory] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -384,7 +380,17 @@ export const deleteCategory = async (id, actor = {}) => {
   if (!supabase) return { success: false, error: 'Supabase client not initialized' };
 
   try {
-    await supabase.from('categories').delete().eq('id', id);
+    const { error } = await supabase.from('categories').delete().eq('id', id);
+
+    if (error) {
+      console.error('[catalogService.deleteCategory] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { success: false, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
@@ -392,11 +398,11 @@ export const deleteCategory = async (id, actor = {}) => {
       action: 'delete',
       objectType: 'category',
       objectId: id,
-      payload: { deleted: true },
     });
 
     return { success: true, error: null };
   } catch (err) {
+    console.error('[catalogService.deleteCategory] EXCEPTION:', err);
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -409,10 +415,18 @@ export const getPricingRules = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
 
   try {
-    const { data, error } = await supabase.from('pricing_rules').select('*');
-    if (error) return { data: [], error: error.message };
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[catalogService.getPricingRules] Supabase error:', error.message);
+      return { data: [], error: error.message };
+    }
     return { data: data || [], error: null };
   } catch (err) {
+    console.error('[catalogService.getPricingRules] EXCEPTION:', err);
     return { data: [], error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -423,19 +437,28 @@ export const createPricingRule = async (ruleData, actor = {}) => {
   try {
     const { data, error } = await supabase.from('pricing_rules').insert(ruleData).select().maybeSingle();
 
-    if (error) return { data: null, error: error.message };
+    if (error) {
+      console.error('[catalogService.createPricingRule] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
       actorEmail: actor.email,
       action: 'create',
       objectType: 'pricing_rule',
-      objectId: data?.id || '',
+      objectId: data?.id,
       payload: ruleData,
     });
 
     return { data, error: null };
   } catch (err) {
+    console.error('[catalogService.createPricingRule] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -444,9 +467,25 @@ export const updatePricingRule = async (id, updates, actor = {}) => {
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
-    const { data, error } = await supabase.from('pricing_rules').update(updates).eq('id', id).select().maybeSingle();
+    const cleanUpdates = { ...updates };
+    delete cleanUpdates.id;
 
-    if (error) return { data: null, error: error.message };
+    const { data, error } = await supabase
+      .from('pricing_rules')
+      .update(cleanUpdates)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[catalogService.updatePricingRule] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { data: null, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
@@ -459,6 +498,7 @@ export const updatePricingRule = async (id, updates, actor = {}) => {
 
     return { data, error: null };
   } catch (err) {
+    console.error('[catalogService.updatePricingRule] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
 };
@@ -468,7 +508,16 @@ export const deletePricingRule = async (id, actor = {}) => {
 
   try {
     const { error } = await supabase.from('pricing_rules').delete().eq('id', id);
-    if (error) return { success: false, error: error.message };
+
+    if (error) {
+      console.error('[catalogService.deletePricingRule] FULL SUPABASE ERROR:', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+      });
+      return { success: false, error: error.message };
+    }
 
     await logAdminAction({
       actorId: actor.id,
@@ -476,11 +525,11 @@ export const deletePricingRule = async (id, actor = {}) => {
       action: 'delete',
       objectType: 'pricing_rule',
       objectId: id,
-      payload: { deleted: true },
     });
 
     return { success: true, error: null };
   } catch (err) {
+    console.error('[catalogService.deletePricingRule] EXCEPTION:', err);
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 };
