@@ -381,9 +381,9 @@ const ServicesPanel = () => {
 
                         {/* District Active / Inactive Badge Button */}
                         <div className="mt-1.5 flex items-center gap-1.5">
-                          <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-primary bg-primary/10 hover:bg-primary/20 px-2 py-0.5 rounded-md transition-all">
-                            <MapPin size={12} />
-                            {activeCount} / {totalCitiesCount} Districts Active
+                          <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                            <MapPin size={12} className="text-primary" />
+                            {activeCount > 0 ? `${activeCount} ${activeCount === 1 ? 'District' : 'Districts'} Covered` : 'No locations set'}
                           </span>
                         </div>
                       </div>
@@ -464,7 +464,7 @@ const ServicesPanel = () => {
         </div>
 
         {/* Right Panel: Create/Edit Service */}
-        <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-5 space-y-4 min-w-0">
           <h3 className="text-sm font-black uppercase tracking-wider text-slate-500">
             {editingService ? 'Edit Service' : 'Create New Service'}
           </h3>
@@ -553,18 +553,17 @@ const ServicesPanel = () => {
                 </span>
               )}
             </div>
-
             <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200 space-y-3">
               {selectedCityIds.length === 0 ? (
-                <div className="py-4 text-center space-y-2">
-                  <div className="h-10 w-10 mx-auto rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                    <MapPin size={20} />
-                  </div>
-                  <p className="text-xs font-bold text-slate-500">No locations added yet.</p>
+                <div className="py-3 text-center space-y-2">
+                  <p className="text-xs font-bold text-slate-500 flex items-center justify-center gap-1.5">
+                    <MapPin size={14} className="text-slate-400" />
+                    0 locations selected
+                  </p>
                   <button
                     type="button"
                     onClick={handleOpenAddCoverageModal}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-bold shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-white text-xs font-extrabold shadow-sm hover:bg-blue-700 transition-colors cursor-pointer"
                   >
                     + Add Coverage
                   </button>
@@ -640,7 +639,11 @@ const ServicesPanel = () => {
                     <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 inline-block mb-1">
                       ✓ Image Active
                     </span>
-                    <p className="text-[11px] font-semibold text-slate-500 truncate">{form.image_url || form.image || form.icon}</p>
+                    <p className="text-[11px] font-semibold text-slate-500 truncate max-w-[180px]">
+                      {(form.image_url || form.image || form.icon).startsWith('data:')
+                        ? 'Base64 Image Attached'
+                        : (form.image_url || form.image || form.icon)}
+                    </p>
                   </div>
                 </div>
                 <div className="flex gap-2 pt-2 border-t border-slate-100">
@@ -689,18 +692,18 @@ const ServicesPanel = () => {
             {uploading && <p className="text-[11px] text-primary font-bold mt-1.5 animate-pulse">Uploading image to storage...</p>}
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-700">
-              <input
-                type="checkbox"
-                checked={form.active}
-                onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                className="h-4 w-4 rounded border-slate-300 text-primary"
-              />
-              Active Service
-            </label>
+          <div className="pt-3 border-t border-slate-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-xs font-extrabold text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={form.active}
+                  onChange={(e) => setForm({ ...form, active: e.target.checked })}
+                  className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary cursor-pointer"
+                />
+                Active Service
+              </label>
 
-            <div className="flex gap-2">
               {editingService && (
                 <button
                   type="button"
@@ -716,18 +719,24 @@ const ServicesPanel = () => {
                       platform_fee: '',
                       inspection_fee: '',
                       icon: 'wrench',
+                      image_url: '',
+                      image: '',
                       active: true,
                     });
                   }}
-                  className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-600"
+                  className="text-xs font-bold text-slate-500 hover:text-slate-700 underline cursor-pointer"
                 >
-                  Cancel
+                  Cancel Editing
                 </button>
               )}
-              <button type="submit" className="rounded-xl bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm">
-                {editingService ? 'Update Service' : 'Create Service'}
-              </button>
             </div>
+
+            <button
+              type="submit"
+              className="w-full py-3.5 px-4 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              {editingService ? '⚡ Update Service' : '✨ Create Service'}
+            </button>
           </div>
         </form>
       </div>

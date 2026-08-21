@@ -99,13 +99,12 @@ const AdminDashboard = () => {
       case 'contractors':
         return <ContractorsPanel />;
       case 'services':
+      case 'coverage':
         return <ServicesPanel />;
       case 'categories':
         return <CategoriesPanel />;
       case 'areas':
         return <AreasPanel />;
-      case 'coverage':
-        return <CoveragePanel />;
       case 'coverage-requests':
         return <CoverageRequestsPanel />;
       case 'pricing':
