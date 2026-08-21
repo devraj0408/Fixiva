@@ -304,6 +304,7 @@ export const createBroadcastNotification = async (notificationData, actor = {}) 
       'ALL': 'all',
       'ALL USERS': 'all',
       'ALL_USERS': 'all',
+      'EVERYONE': 'all',
       'CUSTOMERS ONLY': 'customer',
       'CUSTOMER': 'customer',
       'CUSTOMERS': 'customer',
@@ -313,9 +314,12 @@ export const createBroadcastNotification = async (notificationData, actor = {}) 
       'CONTRACTORS ONLY': 'contractor',
       'CONTRACTOR': 'contractor',
       'CONTRACTORS': 'contractor',
+      'ADMINS ONLY': 'admin',
+      'ADMIN': 'admin',
+      'ADMINS': 'admin',
     };
     const rawRole = String(notificationData.target_role || notificationData.targetRole || 'all').trim().toUpperCase();
-    const normalizedTargetRole = roleMap[rawRole] || 'all';
+    const normalizedTargetRole = roleMap[rawRole] || rawRole.toLowerCase() || 'all';
 
     const payload = {
       title: String(notificationData.title || '').trim(),

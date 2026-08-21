@@ -439,10 +439,16 @@ const ContractorDashboard = () => {
 
   // Average Rating
   const averageRating = useMemo(() => {
-    if (contractorReviews.length === 0) return 5.0;
-    const sum = contractorReviews.reduce((acc, curr) => acc + (curr.rating || 5), 0);
-    return (sum / contractorReviews.length).toFixed(1);
-  }, [contractorReviews]);
+    if (contractorReviews.length > 0) {
+      const sum = contractorReviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
+      return (sum / contractorReviews.length).toFixed(1);
+    }
+    const profileRating = Number(user?.rating || user?.avg_rating);
+    if (!isNaN(profileRating) && profileRating > 0) {
+      return profileRating.toFixed(1);
+    }
+    return 'N/A';
+  }, [contractorReviews, user?.rating, user?.avg_rating]);
 
   // Form Submission: Add Staff Member
   const handleAddTeamMember = async (e) => {

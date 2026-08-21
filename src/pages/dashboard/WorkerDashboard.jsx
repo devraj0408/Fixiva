@@ -304,23 +304,52 @@ const WorkerDashboard = () => {
     }
   }, [activeTab, user?.id, notifications]);
 
-  // Filter jobs for this worker
+  // Filter jobs for this worker dynamically
   const myJobs = useMemo(() => {
-    return (bookings || []).filter((b) => b.worker_id === user?.id || (b.worker_name && b.worker_name.toLowerCase() === (user?.name || '').toLowerCase()));
+    if (!user) return [];
+    const userId = String(user.id || '').trim();
+    const userName = String(user.name || '').trim().toLowerCase();
+    const userEmail = String(user.email || '').trim().toLowerCase();
+    const userPhone = String(user.phone || '').trim().replace(/\D/g, '');
+
+    return (bookings || []).filter((b) => {
+      if (b.worker_id && String(b.worker_id).trim() === userId) return true;
+      if (b.assigned_worker_id && String(b.assigned_worker_id).trim() === userId) return true;
+      if (b.worker_email && String(b.worker_email).trim().toLowerCase() === userEmail && userEmail.length > 0) return true;
+      if (b.worker_phone && String(b.worker_phone).trim().replace(/\D/g, '') === userPhone && userPhone.length > 0) return true;
+      if (b.worker_name && userName && String(b.worker_name).trim().toLowerCase() === userName) return true;
+      if (b.assigned_worker_name && userName && String(b.assigned_worker_name).trim().toLowerCase() === userName) return true;
+      return false;
+    });
   }, [bookings, user]);
 
-  // Fetch worker specific reviews
+  // Fetch worker specific reviews dynamically
   const workerReviews = useMemo(() => {
-    return (allReviews || []).filter(
-      (r) => r.worker_id === user?.id || (r.workerName && r.workerName.toLowerCase() === (user?.name || '').toLowerCase())
-    );
+    if (!user) return [];
+    const userId = String(user.id || '').trim();
+    const userName = String(user.name || '').trim().toLowerCase();
+    const userEmail = String(user.email || '').trim().toLowerCase();
+
+    return (allReviews || []).filter((r) => {
+      if (r.worker_id && String(r.worker_id).trim() === userId) return true;
+      if (r.worker_email && String(r.worker_email).trim().toLowerCase() === userEmail && userEmail.length > 0) return true;
+      const rName = String(r.workerName || r.worker_name || '').trim().toLowerCase();
+      if (rName && userName && rName === userName) return true;
+      return false;
+    });
   }, [allReviews, user]);
 
   const averageWorkerRating = useMemo(() => {
-    if (workerReviews.length === 0) return 5.0;
-    const sum = workerReviews.reduce((acc, curr) => acc + Number(curr.rating || 5), 0);
-    return (sum / workerReviews.length).toFixed(1);
-  }, [workerReviews]);
+    if (workerReviews.length > 0) {
+      const sum = workerReviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
+      return (sum / workerReviews.length).toFixed(1);
+    }
+    const profileRating = Number(user?.rating || user?.avg_rating || user?.rating_score);
+    if (!isNaN(profileRating) && profileRating > 0) {
+      return profileRating.toFixed(1);
+    }
+    return 'N/A';
+  }, [workerReviews, user?.rating, user?.avg_rating, user?.rating_score]);
 
   // Specific Worker Dashboard Metrics
   const todaysJobsCount = useMemo(() => {
@@ -1458,7 +1487,9 @@ const WorkerDashboard = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Rating</p>
-                    <p className="mt-2 text-2xl font-black text-slate-900">{averageWorkerRating} ⭐</p>
+                    <p className="mt-2 text-2xl font-black text-slate-900">
+                      {averageWorkerRating === 'N/A' ? 'N/A' : `${averageWorkerRating} ⭐`}
+                    </p>
                   </div>
                   <div className="rounded-2xl p-2.5 bg-amber-100 text-amber-700">
                     <Star size={20} />
