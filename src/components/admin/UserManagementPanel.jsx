@@ -63,7 +63,7 @@ const UserManagementPanel = () => {
                   <td className="px-4 py-3 font-bold text-slate-900">{person.name || 'Customer Profile'}</td>
                   <td className="px-4 py-3 text-slate-600">{person.email || '-'}</td>
                   <td className="px-4 py-3 text-slate-600">{person.phone || '-'}</td>
-                  <td className="px-4 py-3 text-slate-700 font-semibold">{person.city || 'Ranchi'}</td>
+                  <td className="px-4 py-3 text-slate-700 font-semibold">{person.city || person.district || '-'}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase ${person.account_status === 'suspended' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
                       {person.account_status || 'active'}

@@ -689,13 +689,13 @@ const WorkerDashboard = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-slate-900 font-extrabold">Customer: {job.customer_name || 'Client'}</span>
                           <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
-                            📍 2.8 km away • ~10 mins ETA
+                            📍 {job.locality || job.district || 'Assigned Coverage Area'}
                           </span>
                         </div>
                         <p className="flex items-start gap-1 text-slate-600">
                           <MapPin size={14} className="text-primary shrink-0 mt-0.5" />
                           <span>
-                            <strong>Hierarchy:</strong> {job.state || 'Jharkhand'} → {job.district || job.city || 'Ranchi'} → {job.locality || 'Lalpur'}
+                            <strong>Hierarchy:</strong> {[job.state, job.district || job.city, job.locality].filter(Boolean).join(' → ') || 'Customer Location'}
                           </span>
                         </p>
                         <p className="flex items-center gap-1">
@@ -770,7 +770,7 @@ const WorkerDashboard = () => {
                               </a>
                             )}
                             <a
-                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((job.locality || '') + ', ' + (job.district || job.city || 'Ranchi'))}`}
+                              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([job.customer_address, job.address, job.locality, job.district || job.city, job.state].filter(Boolean).join(', '))}`}
                               target="_blank"
                               rel="noreferrer"
                               className="px-3 py-1.5 bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center gap-1 shadow-sm hover:bg-slate-800"
@@ -781,7 +781,7 @@ const WorkerDashboard = () => {
                         </div>
 
                         <p className="text-xs text-slate-700">
-                          <strong>Address:</strong> {job.customer_address || job.address || job.locality}, {job.district || job.city || 'Ranchi'} ({job.state || 'Jharkhand'})
+                          <strong>Address:</strong> {job.customer_address || job.address || [job.locality, job.district || job.city, job.state].filter(Boolean).join(', ') || 'Address on record'}
                         </p>
                         
                         <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-200">
@@ -1134,11 +1134,17 @@ const WorkerDashboard = () => {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Profile Photo</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                   <div className="relative group shrink-0">
-                    <img
-                      src={photoUrl || user?.profile_photo_url || 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80'}
-                      alt="Profile Avatar"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-slate-100 shadow-sm"
-                    />
+                    {photoUrl || user?.profile_photo_url ? (
+                      <img
+                        src={photoUrl || user.profile_photo_url}
+                        alt="Profile Avatar"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-slate-100 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-slate-100 text-slate-600 border-2 border-slate-200 shadow-sm flex items-center justify-center font-black text-xl">
+                        {(user?.name || 'W').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => photoFileInputRef.current?.click()}

@@ -200,14 +200,18 @@ const ServicesPanel = () => {
     }
 
     setUploading(true);
-    const { success, url, error } = await uploadImage(file, 'cms-assets', 'services');
+    const { success, url, error, storageNotice } = await uploadImage(file, 'cms-assets', 'services');
     setUploading(false);
 
     if (url && !url.startsWith('blob:')) {
       setForm((prev) => ({ ...prev, icon: url, image_url: url, image: url }));
-      if (success) showToast('Service image uploaded to storage.', 'success');
+      if (storageNotice) {
+        showToast(storageNotice, 'warning');
+      } else if (success) {
+        showToast('Service image uploaded to storage.', 'success');
+      }
     } else if (error) {
-      showToast('Image upload warning: ' + error, 'error');
+      showToast('Image upload failed: ' + error, 'error');
     }
   };
 

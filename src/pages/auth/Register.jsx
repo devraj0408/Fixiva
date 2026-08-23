@@ -11,7 +11,7 @@ const Register = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const initialRole = queryParams.get('role') || 'customer';
-  const [role, setRole] = useState(initialRole === 'worker' || initialRole === 'contractor' ? initialRole : 'customer');
+  const [role, setRole] = useState(initialRole === 'worker' ? 'worker' : 'customer');
 
   const { requestOtp, verifyOtp, showToast, user, isAuthenticated } = useApp();
   const { t } = useLanguage();
@@ -30,7 +30,7 @@ const Register = () => {
       } else if (activeRole === 'worker') {
         navigate('/worker-dashboard', { replace: true });
       } else if (activeRole === 'contractor') {
-        navigate('/contractor-dashboard', { replace: true });
+        navigate('/contractor-disabled', { replace: true });
       } else {
         navigate('/dashboard/customer', { replace: true });
       }
@@ -272,7 +272,7 @@ const Register = () => {
     } else if (activeRole === 'worker') {
       navigate('/worker-dashboard');
     } else if (activeRole === 'contractor') {
-      navigate('/contractor-dashboard');
+      navigate('/contractor-disabled');
     } else {
       navigate('/dashboard/customer');
     }
@@ -356,8 +356,8 @@ const Register = () => {
             <span className="rounded-full bg-primary/10 p-1 text-primary"><User size={12} /></span>
             Joining as {role === 'worker' ? t('workerRole', 'Worker') : role === 'contractor' ? t('contractorRole', 'Contractor') : t('customerRole', 'Customer')}
           </div>
-          <div className="grid grid-cols-3 gap-3 w-full max-w-md">
-            {['customer', 'worker', 'contractor'].map((option) => (
+          <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+            {['customer', 'worker'].map((option) => (
               <button
                 key={option}
                 type="button"
@@ -367,7 +367,7 @@ const Register = () => {
                 }}
                 disabled={otpSent}
               >
-                {option === 'customer' ? t('customerRole', 'Customer') : option === 'worker' ? t('workerRole', 'Worker') : t('contractorRole', 'Contractor')}
+                {option === 'customer' ? t('customerRole', 'Customer') : t('workerRole', 'Worker')}
               </button>
             ))}
           </div>

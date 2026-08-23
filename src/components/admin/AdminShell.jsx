@@ -35,7 +35,6 @@ const navItems = [
   { id: 'faqs', label: 'Help FAQs', icon: HelpCircle },
   { id: 'users', label: 'Customer Accounts', icon: Users },
   { id: 'workers', label: 'Worker Specialists', icon: Briefcase },
-  { id: 'contractors', label: 'Contractors', icon: Building },
   { id: 'reviews', label: 'Reviews Moderation', icon: Star },
   { id: 'bookings', label: 'Bookings', icon: FileText },
   { id: 'payments', label: 'Payments & Refunds', icon: IndianRupee },

@@ -331,29 +331,29 @@ export const detectCurrentLocation = async () => {
       }
     }
 
-    // 2. Try wttr.in (Weather API - CORS allowed & unblocked by ad-blockers)
+    // 2. Try wttr.in (Weather API)
     try {
       const wttrRes = await fetch('https://wttr.in/?format=j1').then(r => r.json()).catch(() => null);
       const area = wttrRes?.nearest_area?.[0];
       const city = area?.areaName?.[0]?.value;
       const region = area?.region?.[0]?.value;
       if (city || region) {
-        const state = region || 'Jharkhand';
-        const district = city || 'Ranchi';
-        const locality = city ? `${city} Main` : 'Lalpur';
+        const state = region || '';
+        const district = city || '';
+        const locality = city ? `${city} Main` : '';
         const res = {
-          latitude: 23.3700,
-          longitude: 85.3300,
+          latitude: Number(area?.latitude) || null,
+          longitude: Number(area?.longitude) || null,
           state,
           district,
           locality,
-          pincode: '834001',
-          formattedAddress: `${locality}, ${district}, ${state}`
+          pincode: '',
+          formattedAddress: [locality, district, state].filter(Boolean).join(', ')
         };
         try {
-          localStorage.setItem('fixiva:last-state', state);
-          localStorage.setItem('fixiva:last-district', district);
-          localStorage.setItem('fixiva:last-locality', locality);
+          if (state) localStorage.setItem('fixiva:last-state', state);
+          if (district) localStorage.setItem('fixiva:last-district', district);
+          if (locality) localStorage.setItem('fixiva:last-locality', locality);
         } catch { void 0; }
         return res;
       }
@@ -363,71 +363,63 @@ export const detectCurrentLocation = async () => {
     try {
       const ipRes = await fetch('https://ipwho.is/').then(r => r.json()).catch(() => null);
       if (ipRes && ipRes.success && (ipRes.region || ipRes.city)) {
-        const state = ipRes.region || 'Jharkhand';
-        const district = ipRes.city || 'Ranchi';
-        const locality = ipRes.city ? `${ipRes.city} Main` : 'Lalpur';
+        const state = ipRes.region || '';
+        const district = ipRes.city || '';
+        const locality = ipRes.city ? `${ipRes.city} Main` : '';
         const res = {
-          latitude: ipRes.latitude || 23.3700,
-          longitude: ipRes.longitude || 85.3300,
+          latitude: ipRes.latitude || null,
+          longitude: ipRes.longitude || null,
           state,
           district,
           locality,
-          pincode: ipRes.postal || '834001',
-          formattedAddress: `${locality}, ${district}, ${state}`
+          pincode: ipRes.postal || '',
+          formattedAddress: [locality, district, state].filter(Boolean).join(', ')
         };
         try {
-          localStorage.setItem('fixiva:last-state', state);
-          localStorage.setItem('fixiva:last-district', district);
-          localStorage.setItem('fixiva:last-locality', locality);
+          if (state) localStorage.setItem('fixiva:last-state', state);
+          if (district) localStorage.setItem('fixiva:last-district', district);
+          if (locality) localStorage.setItem('fixiva:last-locality', locality);
         } catch { void 0; }
         return res;
       }
     } catch { void 0; }
 
-    // 4. Try freeipapi.com
-    try {
-      const freeRes = await fetch('https://freeipapi.com/api/json').then(r => r.json()).catch(() => null);
-      if (freeRes && (freeRes.regionName || freeRes.cityName)) {
-        const state = freeRes.regionName || 'Jharkhand';
-        const district = freeRes.cityName || 'Ranchi';
-        const locality = freeRes.cityName ? `${freeRes.cityName} Main` : 'Lalpur';
-        const res = {
-          latitude: freeRes.latitude || 23.3700,
-          longitude: freeRes.longitude || 85.3300,
-          state,
-          district,
-          locality,
-          pincode: freeRes.zipCode || '834001',
-          formattedAddress: `${locality}, ${district}, ${state}`
-        };
-        try {
-          localStorage.setItem('fixiva:last-state', state);
-          localStorage.setItem('fixiva:last-district', district);
-          localStorage.setItem('fixiva:last-locality', locality);
-        } catch { void 0; }
-        return res;
-      }
-    } catch { void 0; }
+    // 4. Fallback to stored location or null
+    const storedState = localStorage.getItem('fixiva:last-state') || '';
+    const storedDistrict = localStorage.getItem('fixiva:last-district') || '';
+    const storedLocality = localStorage.getItem('fixiva:last-locality') || '';
+
+    if (storedState || storedDistrict) {
+      return {
+        latitude: null,
+        longitude: null,
+        state: storedState,
+        district: storedDistrict,
+        locality: storedLocality,
+        pincode: '',
+        formattedAddress: [storedLocality, storedDistrict, storedState].filter(Boolean).join(', ')
+      };
+    }
 
     return {
-      latitude: 23.3700,
-      longitude: 85.3300,
-      state: 'Jharkhand',
-      district: 'Ranchi',
-      locality: 'Lalpur',
-      pincode: '834001',
-      formattedAddress: 'Lalpur, Ranchi, Jharkhand 834001'
+      latitude: null,
+      longitude: null,
+      state: '',
+      district: '',
+      locality: '',
+      pincode: '',
+      formattedAddress: ''
     };
   } catch (err) {
-    console.warn('detectCurrentLocation exception fallback:', err);
+    console.warn('detectCurrentLocation exception:', err);
     return {
-      latitude: 23.3700,
-      longitude: 85.3300,
-      state: 'Jharkhand',
-      district: 'Ranchi',
-      locality: 'Lalpur',
-      pincode: '834001',
-      formattedAddress: 'Lalpur, Ranchi, Jharkhand 834001'
+      latitude: null,
+      longitude: null,
+      state: '',
+      district: '',
+      locality: '',
+      pincode: '',
+      formattedAddress: ''
     };
   }
 };

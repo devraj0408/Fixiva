@@ -186,9 +186,9 @@ const CustomerDashboard = () => {
   // Profile Form States
   const [profileName, setProfileName] = useState(user?.name || '');
   const [profilePhone, setProfilePhone] = useState(user?.phone || '');
-  const [profileState, setProfileState] = useState(user?.state || 'Jharkhand');
-  const [profileDistrict, setProfileDistrict] = useState(user?.district || user?.city || 'Ranchi');
-  const [profileLocality, setProfileLocality] = useState(user?.locality || 'Lalpur');
+  const [profileState, setProfileState] = useState(user?.state || '');
+  const [profileDistrict, setProfileDistrict] = useState(user?.district || user?.city || '');
+  const [profileLocality, setProfileLocality] = useState(user?.locality || '');
   const [profileUpdating, setProfileUpdating] = useState(false);
   const [photoUrl, setPhotoUrl] = useState(user?.profile_photo_url || '');
   const photoFileInputRef = useRef(null);
@@ -201,26 +201,18 @@ const CustomerDashboard = () => {
   const chatBottomRef = useRef(null);
 
   // Search & Filter States
-  const [savedContractorIds, setSavedContractorIds] = useState(() => {
-    try {
-      const stored = localStorage.getItem(`fixiva_saved_contractors_${user?.id}`);
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      void e;
-      return [];
-    }
-  });
+  const [savedContractorIds, setSavedContractorIds] = useState(() => []);
 
   // Saved Addresses State
   const [savedAddresses, setSavedAddresses] = useState(() => {
     try {
       const stored = localStorage.getItem(`fixiva_saved_addresses_${user?.id}`);
       return stored ? JSON.parse(stored) : [
-        { id: 'addr-1', tag: 'Home', locality: user?.locality || 'Lalpur', district: user?.district || user?.city || 'Ranchi', state: user?.state || 'Jharkhand', pincode: '834001' }
+        { id: 'addr-1', tag: 'Home', locality: user?.locality || '', district: user?.district || user?.city || '', state: user?.state || '', pincode: '' }
       ];
     } catch {
       return [
-        { id: 'addr-1', tag: 'Home', locality: user?.locality || 'Lalpur', district: user?.district || user?.city || 'Ranchi', state: user?.state || 'Jharkhand', pincode: '834001' }
+        { id: 'addr-1', tag: 'Home', locality: user?.locality || '', district: user?.district || user?.city || '', state: user?.state || '', pincode: '' }
       ];
     }
   });
@@ -237,9 +229,9 @@ const CustomerDashboard = () => {
       queueMicrotask(() => {
         setProfileName(user.name || '');
         setProfilePhone(user.phone || '');
-        setProfileState(user.state || 'Jharkhand');
-        setProfileDistrict(user.district || user.city || 'Ranchi');
-        setProfileLocality(user.locality || 'Lalpur');
+        setProfileState(user.state || '');
+        setProfileDistrict(user.district || user.city || '');
+        setProfileLocality(user.locality || '');
         setPhotoUrl(user.profile_photo_url || '');
       });
     }
@@ -819,10 +811,16 @@ const CustomerDashboard = () => {
               {workers.map(w => (
                 <div key={w.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <img src={w.profile_photo_url || "https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80"} alt={w.name} className="w-12 h-12 rounded-2xl object-cover" />
+                    {w.profile_photo_url ? (
+                      <img src={w.profile_photo_url} alt={w.name} className="w-12 h-12 rounded-2xl object-cover" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 font-extrabold flex items-center justify-center text-base">
+                        {(w.name || 'W').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-sm">{w.name}</h3>
-                      <p className="text-xs text-slate-500 font-medium">{w.skills || 'Specialist'} • {w.district || w.city || 'Ranchi'}</p>
+                      <p className="text-xs text-slate-500 font-medium">{w.skills || 'Specialist'} • {w.district || w.city || 'Coverage Area'}</p>
                     </div>
                   </div>
 
@@ -905,11 +903,17 @@ const CustomerDashboard = () => {
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Profile Photo</label>
                 <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-white border border-slate-200 rounded-2xl shadow-sm">
                   <div className="relative group shrink-0">
-                    <img
-                      src={photoUrl || user?.profile_photo_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'}
-                      alt="Profile Avatar"
-                      className="w-20 h-20 rounded-full object-cover border-2 border-slate-100 shadow-sm"
-                    />
+                    {photoUrl || user?.profile_photo_url ? (
+                      <img
+                        src={photoUrl || user.profile_photo_url}
+                        alt="Profile Avatar"
+                        className="w-20 h-20 rounded-full object-cover border-2 border-slate-100 shadow-sm"
+                      />
+                    ) : (
+                      <div className="w-20 h-20 rounded-full bg-slate-100 text-slate-600 border-2 border-slate-200 shadow-sm flex items-center justify-center font-black text-xl">
+                        {(user?.name || 'C').charAt(0).toUpperCase()}
+                      </div>
+                    )}
                     <button
                       type="button"
                       onClick={() => photoFileInputRef.current?.click()}

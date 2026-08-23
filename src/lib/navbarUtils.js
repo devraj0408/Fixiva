@@ -24,7 +24,7 @@ export const getDashboardPath = (user = null) => {
     return '/worker-dashboard';
   }
   if (role === 'contractor') {
-    return '/contractor-dashboard';
+    return '/contractor-disabled';
   }
   return '/dashboard/customer';
 };

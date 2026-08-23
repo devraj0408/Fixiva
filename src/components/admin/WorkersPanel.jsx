@@ -85,7 +85,7 @@ const WorkersPanel = () => {
                       <p>{worker.email || '-'}</p>
                       <p>{worker.phone || '-'}</p>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 font-semibold">{worker.city || 'Ranchi'}</td>
+                    <td className="px-4 py-3 text-slate-700 font-semibold">{worker.city || worker.district || '-'}</td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => setSelectedWorkerDetails({ worker, details })}

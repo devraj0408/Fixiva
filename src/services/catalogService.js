@@ -62,32 +62,19 @@ export const createService = async (serviceData, actor = {}) => {
       Object.entries(basePayload).filter(([_, v]) => v !== undefined && v !== null)
     );
 
-    // Attempt 1: Auto-generated primary key (PostgreSQL gen_random_uuid() or default generator)
+    const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+        );
+
+    const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
+
     let { data, error } = await supabase
       .from('services')
-      .insert(cleanPayload)
+      .insert(payloadWithUuid)
       .select()
       .maybeSingle();
-
-    // Attempt 2: If table id column is NOT-NULL and lacks DB default generator, supply RFC4122 UUID
-    if (error && error.message && (error.message.includes('null value in column "id"') || error.message.includes('violates not-null constraint'))) {
-      console.warn('[catalogService.createService] DB requires explicit ID, supplying generated UUID');
-      const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-        ? crypto.randomUUID()
-        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
-            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
-          );
-
-      const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
-      const retryUuid = await supabase
-        .from('services')
-        .insert(payloadWithUuid)
-        .select()
-        .maybeSingle();
-
-      data = retryUuid.data;
-      error = retryUuid.error;
-    }
 
     // Attempt 3: If string slug id is required by legacy varchar schema
     if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('slug'))) {

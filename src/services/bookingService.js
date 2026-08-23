@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabaseClient';
 import { logAdminAction } from './auditService';
 import { calculateDistanceInKm } from './locationService';
 import { isDistrictActive } from './coverageService';
+import { BUSINESS_CONFIG } from '../config/businessConfig';
 
 /**
  * Unified Booking & Locality Matching Engine
@@ -14,7 +15,7 @@ import { isDistrictActive } from './coverageService';
 
 export const findAvailableProfessionals = async ({
   serviceId = null,
-  state = 'Jharkhand',
+  state = '',
   district = '',
   locality = '',
   userLat = null,
@@ -155,10 +156,7 @@ export const findAvailableProfessionals = async ({
         let etaText = null;
         if (hasUserCoords && isValidCoordinate(w.location_latitude, w.location_longitude)) {
           distKm = Number(calculateDistanceInKm(Number(userLat), Number(userLng), Number(w.location_latitude), Number(w.location_longitude)).toFixed(1));
-          if (distKm <= 3) etaText = '15 - 25 mins';
-          else if (distKm <= 7) etaText = '25 - 35 mins';
-          else if (distKm <= 12) etaText = '35 - 50 mins';
-          else etaText = '45 - 60 mins';
+          etaText = `${Math.max(5, Math.round(distKm * 3))} mins`;
         }
 
         return {
@@ -166,52 +164,21 @@ export const findAvailableProfessionals = async ({
           type: 'worker',
           name: w.name || 'Verified Specialist',
           role: 'Professional Worker',
-          rating: Number(w.rating || 4.8).toFixed(1),
-          completed_jobs: Number(w.completed_jobs || 15),
-          experience: w.experience || '3+ Years Exp',
+          rating: w.rating ? Number(w.rating).toFixed(1) : null,
+          completed_jobs: Number(w.completed_jobs || 0),
+          experience: w.experience || '',
           starting_price: Number(w.starting_price || w.visit_charge || 0),
           distance_km: distKm,
           eta_text: etaText,
           status: 'Available',
-          profile_photo_url: w.profile_photo_url || `https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80`,
-          skills: w.skills || serviceId || 'General Specialist',
+          profile_photo_url: w.profile_photo_url || null,
+          skills: w.skills || serviceId || '',
           whatsapp: w.whatsapp || w.phone || ''
         };
       });
 
-    // Filter active registered contractors
-    const formattedContractors = Array.from(contractorMap.values())
-      .filter(c => isAccountActive(c.status || c.account_status) && isLocationMatch(c.district, c.city, district) && isSkillMatch(c.services_offered || c.skills, serviceId))
-      .map(c => {
-        let distKm = null;
-        let etaText = null;
-        if (hasUserCoords && isValidCoordinate(c.location_latitude, c.location_longitude)) {
-          distKm = Number(calculateDistanceInKm(Number(userLat), Number(userLng), Number(c.location_latitude), Number(c.location_longitude)).toFixed(1));
-          if (distKm <= 3) etaText = '15 - 25 mins';
-          else if (distKm <= 7) etaText = '25 - 35 mins';
-          else if (distKm <= 12) etaText = '35 - 50 mins';
-          else etaText = '45 - 60 mins';
-        }
-
-        return {
-          id: c.id,
-          type: 'contractor',
-          name: c.company || c.owner_name || c.name || 'Verified Agency Partner',
-          role: 'Verified Agency Partner',
-          rating: Number(c.rating || 4.9).toFixed(1),
-          completed_jobs: Number(c.completed_jobs || 50),
-          experience: 'Certified Enterprise',
-          starting_price: Number(c.starting_price || 0),
-          distance_km: distKm,
-          eta_text: etaText,
-          status: 'Available',
-          profile_photo_url: c.profile_photo_url || `https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150&auto=format&fit=crop&q=80`,
-          skills: c.services_offered || serviceId || 'Full Scale Contracting',
-          whatsapp: c.whatsapp || c.phone || ''
-        };
-      });
-
-    let allMatched = [...formattedWorkers, ...formattedContractors];
+    // Contractor role is temporarily disabled - active assignment uses Worker role only
+    let allMatched = [...formattedWorkers];
 
     allMatched.sort((a, b) => {
       if (a.distance_km !== null && b.distance_km !== null) {
@@ -278,14 +245,14 @@ export const createBooking = async (bookingData, actor = {}) => {
       id: bookingId,
       customer_id: currentCustomerId,
       worker_id: bookingData.worker_id && !String(bookingData.worker_id).startsWith('mock-') ? bookingData.worker_id : null,
-      contractor_id: bookingData.contractor_id && !String(bookingData.contractor_id).startsWith('mock-') ? bookingData.contractor_id : null,
+      contractor_id: null,
       service_id: bookingData.service_id || 'general',
       service_name: bookingData.service_name || 'Home Service',
-      state: bookingData.state || 'Jharkhand',
-      district: bookingData.district || 'Ranchi',
-      locality: bookingData.locality || 'Lalpur',
-      pincode: bookingData.pincode || '834001',
-      address: bookingData.address || `${bookingData.locality || 'Lalpur'}, ${bookingData.district || 'Ranchi'}`,
+      state: bookingData.state || '',
+      district: bookingData.district || bookingData.city || '',
+      locality: bookingData.locality || '',
+      pincode: bookingData.pincode || '',
+      address: bookingData.address || [bookingData.locality, bookingData.district || bookingData.city, bookingData.state].filter(Boolean).join(', '),
       customer_name: bookingData.customer_name || 'Customer',
       customer_phone: bookingData.customer_phone || '',
       customer_address: bookingData.address || '',
@@ -300,11 +267,21 @@ export const createBooking = async (bookingData, actor = {}) => {
       booking_date: bookingData.booking_date || new Date().toISOString()
     };
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('bookings')
       .insert(payload)
       .select()
       .maybeSingle();
+
+    if (error && error.message && (error.message.includes('uuid') || error.message.includes('null value in column') || error.message.includes('syntax'))) {
+      const uuidId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : payload.id;
+      const uuidPayload = { ...payload, id: uuidId, booking_number: bookingId };
+      const retryRes = await supabase.from('bookings').insert(uuidPayload).select().maybeSingle();
+      if (!retryRes.error) {
+        data = retryRes.data;
+        error = null;
+      }
+    }
 
     if (error) {
       console.error('createBooking DB error:', error);
@@ -413,7 +390,7 @@ export const getSystemSettings = () => {
     enableReferrals: false,
     enableWorkerLiveTracking: true,
     defaultServiceRadiusKm: 15,
-    defaultPlatformFee: 49,
+    defaultPlatformFee: BUSINESS_CONFIG.PLATFORM_FEE,
     emergencyBookingEnabled: true,
   };
   try {

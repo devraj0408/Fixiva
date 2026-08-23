@@ -6,6 +6,7 @@ import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
 import RapidoLocationSelector from '../location/RapidoLocationSelector';
 import { findAvailableProfessionals, createBooking } from '../../services/bookingService';
 import { submitCoverageRequest } from '../../services/coverageService';
+import { BUSINESS_CONFIG } from '../../config/businessConfig';
 
 const UnifiedBookingModal = () => {
   const { bookingModalState, closeBookingModal, services = [], user, showToast } = useApp();
@@ -54,12 +55,12 @@ const UnifiedBookingModal = () => {
 
   if (!isOpen) return null;
 
-  const activeService = activeServices.find(s => s.id === serviceId) || services.find(s => s.id === serviceId) || activeServices[0] || {
+  const activeService = activeServices.find(s => s.id === serviceId) || services.find(s => s.id === serviceId) || activeServices[0] || (serviceId ? {
     id: serviceId,
-    name: 'Service',
-    base_price: 199,
-    platform_fee: 49
-  };
+    name: serviceId.charAt(0).toUpperCase() + serviceId.slice(1),
+    base_price: 0,
+    platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
+  } : null);
 
   const handleSearchPros = async () => {
     setMatchingLoading(true);

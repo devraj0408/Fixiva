@@ -67,23 +67,25 @@ export const uploadImage = async (file, bucket = 'cms-assets', folder = 'catalog
       }
     }
 
-    // If Supabase storage upload returns error (e.g. Bucket not found, RLS policy, missing permissions), use Data URL fallback
+    // If Supabase storage upload returns error (e.g. Bucket not found, RLS policy, missing permissions)
     if (error) {
-      console.warn('[storageService] Supabase storage upload notice:', error.message, '- Falling back to Base64 Data URL for persistent storage.');
+      const errMsg = `Storage Bucket Error ('${bucket}'): ${error.message}`;
+      console.warn('[storageService]', errMsg);
       if (dataUrlFallback) {
-        return { success: true, url: dataUrlFallback, error: null };
+        return { success: true, url: dataUrlFallback, error: null, storageNotice: errMsg };
       }
-      return { success: false, url: '', error: error.message };
+      return { success: false, url: '', error: errMsg };
     }
 
     const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
     const finalUrl = publicUrlData?.publicUrl || dataUrlFallback;
     return { success: true, url: finalUrl, error: null };
   } catch (err) {
-    console.warn('[storageService] Exception during storage upload, using Data URL fallback:', err);
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('[storageService] Exception during storage upload:', errMsg);
     if (dataUrlFallback) {
-      return { success: true, url: dataUrlFallback, error: null };
+      return { success: true, url: dataUrlFallback, error: null, storageNotice: `Storage exception: ${errMsg}` };
     }
-    return { success: false, url: '', error: err instanceof Error ? err.message : String(err) };
+    return { success: false, url: '', error: errMsg };
   }
 };
