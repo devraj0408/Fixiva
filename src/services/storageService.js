@@ -1,13 +1,59 @@
 import { supabase } from '../lib/supabaseClient';
 
 /**
+ * Helper to compress image and convert to lightweight JPEG Data URL (max 800x800, quality 0.75)
+ */
+export const compressImageToDataUrl = (file, maxWidth = 800, maxHeight = 800, quality = 0.75) => {
+  return new Promise((resolve) => {
+    if (!file || typeof file === 'string') {
+      resolve(typeof file === 'string' ? file : '');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => resolve(e.target.result || '');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
  * Helper to convert file to Base64 Data URL so image persists reliably in state/DB/localStorage
  */
-export const fileToDataUrl = (file) => {
+export const fileToDataUrl = async (file) => {
+  try {
+    const compressed = await compressImageToDataUrl(file);
+    if (compressed) return compressed;
+  } catch (e) {
+    void e;
+  }
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onloadend = () => resolve(reader.result);
-    reader.onerror = () => resolve(URL.createObjectURL(file));
+    reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });
 };

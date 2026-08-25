@@ -393,59 +393,104 @@ const Services = () => {
                   {filteredServices.map(service => {
                     const Icon = IconMap[service.name] || IconMap[service.icon] || Zap;
                     const startingPrice = service.base_price || service.inspection_fee || 0;
-                    const serviceImg = service.image_url || service.image || (service.icon && service.icon.startsWith('http') ? service.icon : null);
+                    const serviceImg = service.image_url || service.image || (service.icon && (service.icon.startsWith('http') || service.icon.startsWith('data:')) ? service.icon : null);
                     
                     return (
                       <div key={service.id} className="h-full flex">
                         {isServiceAvailable(service.id) ? (
                           <div 
                             onClick={() => openBookingModal({ serviceId: service.id, city: selectedCity, state: selectedState })} 
-                            className="group bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 cursor-pointer"
+                            className="group relative overflow-hidden bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 cursor-pointer min-h-[220px]"
                           >
-                            <div className="flex flex-col justify-between h-full w-full">
-                              <div>
-                                {/* Card Top Icon & Starting tariff */}
-                                <div className="flex justify-between items-start gap-4 mb-6">
-                                  <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300 overflow-hidden shrink-0">
-                                    {serviceImg ? (
-                                      <img src={serviceImg} alt={service.name} className="w-full h-full object-cover" />
-                                    ) : (
+                            {serviceImg ? (
+                              <>
+                                {/* Background Image auto-adjusted */}
+                                <img 
+                                  src={serviceImg} 
+                                  alt={service.name} 
+                                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/60 to-slate-950/35 group-hover:from-slate-950/95 transition-colors" />
+
+                                <div className="relative z-10 flex flex-col justify-between h-full w-full">
+                                  <div>
+                                    <div className="flex justify-between items-start gap-4 mb-4">
+                                      <div className="h-10 w-10 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                        <Icon size={18} />
+                                      </div>
+                                      <div className="text-right space-y-0.5">
+                                        <span className="block text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none">tariff starts</span>
+                                        <span className="text-lg font-black text-emerald-400 group-hover:scale-105 transition-transform block drop-shadow-sm">
+                                          ₹{startingPrice}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                      <h3 className="font-extrabold text-white text-base leading-tight drop-shadow-sm">
+                                        {service.name}
+                                      </h3>
+                                      <p className="text-slate-200 text-xs leading-relaxed font-medium line-clamp-2">
+                                        {service.description || `Professional ${service.name.toLowerCase()} experts in your city.`}
+                                      </p>
+                                      
+                                      <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-300 pt-1">
+                                        <Star size={12} fill="currentColor" />
+                                        <span>4.9 (Verified reviews)</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-6 pt-3 border-t border-white/15 flex items-center justify-between">
+                                    <span className="text-[10px] font-black text-slate-200 uppercase tracking-wider">Book Expert</span>
+                                    <div className="h-8 w-8 rounded-full bg-primary text-white flex items-center justify-center shadow-md">
+                                      <ArrowRight size={14} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="flex flex-col justify-between h-full w-full">
+                                <div>
+                                  {/* Card Top Icon & Starting tariff */}
+                                  <div className="flex justify-between items-start gap-4 mb-6">
+                                    <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center group-hover:bg-primary group-hover:text-white transition-all duration-300 overflow-hidden shrink-0">
                                       <Icon size={22} />
-                                    )}
+                                    </div>
+                                    <div className="text-right space-y-0.5">
+                                      <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
+                                      <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
+                                        ₹{startingPrice}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="text-right space-y-0.5">
-                                    <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">tariff starts</span>
-                                    <span className="text-lg font-black text-primary group-hover:scale-105 transition-transform block">
-                                      ₹{startingPrice}
-                                    </span>
+
+                                  {/* Card Content Info */}
+                                  <div className="space-y-2">
+                                    <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
+                                      {service.name}
+                                    </h3>
+                                    <p className="text-slate-500 text-xs leading-relaxed font-semibold">
+                                      {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
+                                    </p>
+                                    
+                                    {/* Average review rating badge */}
+                                    <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
+                                      <Star size={12} fill="currentColor" />
+                                      <span>4.9 (Verified reviews)</span>
+                                    </div>
                                   </div>
                                 </div>
 
-                                {/* Card Content Info */}
-                                <div className="space-y-2">
-                                  <h3 className="font-extrabold text-slate-900 text-base leading-tight group-hover:text-primary transition-colors">
-                                    {service.name}
-                                  </h3>
-                                  <p className="text-slate-500 text-xs leading-relaxed font-semibold">
-                                    {service.description || `Professional ${service.name.toLowerCase()} experts in your city. Background checked and verified.`}
-                                  </p>
-                                  
-                                  {/* Average review rating badge */}
-                                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
-                                    <Star size={12} fill="currentColor" />
-                                    <span>4.9 (Verified reviews)</span>
+                                {/* Card Footer action button */}
+                                <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
+                                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
+                                  <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
+                                    <ArrowRight size={14} />
                                   </div>
                                 </div>
                               </div>
-
-                              {/* Card Footer action button */}
-                              <div className="mt-8 pt-4 border-t border-slate-50 flex items-center justify-between">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Book Expert</span>
-                                <div className="h-8 w-8 rounded-full btn-primary flex items-center justify-center shadow-sm">
-                                  <ArrowRight size={14} />
-                                </div>
-                              </div>
-                            </div>
+                            )}
                           </div>
                         ) : (
                           <div className="bg-slate-50/40 rounded-2xl border border-slate-150 p-6 flex flex-col justify-between h-full w-full opacity-95">

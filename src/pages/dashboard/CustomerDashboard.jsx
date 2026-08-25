@@ -1029,6 +1029,7 @@ const CustomerDashboard = () => {
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
                   {activeServices.map((s) => {
+                    const serviceImg = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
                     const iconEmoji = getServiceIcon(s.icon, s.name);
                     const basePrice = s.base_price || s.inspection_fee || s.basePrice || 0;
                     const priceDisplay = basePrice ? `₹${basePrice}` : 'On Request';
@@ -1036,11 +1037,28 @@ const CustomerDashboard = () => {
                       <button
                         key={s.id}
                         onClick={() => navigate(`/book/${s.id}?district=${encodeURIComponent(profileDistrict)}`)}
-                        className="p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-primary shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center gap-1.5 group"
+                        className="relative overflow-hidden p-3.5 rounded-2xl bg-white border border-slate-100 hover:border-primary shadow-sm hover:shadow-md transition-all flex flex-col items-center text-center justify-between min-h-[110px] group"
                       >
-                        <span className="text-2xl group-hover:scale-110 transition-transform">{iconEmoji}</span>
-                        <span className="font-extrabold text-xs text-slate-800 group-hover:text-primary">{s.name}</span>
-                        <span className="text-[10px] text-slate-400 font-bold">{priceDisplay}</span>
+                        {serviceImg ? (
+                          <>
+                            <img 
+                              src={serviceImg} 
+                              alt={s.name} 
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/50 to-slate-900/30" />
+                            <div className="relative z-10 flex flex-col items-center justify-between h-full w-full text-white min-h-[85px]">
+                              <span className="font-extrabold text-xs text-white drop-shadow-sm mt-1 line-clamp-2">{s.name}</span>
+                              <span className="text-[10px] text-amber-300 font-bold mt-auto">{priceDisplay}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-between h-full w-full text-slate-800">
+                            <span className="text-2xl group-hover:scale-110 transition-transform mb-1">{iconEmoji}</span>
+                            <span className="font-extrabold text-xs text-slate-800 group-hover:text-primary leading-tight line-clamp-2">{s.name}</span>
+                            <span className="text-[10px] text-slate-400 font-bold mt-auto">{priceDisplay}</span>
+                          </div>
+                        )}
                       </button>
                     );
                   })}

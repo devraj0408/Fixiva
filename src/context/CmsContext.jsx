@@ -1,6 +1,6 @@
 // src/context/CmsContext.jsx
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import * as catalogService from '../services/catalogService';
@@ -84,8 +84,12 @@ export const CmsProvider = ({ children }) => {
     });
   }, [authBookings, authWorkers, authContractors, authProfiles, reviews, tickets]);
 
-  const refreshCmsData = useCallback(async () => {
-    setLoading(true);
+  const isInitialCmsLoadRef = useRef(true);
+
+  const refreshCmsData = useCallback(async (isSilent = false) => {
+    if (isInitialCmsLoadRef.current && !isSilent) {
+      setLoading(true);
+    }
     setError(null);
     if (typeof refreshMarketplaceData === 'function') {
       refreshMarketplaceData().catch(() => null);
@@ -147,7 +151,10 @@ export const CmsProvider = ({ children }) => {
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
-      setLoading(false);
+      if (isInitialCmsLoadRef.current) {
+        setLoading(false);
+        isInitialCmsLoadRef.current = false;
+      }
     }
   }, [refreshMarketplaceData]);
 
@@ -161,7 +168,7 @@ export const CmsProvider = ({ children }) => {
     const cmsRealtimeChannel = supabase
       .channel('fixiva-cms-realtime')
       .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        if (isMounted) refreshCmsData();
+        if (isMounted) refreshCmsData(true);
       })
       .subscribe();
 
@@ -172,8 +179,30 @@ export const CmsProvider = ({ children }) => {
   }, [refreshCmsData]);
 
   // Phase 1 Action Handlers
-  const handleCreateService = async (data) => { const res = await catalogService.createService(data, actor); if (!res.error) { showToast('Service created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateService = async (id, updates) => { const res = await catalogService.updateService(id, updates, actor); if (!res.error) { showToast('Service updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateService = async (data) => {
+    const res = await catalogService.createService(data, actor);
+    if (!res.error) {
+      if (res.data) {
+        setServices((prev) => [res.data, ...prev.filter((s) => String(s.id) !== String(res.data.id))]);
+      }
+      showToast('Service created successfully.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+  const handleUpdateService = async (id, updates) => {
+    const res = await catalogService.updateService(id, updates, actor);
+    if (!res.error) {
+      setServices((prev) => prev.map((s) => (String(s.id) === String(id) ? { ...s, ...updates, ...(res.data || {}) } : s)));
+      showToast('Service updated successfully.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
   const handleDeleteService = async (id) => {
     console.log('[CmsContext.handleDeleteService] Invoked for Service ID:', id);
     const res = await catalogService.deleteService(id, actor);
@@ -185,7 +214,7 @@ export const CmsProvider = ({ children }) => {
         return filteredServices;
       });
       showToast(res.message || 'Service deleted successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       console.error('[CmsContext.handleDeleteService] Failed to delete service:', res.error);
       showToast('Failed to delete service: ' + res.error, 'error');
@@ -193,9 +222,41 @@ export const CmsProvider = ({ children }) => {
     return res;
   };
 
-  const handleCreateCategory = async (data) => { const res = await catalogService.createCategory(data, actor); if (!res.error) { showToast('Category created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateCategory = async (id, updates) => { const res = await catalogService.updateCategory(id, updates, actor); if (!res.error) { showToast('Category updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteCategory = async (id) => { const res = await catalogService.deleteCategory(id, actor); if (res.success) { showToast('Category deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateCategory = async (data) => {
+    const res = await catalogService.createCategory(data, actor);
+    if (!res.error) {
+      if (res.data) {
+        setCategories((prev) => [res.data, ...prev.filter((c) => String(c.id) !== String(res.data.id))]);
+      }
+      showToast('Category created successfully.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+  const handleUpdateCategory = async (id, updates) => {
+    const res = await catalogService.updateCategory(id, updates, actor);
+    if (!res.error) {
+      setCategories((prev) => prev.map((c) => (String(c.id) === String(id) ? { ...c, ...updates, ...(res.data || {}) } : c)));
+      showToast('Category updated successfully.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+  const handleDeleteCategory = async (id) => {
+    const res = await catalogService.deleteCategory(id, actor);
+    if (res.success || !res.error) {
+      setCategories((prev) => prev.filter((c) => String(c.id) !== String(id)));
+      showToast('Category deleted successfully.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
 
   const handleCreateCity = async (data) => { const res = await locationService.createCity(data, actor); if (!res.error) { showToast('City created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
   const handleUpdateCity = async (id, updates) => { const res = await locationService.updateCity(id, updates, actor); if (!res.error) { showToast('City updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };

@@ -61,9 +61,13 @@ const LoadingSkeleton = () => (
   </div>
 );
 
+import { isAdminRole } from './lib/adminAccess';
+
 const ProtectedRoute = ({ children, allowedRoles }) => {
   const { user, loading, isAuthenticated } = useAuth();
   const userRole = String(user?.role || '').trim().toLowerCase();
+  const userEmail = String(user?.email || '').trim().toLowerCase();
+  const isAdmin = isAdminRole(userRole, userEmail);
   const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
 
   if (loading || (isAuthenticated && !user)) {
@@ -74,8 +78,12 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (allowedRoles && !normalizedAllowed.includes(userRole)) {
-    if (userRole === 'admin') {
+  const isAllowed = allowedRoles
+    ? (normalizedAllowed.includes(userRole) || (isAdmin && normalizedAllowed.includes('admin')))
+    : true;
+
+  if (!isAllowed) {
+    if (isAdmin) {
       return <Navigate to="/dashboard/admin" replace />;
     }
     if (userRole === 'worker') {
@@ -93,7 +101,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const RoleBasedDashboardRedirect = () => {
   const { user } = useAuth();
   const role = String(user?.role || '').trim().toLowerCase();
-  if (role === 'admin') return <Navigate to="/dashboard/admin" replace />;
+  const email = String(user?.email || '').trim().toLowerCase();
+  if (isAdminRole(role, email)) return <Navigate to="/dashboard/admin" replace />;
   if (role === 'worker') return <Navigate to="/worker-dashboard" replace />;
   if (role === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
   return <Navigate to="/dashboard/customer" replace />;

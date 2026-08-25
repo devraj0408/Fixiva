@@ -134,11 +134,11 @@ const UnifiedBookingModal = () => {
           </button>
 
           <div className="flex items-center gap-3 mb-4">
-            {activeService && (activeService.image_url || activeService.image || (activeService.icon && activeService.icon.startsWith('http'))) ? (
+            {activeService && (activeService.image_url || activeService.image || (activeService.icon && (activeService.icon.startsWith('http') || activeService.icon.startsWith('data:')))) ? (
               <img
                 src={activeService.image_url || activeService.image || activeService.icon}
                 alt={activeService.name}
-                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
               />
             ) : null}
             <div>

@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useCms } from '../../context/CmsContext';
-import { Edit2, Trash2, MapPin, X, Search, CheckCircle2, XCircle, Globe, CheckSquare, Square } from 'lucide-react';
+import { Edit2, Trash2, MapPin, X, Search, CheckCircle2, XCircle, Globe, CheckSquare, Square, Zap } from 'lucide-react';
 
 const ServicesPanel = () => {
   const {
@@ -219,7 +219,7 @@ const ServicesPanel = () => {
     }
 
     const selectedCategoryObj = categories.find((cat) => String(cat.id) === String(form.category_id));
-    const imgUrl = form.image_url || form.image || (form.icon && form.icon.startsWith('http') ? form.icon : '');
+    const imgUrl = form.image_url || form.image || (form.icon && (form.icon.startsWith('http') || form.icon.startsWith('data:')) ? form.icon : '');
 
     const payload = {
       ...form,
@@ -256,12 +256,9 @@ const ServicesPanel = () => {
       savedServiceId = res.data.id;
     }
 
-    // Persist city availability checklist for this service
-    if (savedServiceId && cities.length > 0) {
-      const promises = cities.map((city) => {
-        const enabled = selectedCityIds.includes(city.id);
-        return toggleServiceInCity(city.id, savedServiceId, enabled);
-      });
+    // Persist city availability checklist for this service (only for selected cities)
+    if (savedServiceId && selectedCityIds.length > 0) {
+      const promises = selectedCityIds.map((cityId) => toggleServiceInCity(cityId, savedServiceId, true));
       await Promise.all(promises);
     }
 
@@ -283,7 +280,7 @@ const ServicesPanel = () => {
 
   const handleEdit = (service) => {
     const matchingCategory = categories.find((cat) => String(cat.name).toLowerCase() === String(service.category || '').toLowerCase());
-    const imgUrl = service.image_url || service.image || (service.icon && service.icon.startsWith('http') ? service.icon : '');
+    const imgUrl = service.image_url || service.image || (service.icon && (service.icon.startsWith('http') || service.icon.startsWith('data:')) ? service.icon : '');
     setEditingService(service);
     setForm({
       name: service.name || '',
@@ -372,7 +369,7 @@ const ServicesPanel = () => {
                       className="flex items-center gap-3 cursor-pointer flex-1"
                       title="Click to view district availability"
                     >
-                      {service.image_url || service.image || (service.icon && service.icon.startsWith('http')) ? (
+                      {service.image_url || service.image || (service.icon && (service.icon.startsWith('http') || service.icon.startsWith('data:'))) ? (
                         <img src={service.image_url || service.image || service.icon} alt={service.name} className="h-11 w-11 shrink-0 rounded-xl object-cover border border-slate-200" />
                       ) : (
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary font-black uppercase text-xs group-hover:bg-primary group-hover:text-white transition-all">
@@ -640,7 +637,7 @@ const ServicesPanel = () => {
 
           <div>
             <label className="text-xs font-bold text-slate-600 block mb-1">Service Image</label>
-            {(form.image_url || form.image || (form.icon && form.icon.startsWith('http'))) ? (
+            {(form.image_url || form.image || (form.icon && (form.icon.startsWith('http') || form.icon.startsWith('data:')))) ? (
               <div className="p-3 bg-white rounded-2xl border border-slate-200 space-y-3">
                 <div className="flex items-center gap-3">
                   <img
@@ -703,6 +700,44 @@ const ServicesPanel = () => {
               </div>
             )}
             {uploading && <p className="text-[11px] text-primary font-bold mt-1.5 animate-pulse">Uploading image to storage...</p>}
+
+            {/* Live Card Background Preview */}
+            <div className="mt-3 p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Live Card Preview (Site Appearance):</span>
+              <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-5 text-center flex flex-col items-center justify-between min-h-[170px] shadow-sm max-w-[220px] mx-auto group">
+                {(form.image_url || form.image || (form.icon && (form.icon.startsWith('http') || form.icon.startsWith('data:')))) ? (
+                  <>
+                    <img
+                      src={form.image_url || form.image || form.icon}
+                      alt="Service Card Background Preview"
+                      className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/55 to-slate-900/30" />
+                    <div className="relative z-10 flex flex-col items-center justify-between h-full w-full">
+                      <div className="h-9 w-9 rounded-xl bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shrink-0">
+                        <Zap size={18} />
+                      </div>
+                      <h4 className="font-extrabold text-xs text-white leading-tight drop-shadow-sm mt-2 line-clamp-2">
+                        {form.name || 'Service Name'}
+                      </h4>
+                      <span className="mt-3 inline-block px-2.5 py-0.5 rounded-full bg-primary text-white text-[9px] font-black uppercase tracking-wider shadow-sm">
+                        Starts ₹{form.base_price || form.inspection_fee || 0}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-between h-full w-full py-2">
+                    <div className="h-12 w-12 rounded-xl bg-slate-100 text-primary flex items-center justify-center mb-2">
+                      <Zap size={22} />
+                    </div>
+                    <h4 className="font-extrabold text-xs text-slate-800 line-clamp-2">{form.name || 'Service Name'}</h4>
+                    <span className="text-[10px] text-slate-400 font-extrabold uppercase mt-2">
+                      Starts ₹{form.base_price || form.inspection_fee || 0}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           <div className="pt-3 border-t border-slate-200 space-y-3">

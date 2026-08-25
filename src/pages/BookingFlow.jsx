@@ -306,7 +306,8 @@ const BookingFlow = () => {
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                 {activeServices.map(s => {
-                  const imgUrl = s.image_url || s.image || (s.icon && s.icon.startsWith('http') ? s.icon : null);
+                  const imgUrl = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
+                  const isSelected = selectedServiceId === s.id;
                   return (
                     <button
                       key={s.id}
@@ -314,23 +315,36 @@ const BookingFlow = () => {
                         setSelectedServiceId(s.id);
                         setStep(2);
                       }}
-                      className={`p-4 rounded-2xl border text-left flex flex-col items-start gap-2 transition-all ${
-                        selectedServiceId === s.id 
-                          ? 'border-primary bg-primary/5 text-slate-900 shadow-md ring-2 ring-primary/20'
-                          : 'border-slate-100 hover:border-slate-200 bg-white text-slate-700'
+                      className={`relative overflow-hidden p-4 rounded-2xl border text-left flex flex-col justify-between min-h-[110px] transition-all group ${
+                        isSelected 
+                          ? 'border-primary shadow-lg ring-2 ring-primary/20'
+                          : 'border-slate-100 hover:border-slate-200 shadow-xs'
                       }`}
                     >
-                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden shrink-0">
-                        {imgUrl ? (
-                          <img src={imgUrl} alt={s.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Sparkles size={20} />
-                        )}
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-sm">{s.name}</h3>
-                        <span className="text-xs text-slate-500">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
-                      </div>
+                      {imgUrl ? (
+                        <>
+                          <img 
+                            src={imgUrl} 
+                            alt={s.name} 
+                            className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/50 to-slate-900/30" />
+                          <div className="relative z-10 flex flex-col justify-between h-full w-full text-white min-h-[80px]">
+                            <h3 className="font-extrabold text-sm leading-tight text-white drop-shadow-sm">{s.name}</h3>
+                            <span className="text-[11px] text-amber-300 font-bold mt-auto">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex flex-col justify-between h-full min-h-[80px] text-slate-700">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden shrink-0 mb-2">
+                            <Sparkles size={20} />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-sm text-slate-900">{s.name}</h3>
+                            <span className="text-xs text-slate-500">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
+                          </div>
+                        </div>
+                      )}
                     </button>
                   );
                 })}

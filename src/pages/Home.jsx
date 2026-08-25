@@ -719,28 +719,53 @@ const Home = () => {
                 {/* Show up to 7 active services from Admin Catalog */}
                 {activeServices.slice(0, 7).map(s => {
                   const Icon = IconMap[s.name] || IconMap[s.icon] || Zap;
-                  const serviceImg = s.image_url || s.image || (s.icon && s.icon.startsWith('http') ? s.icon : null);
+                  const serviceImg = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
                   return (
                     <div key={s.id} className="w-[220px] sm:w-[250px] shrink-0 snap-start">
                       <Link 
                         to={`/book/${s.id}`} 
-                        className="group section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center h-full border border-slate-200/80 bg-white"
+                        className="group relative overflow-hidden section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center justify-between h-full min-h-[220px] border border-slate-200/80 bg-white"
                       >
-                        <div className="h-16 w-16 rounded-2xl bg-slate-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all overflow-hidden border border-slate-100 shadow-xs shrink-0">
-                          {serviceImg ? (
-                            <img src={serviceImg} alt={s.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Icon size={26} />
-                          )}
-                        </div>
-                        <h4 className="font-extrabold text-sm text-slate-900 leading-tight group-hover:text-primary transition-colors line-clamp-2">
-                          {s.name}
-                        </h4>
-                        <div className="mt-auto pt-4">
-                          <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-                            Starts ₹{s.base_price || s.inspection_fee || 0}
-                          </p>
-                        </div>
+                        {serviceImg ? (
+                          <>
+                            {/* Service background image auto-adjusted to cover full card */}
+                            <img 
+                              src={serviceImg} 
+                              alt={s.name} 
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            />
+                            {/* Dark gradient overlay for text readability */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/55 to-slate-900/30 group-hover:from-slate-950/95 transition-colors" />
+
+                            <div className="relative z-10 flex flex-col items-center justify-between h-full w-full">
+                              <div className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <Icon size={20} />
+                              </div>
+                              <h4 className="font-extrabold text-sm text-white leading-tight drop-shadow-md line-clamp-2 mt-2">
+                                {s.name}
+                              </h4>
+                              <div className="mt-auto pt-3">
+                                <span className="inline-block px-3 py-1 rounded-full bg-primary/95 text-white text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur-xs">
+                                  Starts ₹{s.base_price || s.inspection_fee || 0}
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-between h-full w-full">
+                            <div className="h-16 w-16 rounded-2xl bg-slate-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all overflow-hidden border border-slate-100 shadow-xs shrink-0">
+                              <Icon size={26} />
+                            </div>
+                            <h4 className="font-extrabold text-sm text-slate-900 leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                              {s.name}
+                            </h4>
+                            <div className="mt-auto pt-4">
+                              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                                Starts ₹{s.base_price || s.inspection_fee || 0}
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </Link>
                     </div>
                   );

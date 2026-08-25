@@ -1,3 +1,5 @@
+import { isAdminRole } from './adminAccess';
+
 export const normalizeNavbarUser = (user = null) => {
   const safeUser = user && typeof user === 'object' ? user : {};
 
@@ -13,11 +15,12 @@ export const normalizeNavbarUser = (user = null) => {
 export const getDashboardPath = (user = null) => {
   const normalizedUser = normalizeNavbarUser(user);
   const role = String(normalizedUser.role || '').trim().toLowerCase();
+  const email = String(normalizedUser.email || '').trim().toLowerCase();
 
   if (!role || role === 'guest') {
     return '/login';
   }
-  if (role === 'admin') {
+  if (isAdminRole(role, email)) {
     return '/dashboard/admin';
   }
   if (role === 'worker') {

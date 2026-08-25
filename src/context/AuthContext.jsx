@@ -9,6 +9,7 @@ import { submitCoverageRequest } from '../services/coverageService';
 import { getDistricts } from '../services/locationService';
 import { generateAIResponse } from '../services/aiChatService';
 import { calculateWorkerTrustScore, syncWorkerTrustScoreToDb, enrichWorkersWithTrustScores } from '../services/trustScoreService';
+import { isAdminRole } from '../lib/adminAccess';
 
 const AppContext = createContext();
 
@@ -249,9 +250,9 @@ export const AuthProvider = ({ children }) => {
         };
       }
 
-      // 4. Ensure admin role for fixiva869@gmail.com
+      // 4. Ensure admin role for admin emails or admin role users
       const emailToCheck = normalizeEmail(profile.email || fallbackEmail);
-      if (emailToCheck === PRIMARY_ADMIN_EMAIL) {
+      if (isAdminRole(profile.role, emailToCheck)) {
         if (profile.role !== 'admin') {
           await supabase
             .from('profiles')
@@ -263,7 +264,7 @@ export const AuthProvider = ({ children }) => {
         }
       }
 
-      if (profile.account_status === 'suspended' && emailToCheck !== PRIMARY_ADMIN_EMAIL) {
+      if (profile.account_status === 'suspended' && !isAdminRole(profile.role, emailToCheck)) {
         await supabase.auth.signOut().catch(() => null);
         setUser(null);
         showToast('Your account is suspended. Please contact support.', 'error');
@@ -279,6 +280,10 @@ export const AuthProvider = ({ children }) => {
           userData = { ...userData, ...parsed };
         }
       } catch (e) { void e; }
+
+      if (emailToCheck === PRIMARY_ADMIN_EMAIL || isAdminRole(profile.role)) {
+        userData.role = 'admin';
+      }
 
       const normalizedRole = String(userData.role || '').trim().toLowerCase();
       const regExtra = activeRegistrationData?.extra || {};
@@ -578,6 +583,9 @@ export const AuthProvider = ({ children }) => {
         }
 
         const activeUser = profileRow || { id: data.user.id, email, role: regData?.role || 'customer' };
+        if (isAdminRole(activeUser.role, email)) {
+          activeUser.role = 'admin';
+        }
         setUser(activeUser);
         try {
           localStorage.setItem('fixiva_current_user', JSON.stringify(activeUser));
@@ -610,13 +618,13 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        if (!profileRow && purpose === 'sign-in' && email !== PRIMARY_ADMIN_EMAIL) {
+        if (!profileRow && purpose === 'sign-in' && !isAdminRole('', email)) {
           setLoading(false);
           return { success: false, error: new Error('Account does not exist. Please register first.') };
         }
 
         if (!profileRow) {
-          const targetRole = email === PRIMARY_ADMIN_EMAIL ? 'admin' : (regData?.role || 'customer');
+          const targetRole = isAdminRole('', email) ? 'admin' : (regData?.role || 'customer');
           const newProf = {
             id: userId,
             email,
@@ -630,8 +638,9 @@ export const AuthProvider = ({ children }) => {
           profileRow = insData || newProf;
         }
 
-        if (email === PRIMARY_ADMIN_EMAIL) {
+        if (isAdminRole(profileRow.role, email)) {
           profileRow.role = 'admin';
+          await supabase.from('profiles').update({ role: 'admin' }).eq('id', profileRow.id).catch(() => null);
         }
 
         const normalizedRole = String(profileRow.role || '').trim().toLowerCase();

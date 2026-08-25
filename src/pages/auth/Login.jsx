@@ -30,7 +30,8 @@ const Login = () => {
   useEffect(() => {
     if (isAuthenticated && user) {
       const role = String(user.role || '').trim().toLowerCase();
-      if (isAdminRole(role)) {
+      const email = String(user.email || '').trim().toLowerCase();
+      if (isAdminRole(role, email)) {
         navigate('/dashboard/admin');
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
@@ -106,11 +107,14 @@ const Login = () => {
     if (e) e.preventDefault();
     setErrors({});
     
-    if (!identifier.trim()) {
+    const cleanIdentifier = identifier.trim();
+    const codeToVerify = (otp || otpValues.join('')).trim();
+
+    if (!cleanIdentifier) {
       setErrors({ identifier: 'Enter your email address.' });
       return;
     }
-    if (otp.length < 6) {
+    if (codeToVerify.length < 6) {
       setErrors({ otp: 'Enter the 6-digit verification code.' });
       return;
     }
@@ -122,7 +126,7 @@ const Login = () => {
 
     setLoading(true);
     setAttempts(prev => prev + 1);
-    const { success, error, profile } = await verifyOtp(identifier, otp, 'sign-in');
+    const { success, error, profile } = await verifyOtp(cleanIdentifier, codeToVerify, 'sign-in');
     setLoading(false);
 
     if (!success) {
@@ -145,7 +149,8 @@ const Login = () => {
 
     try {
       const role = String(profile?.role || '').trim().toLowerCase();
-      if (isAdminRole(role)) {
+      const userEmail = String(profile?.email || cleanIdentifier || '').trim().toLowerCase();
+      if (isAdminRole(role, userEmail)) {
         navigate('/dashboard/admin');
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
