@@ -151,12 +151,6 @@ export const createService = async (serviceData, actor = {}) => {
       Object.entries(basePayload).filter(([_, v]) => v !== undefined && v !== null)
     );
 
-    const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
-      ? crypto.randomUUID()
-      : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
-          (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
-        );
-
     const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
 
     let lastCreatedId = generatedUuid;
@@ -208,8 +202,6 @@ export const createService = async (serviceData, actor = {}) => {
       if (data?.id) lastCreatedId = data.id;
     }
 
-=======
->>>>>>> d80015e1a2dd93bb8f25f70bc671d712b5ac9864
     // Attempt 3: If string slug id is required by legacy varchar schema
     if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('slug'))) {
       const slugId = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `service-${Date.now()}`;

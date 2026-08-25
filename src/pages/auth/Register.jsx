@@ -11,6 +11,7 @@ const Register = () => {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const initialRole = queryParams.get('role') || 'customer';
+  const initialEmail = queryParams.get('email') || '';
   const [role, setRole] = useState(initialRole === 'worker' ? 'worker' : 'customer');
 
   const { requestOtp, verifyOtp, showToast, user, isAuthenticated } = useApp();
@@ -46,7 +47,7 @@ const Register = () => {
 
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    email: initialEmail,
     phone: '',
     city: '',
     state: '',

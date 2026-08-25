@@ -66,20 +66,32 @@ const Login = () => {
     }
 
     setLoading(true);
-    const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
-    setLoading(false);
+    try {
+      const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
+      
+      if (!success) {
+        setErrors({ identifier: 'Account does not exist. Redirecting to registration page...' });
+        showToast('Account does not exist. Redirecting to registration...', 'info');
+        setTimeout(() => {
+          navigate(`/register?email=${encodeURIComponent(normalizedIdentifier)}`);
+        }, 1200);
+        return;
+      }
 
-    if (!success) {
-      setErrors({ identifier: error?.message || 'Unable to send verification code.' });
-      return;
+      setOtpSent(true);
+      setCountdown(60);
+      setAttempts(0);
+      setOtpValues(['', '', '', '', '', '']);
+      setOtp('');
+      setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
+    } catch (err) {
+      setErrors({ identifier: 'Account does not exist. Redirecting to registration page...' });
+      setTimeout(() => {
+        navigate(`/register?email=${encodeURIComponent(normalizedIdentifier)}`);
+      }, 1200);
+    } finally {
+      setLoading(false);
     }
-
-    setOtpSent(true);
-    setCountdown(60);
-    setAttempts(0);
-    setOtpValues(['', '', '', '', '', '']);
-    setOtp('');
-    setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
   };
 
   const handleResendOtp = async () => {

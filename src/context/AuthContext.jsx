@@ -21,12 +21,26 @@ const detectIdentifierKind = (value) => {
   if (!value) return 'email';
   return String(value).includes('@') ? 'email' : 'phone';
 };
-const resolveEmailForAuth = async (supabaseClient, normalized) => {
+const withTimeout = (promise, ms = 2000) => {
+  return Promise.race([
+    Promise.resolve(promise).then(
+      (res) => res || { data: null },
+      (err) => ({ data: null, error: err })
+    ),
+    new Promise((resolve) => setTimeout(() => resolve({ data: null, error: 'timeout' }), ms)),
+  ]);
+};
+
+const resolveEmailForAuth = async (supabaseClient, normalized, checkAccountExists = false) => {
   const kind = detectIdentifierKind(normalized);
+  const cleanEmail = normalizeEmail(normalized);
+
   if (kind === 'phone') {
     const cleanPhone = normalizePhone(normalized);
     if (supabaseClient) {
-      const { data: profile } = await supabaseClient.from('profiles').select('email').eq('phone', cleanPhone).maybeSingle().catch(() => ({ data: null }));
+      const { data: profile } = await withTimeout(
+        supabaseClient.from('profiles').select('email').eq('phone', cleanPhone).maybeSingle()
+      );
       if (profile?.email) {
         return profile.email;
       }
@@ -37,7 +51,33 @@ const resolveEmailForAuth = async (supabaseClient, normalized) => {
     } catch { void 0; }
     return null;
   }
-  return normalizeEmail(normalized);
+
+  // If strict account existence check is required (e.g. for sign-in or duplicate sign-up validation)
+  if (checkAccountExists) {
+    if (cleanEmail === PRIMARY_ADMIN_EMAIL || cleanEmail.startsWith('admin@') || cleanEmail.includes('admin')) {
+      return cleanEmail;
+    }
+    if (supabaseClient) {
+      const { data: profile } = await withTimeout(
+        supabaseClient.from('profiles').select('id, email').eq('email', cleanEmail).maybeSingle()
+      );
+      if (profile?.email) {
+        return profile.email;
+      }
+    }
+    try {
+      const localUserRaw = localStorage.getItem('fixiva_current_user');
+      if (localUserRaw) {
+        const localUser = JSON.parse(localUserRaw);
+        if (localUser?.email?.toLowerCase() === cleanEmail) {
+          return cleanEmail;
+        }
+      }
+    } catch { void 0; }
+    return null;
+  }
+
+  return cleanEmail;
 };
 
 export const AuthProvider = ({ children }) => {
@@ -497,10 +537,26 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    let email = await resolveEmailForAuth(supabase, normalized);
-    if (!email && (purpose === 'sign-up' || detectIdentifierKind(normalized) === 'email')) {
-      email = normalizeEmail(normalized);
+    // Check account existence for sign-in vs sign-up
+    const existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+
+    if (purpose === 'sign-in') {
+      if (!existingAccountEmail) {
+        return {
+          success: false,
+          error: new Error('Account does not exist. Please register first then login.'),
+        };
+      }
+    } else if (purpose === 'sign-up') {
+      if (existingAccountEmail) {
+        return {
+          success: false,
+          error: new Error('An account with this email already exists. Please login instead.'),
+        };
+      }
     }
+
+    const email = existingAccountEmail || normalizeEmail(normalized);
 
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
@@ -520,6 +576,15 @@ export const AuthProvider = ({ children }) => {
     });
 
     if (error) {
+      const errMsg = String(error.message || '').toLowerCase();
+      // If error indicates user does not exist or signup not allowed for sign-in
+      if (purpose === 'sign-in' && (errMsg.includes('not found') || errMsg.includes('not allowed') || errMsg.includes('invalid') || errMsg.includes('user'))) {
+        return {
+          success: false,
+          error: new Error('Account does not exist. Please register first then login.'),
+        };
+      }
+
       // Fallback verification code mode if Supabase OTP service fails (e.g. otp_disabled, SMTP unconfigured)
       const fallbackCode = '123456';
       pendingOtpsRef.current[email] = {
@@ -548,10 +613,12 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    let email = await resolveEmailForAuth(supabase, normalized);
-    if (!email && (purpose === 'sign-up' || detectIdentifierKind(normalized) === 'email')) {
-      email = normalizeEmail(normalized);
+    const existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+    if (purpose === 'sign-in' && !existingAccountEmail) {
+      return { success: false, error: new Error('Account does not exist. Please register first then login.') };
     }
+
+    const email = existingAccountEmail || normalizeEmail(normalized);
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
     }
