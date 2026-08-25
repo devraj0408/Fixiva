@@ -34,6 +34,8 @@ const PrivacyPolicy = lazyWithRetry(() => import('./pages/legal/PrivacyPolicy'))
 const RefundPolicy = lazyWithRetry(() => import('./pages/legal/RefundPolicy'));
 
 
+const ContractorDisabled = lazyWithRetry(() => import('./pages/ContractorDisabled'));
+
 const routerBasename = getRouterBasename();
 
 const LoadingSkeleton = () => (
@@ -78,6 +80,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
+  if (userRole === 'contractor') {
+    return <Navigate to="/contractor-disabled" replace />;
+  }
+
   const isAllowed = allowedRoles
     ? (normalizedAllowed.includes(userRole) || (isAdmin && normalizedAllowed.includes('admin')))
     : true;
@@ -88,9 +94,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
     if (userRole === 'worker') {
       return <Navigate to="/worker-dashboard" replace />;
-    }
-    if (userRole === 'contractor') {
-      return <Navigate to="/contractor-dashboard" replace />;
     }
     return <Navigate to="/dashboard/customer" replace />;
   }
@@ -104,7 +107,7 @@ const RoleBasedDashboardRedirect = () => {
   const email = String(user?.email || '').trim().toLowerCase();
   if (isAdminRole(role, email)) return <Navigate to="/dashboard/admin" replace />;
   if (role === 'worker') return <Navigate to="/worker-dashboard" replace />;
-  if (role === 'contractor') return <Navigate to="/contractor-dashboard" replace />;
+  if (role === 'contractor') return <Navigate to="/contractor-disabled" replace />;
   return <Navigate to="/dashboard/customer" replace />;
 };
 
@@ -126,10 +129,11 @@ function AppShell() {
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
               <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard/contractor" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/dashboard/contractor" element={<ContractorDisabled />} />
               <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
               <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-              <Route path="/contractor-dashboard" element={<ProtectedRoute allowedRoles={['contractor']}><ContractorDashboard /></ProtectedRoute>} />
+              <Route path="/contractor-dashboard" element={<ContractorDisabled />} />
+              <Route path="/contractor-disabled" element={<ContractorDisabled />} />
               <Route path="/dashboard" element={<ProtectedRoute><RoleBasedDashboardRedirect /></ProtectedRoute>} />
               <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
               <Route path="/help" element={<HelpCenter />} />

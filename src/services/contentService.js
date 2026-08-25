@@ -130,7 +130,14 @@ export const createBanner = async (bannerData, actor = {}) => {
 
   if (supabase) {
     try {
+      const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+          );
+
       const payload = {
+        id: newBanner.id || generatedUuid,
         title: newBanner.title,
         subtitle: newBanner.subtitle,
         image_url: newBanner.image_url,
@@ -361,7 +368,14 @@ export const createOffer = async (offerData, actor = {}) => {
 
   if (supabase) {
     try {
+      const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+          );
+
       const payload = {
+        id: newOffer.id || generatedUuid,
         title: newOffer.title,
         badge: newOffer.badge,
         description: newOffer.description,
@@ -591,7 +605,14 @@ export const createFaq = async (faqData, actor = {}) => {
 
   if (supabase) {
     try {
+      const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
+            (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16)
+          );
+
       const payload = {
+        id: newFaq.id || generatedUuid,
         question: newFaq.question,
         answer: newFaq.answer,
         category: newFaq.category,

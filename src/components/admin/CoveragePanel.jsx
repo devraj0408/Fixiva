@@ -177,7 +177,6 @@ const CoveragePanel = () => {
                   <th className="py-3.5 px-4 text-center">Coverage Radius</th>
                   <th className="py-3.5 px-4 text-center">Customers</th>
                   <th className="py-3.5 px-4 text-center">Workers</th>
-                  <th className="py-3.5 px-4 text-center">Contractors</th>
                   <th className="py-3.5 px-4 text-center">Active Bookings</th>
                   <th className="py-3.5 px-4 text-center">Requests</th>
                   <th className="py-3.5 px-4 text-right">Actions</th>
@@ -223,7 +222,6 @@ const CoveragePanel = () => {
                     {/* Counts */}
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.customerCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.workerCount || 0}</td>
-                    <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.contractorCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-slate-900">{dist.bookingCount || 0}</td>
                     <td className="py-3.5 px-4 text-center font-extrabold text-indigo-600">{dist.requestCount || 0}</td>
 

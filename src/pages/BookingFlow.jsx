@@ -15,6 +15,7 @@ import RapidoLocationSelector from '../components/location/RapidoLocationSelecto
 import { detectCurrentLocation } from '../services/locationService';
 import { findAvailableProfessionals, createBooking } from '../services/bookingService';
 import { submitCoverageRequest } from '../services/coverageService';
+import { BUSINESS_CONFIG } from '../config/businessConfig';
 
 const BookingFlow = () => {
   const { serviceId: paramServiceId } = useParams();
@@ -104,12 +105,12 @@ const BookingFlow = () => {
   );
 
   // Active Service object
-  const activeService = activeServices.find(s => s.id === selectedServiceId) || services.find(s => s.id === selectedServiceId) || activeServices[0] || {
+  const activeService = activeServices.find(s => s.id === selectedServiceId) || services.find(s => s.id === selectedServiceId) || activeServices[0] || (selectedServiceId ? {
     id: selectedServiceId,
-    name: selectedServiceId ? selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1) : 'Plumber',
-    base_price: 199,
-    platform_fee: 49
-  };
+    name: selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1),
+    base_price: 0,
+    platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
+  } : null);
 
   // Run Locality Matching Engine when step 3 or location/service changes
   const runMatchingEngine = useCallback(async () => {

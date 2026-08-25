@@ -76,7 +76,7 @@ const BookingManagementPanel = () => {
                 <tr key={booking.id} className="border-t border-slate-100">
                   <td className="px-4 py-3">
                     <p className="font-extrabold text-slate-900">#{booking.id.slice(0, 10)}</p>
-                    <p className="text-xs text-slate-500">{booking.service_name || 'Home Service'} • {booking.city || 'Ranchi'}</p>
+                    <p className="text-xs text-slate-500">{booking.service_name || 'Home Service'} • {booking.district || booking.city || 'Coverage Location'}</p>
                   </td>
                   <td className="px-4 py-3 text-xs">
                     <p className="font-bold text-slate-800">{booking.customer_name || 'Customer'}</p>
@@ -96,7 +96,7 @@ const BookingManagementPanel = () => {
                         <option value="">Assign Specialist</option>
                         {verifiedWorkers.map((w) => (
                           <option key={w.id} value={w.id}>
-                            {w.name} ({w.city || 'Ranchi'})
+                            {w.name} ({w.district || w.city || 'Verified'})
                           </option>
                         ))}
                       </select>

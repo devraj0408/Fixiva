@@ -49,7 +49,7 @@ const AreasPanel = () => {
     const payload = {
       ...form,
       district_name: matchedCity ? matchedCity.name : '',
-      state_name: matchedCity ? (matchedCity.state_name || matchedCity.region || matchedCity.state || 'Jharkhand') : 'Jharkhand',
+      state_name: matchedCity ? (matchedCity.state_name || matchedCity.region || matchedCity.state || '') : '',
     };
 
     if (editingArea) {

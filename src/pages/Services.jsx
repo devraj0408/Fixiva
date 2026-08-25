@@ -477,7 +477,7 @@ const Services = () => {
                                     {/* Average review rating badge */}
                                     <div className="flex items-center gap-1 text-[10px] font-extrabold text-amber-500 pt-1">
                                       <Star size={12} fill="currentColor" />
-                                      <span>4.9 (Verified reviews)</span>
+                                      <span>{service.rating ? `${service.rating} (${service.review_count || 0})` : 'Verified Service'}</span>
                                     </div>
                                   </div>
                                 </div>

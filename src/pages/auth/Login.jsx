@@ -36,7 +36,7 @@ const Login = () => {
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
       } else if (role === 'contractor') {
-        navigate('/contractor-dashboard');
+        navigate('/contractor-disabled');
       } else {
         navigate('/dashboard/customer');
       }
@@ -155,7 +155,7 @@ const Login = () => {
       } else if (role === 'worker') {
         navigate('/worker-dashboard');
       } else if (role === 'contractor') {
-        navigate('/contractor-dashboard');
+        navigate('/contractor-disabled');
       } else {
         navigate('/dashboard/customer');
       }

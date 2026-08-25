@@ -17,16 +17,10 @@ const ProfileCard = ({ user, role = 'customer', isOnline = true, onEditProfile }
 
   const badge = getBadgeInfo();
   const displayName = user?.company || user?.name || 'Fixiva User';
-  const defaultAvatar = role === 'contractor'
-    ? 'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=150&auto=format&fit=crop&q=80'
-    : role === 'worker'
-    ? 'https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80'
-    : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80';
-
-  const avatarUrl = user?.profile_photo_url || defaultAvatar;
+  const avatarUrl = user?.profile_photo_url;
   const memberSince = user?.created_at
     ? new Date(user.created_at).toLocaleString('default', { month: 'short', year: 'numeric' })
-    : 'Jan 2026';
+    : '';
 
   return (
     <div className="rounded-3xl bg-slate-900 p-6 text-white shadow-lg space-y-4 relative overflow-hidden">
@@ -35,11 +29,17 @@ const ProfileCard = ({ user, role = 'customer', isOnline = true, onEditProfile }
       <div className="flex flex-col items-center text-center space-y-3 relative z-10">
         {/* Circular Avatar */}
         <div className="relative">
-          <img
-            src={avatarUrl}
-            alt={displayName}
-            className="w-20 h-20 rounded-full object-cover border-4 border-white/20 shadow-md"
-          />
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={displayName}
+              className="w-20 h-20 rounded-full object-cover border-4 border-white/20 shadow-md"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-full bg-slate-800 text-white border-4 border-white/20 shadow-md flex items-center justify-center font-black text-2xl">
+              {displayName.charAt(0).toUpperCase()}
+            </div>
+          )}
           {isOnline && (
             <span className="absolute bottom-0 right-0 w-5 h-5 bg-emerald-500 rounded-full border-2 border-slate-900 flex items-center justify-center text-[10px] text-white font-bold" title="Online Active">
               ✓

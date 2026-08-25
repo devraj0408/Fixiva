@@ -102,7 +102,7 @@ function detectActionIntent(lowerQuery, userRole = 'Customer', availableServices
 
   // 4. Booking Tracking, Dispatches & Dashboard
   if (/dispatch|track|order|status|my booking|live status|assigned worker|no show|ongoing job/i.test(lowerQuery)) {
-    const dashPath = userRole === 'Worker' ? '/worker-dashboard' : userRole === 'Contractor' ? '/contractor-dashboard' : '/dashboard/customer';
+    const dashPath = userRole === 'Worker' ? '/worker-dashboard' : userRole === 'Contractor' ? '/contractor-disabled' : '/dashboard/customer';
     return {
       type: 'dashboard',
       path: dashPath,
@@ -124,7 +124,7 @@ function detectActionIntent(lowerQuery, userRole = 'Customer', availableServices
     if (userRole === 'Contractor') {
       return {
         type: 'contractor_dashboard',
-        path: '/contractor-dashboard',
+        path: '/contractor-disabled',
         label: '💼 Go to Contractor Panel',
         countdownSeconds: 5
       };

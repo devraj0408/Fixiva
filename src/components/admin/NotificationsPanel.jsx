@@ -250,7 +250,6 @@ const NotificationsPanel = () => {
               <option value="all">All Users</option>
               <option value="customer">Customers</option>
               <option value="worker">Workers</option>
-              <option value="contractor">Contractors</option>
               <option value="admin">Admins</option>
             </select>
           </div>

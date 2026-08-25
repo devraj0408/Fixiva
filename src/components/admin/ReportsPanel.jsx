@@ -27,7 +27,7 @@ const ReportsPanel = () => {
         Name: c.name || 'Customer',
         Email: c.email || '',
         Phone: c.phone || '',
-        City: c.city || 'Ranchi',
+        City: c.district || c.city || '-',
         Status: c.account_status || 'active',
       }));
     } else if (reportType === 'workers') {
@@ -35,7 +35,7 @@ const ReportsPanel = () => {
         ID: w.id,
         Name: w.name || 'Worker',
         Skills: w.skills || '',
-        City: w.city || 'Ranchi',
+        City: w.district || w.city || '-',
         TrustScore: w.trustScore ?? w.trust_score ?? 50,
         Status: w.status || 'Active',
       }));

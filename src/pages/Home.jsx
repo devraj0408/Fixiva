@@ -154,75 +154,44 @@ const HomePromotionalBanner = ({ banners, navigate }) => {
     </section>
   );
 };
-const heroServices = [
-  {
-    id: 'plumber',
-    title: 'Plumber',
-    badge: '🔧 Plumber',
-    image: '/assets/hero-slideshow/plumber.jpg'
-  },
-  {
-    id: 'electrician',
-    title: 'Electrician',
-    badge: '⚡ Electrician',
-    image: '/assets/hero-slideshow/electrician.jpg'
-  },
-  {
-    id: 'ac_repair',
-    title: 'AC Repair',
-    badge: '❄️ AC Repair',
-    image: '/assets/hero-slideshow/ac_service.jpg'
-  },
-  {
-    id: 'cleaning',
-    title: 'Home Cleaning',
-    badge: '🧹 Home Cleaning',
-    image: '/assets/hero-slideshow/cleaning.jpg'
-  },
-  {
-    id: 'painting',
-    title: 'Painting',
-    badge: '🎨 Painting',
-    image: '/assets/hero-slideshow/painting.jpg'
-  },
-  {
-    id: 'renovation',
-    title: 'Home Renovation',
-    badge: '🏠 Home Renovation',
-    image: '/assets/hero-slideshow/renovation.jpg'
-  },
-  {
-    id: 'architecture',
-    title: 'Architecture & Interior',
-    badge: '📐 Architecture & Interior',
-    image: '/assets/hero-slideshow/renovation.jpg'
-  }
-];
-
 const HeroServiceSlideshow = () => {
+  const { activeServices = [] } = useCms();
   const [slideIndex, setSlideIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
   const { t } = useLanguage();
 
+  const slides = useMemo(() => {
+    if (!activeServices || activeServices.length === 0) return [];
+    return activeServices.map(s => ({
+      id: s.id,
+      title: s.name,
+      badge: `✨ ${s.name}`,
+      image: s.image_url || s.image || (s.icon && s.icon.startsWith('http') ? s.icon : '')
+    }));
+  }, [activeServices]);
+
   useEffect(() => {
-    if (isHovered) return;
+    if (slides.length <= 1 || isHovered) return;
     const interval = setInterval(() => {
-      setSlideIndex((prev) => (prev + 1) % heroServices.length);
+      setSlideIndex((prev) => (prev + 1) % slides.length);
     }, 4500);
     return () => clearInterval(interval);
-  }, [isHovered]);
+  }, [slides.length, isHovered]);
 
-  const currentSlide = heroServices[slideIndex];
+  if (slides.length === 0) return null;
+
+  const safeIndex = slideIndex < slides.length ? slideIndex : 0;
+  const currentSlide = slides[safeIndex];
 
   const handlePrev = (e) => {
     if (e) e.stopPropagation();
-    setSlideIndex((prev) => (prev === 0 ? heroServices.length - 1 : prev - 1));
+    setSlideIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
   };
 
   const handleNext = (e) => {
     if (e) e.stopPropagation();
-    setSlideIndex((prev) => (prev + 1) % heroServices.length);
+    setSlideIndex((prev) => (prev + 1) % slides.length);
   };
 
   const handleTouchStart = (e) => {
