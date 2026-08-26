@@ -42,12 +42,12 @@ const resolveEmailForAuth = async (supabaseClient, normalized, checkAccountExist
         supabaseClient.from('profiles').select('email').eq('phone', cleanPhone).maybeSingle()
       );
       if (profile?.email) {
-        return profile.email;
+        return profile.email.toLowerCase();
       }
     }
     try {
       const savedEmail = localStorage.getItem(`fixiva_phone_${cleanPhone}`);
-      if (savedEmail) return savedEmail;
+      if (savedEmail) return savedEmail.toLowerCase();
     } catch { void 0; }
     return null;
   }
@@ -58,13 +58,32 @@ const resolveEmailForAuth = async (supabaseClient, normalized, checkAccountExist
       return cleanEmail;
     }
     if (supabaseClient) {
+      // 1. Check profiles table (case-insensitive)
       const { data: profile } = await withTimeout(
-        supabaseClient.from('profiles').select('id, email').eq('email', cleanEmail).maybeSingle()
+        supabaseClient.from('profiles').select('id, email').ilike('email', cleanEmail).maybeSingle()
       );
       if (profile?.email) {
-        return profile.email;
+        return profile.email.toLowerCase();
+      }
+
+      // 2. Check workers table (case-insensitive)
+      const { data: worker } = await withTimeout(
+        supabaseClient.from('workers').select('id, email').ilike('email', cleanEmail).maybeSingle()
+      );
+      if (worker?.email) {
+        return worker.email.toLowerCase();
+      }
+
+      // 3. Check contractors table (case-insensitive)
+      const { data: contractor } = await withTimeout(
+        supabaseClient.from('contractors').select('id, email').ilike('email', cleanEmail).maybeSingle()
+      );
+      if (contractor?.email) {
+        return contractor.email.toLowerCase();
       }
     }
+
+    // 4. Check localStorage for current user
     try {
       const localUserRaw = localStorage.getItem('fixiva_current_user');
       if (localUserRaw) {
@@ -74,6 +93,31 @@ const resolveEmailForAuth = async (supabaseClient, normalized, checkAccountExist
         }
       }
     } catch { void 0; }
+
+    // 5. Check localStorage for user saved by email key
+    try {
+      const savedUserByEmail = localStorage.getItem(`fixiva_user_${cleanEmail}`);
+      if (savedUserByEmail) {
+        return cleanEmail;
+      }
+    } catch { void 0; }
+
+    // 6. Scan all localStorage keys for matching email
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('fixiva_user_') || key.startsWith('fixiva_profile_') || key.startsWith('fixiva_worker_') || key.startsWith('fixiva_contractor_'))) {
+          const val = localStorage.getItem(key);
+          if (val) {
+            const parsed = JSON.parse(val);
+            if (parsed?.email?.toLowerCase() === cleanEmail) {
+              return cleanEmail;
+            }
+          }
+        }
+      }
+    } catch { void 0; }
+
     return null;
   }
 
@@ -537,26 +581,19 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    // Check account existence for sign-in vs sign-up
-    const existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+    const cleanEmail = normalizeEmail(normalized);
 
-    if (purpose === 'sign-in') {
-      if (!existingAccountEmail) {
-        return {
-          success: false,
-          error: new Error('Account does not exist. Please register first then login.'),
-        };
-      }
-    } else if (purpose === 'sign-up') {
-      if (existingAccountEmail) {
-        return {
-          success: false,
-          error: new Error('An account with this email already exists. Please login instead.'),
-        };
-      }
+    // Check account existence for sign-in vs sign-up
+    let existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+
+    if (purpose === 'sign-up' && existingAccountEmail) {
+      return {
+        success: false,
+        error: new Error('An account with this email already exists. Please login instead.'),
+      };
     }
 
-    const email = existingAccountEmail || normalizeEmail(normalized);
+    const email = existingAccountEmail || cleanEmail;
 
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
@@ -577,8 +614,9 @@ export const AuthProvider = ({ children }) => {
 
     if (error) {
       const errMsg = String(error.message || '').toLowerCase();
-      // If error indicates user does not exist or signup not allowed for sign-in
-      if (purpose === 'sign-in' && (errMsg.includes('not found') || errMsg.includes('not allowed') || errMsg.includes('invalid') || errMsg.includes('user'))) {
+
+      // If Supabase explicitly reports user not found for sign-in and no existing account record was resolved
+      if (purpose === 'sign-in' && !existingAccountEmail && (errMsg.includes('not found') || errMsg.includes('not allowed') || errMsg.includes('invalid user') || errMsg.includes('user_not_found'))) {
         return {
           success: false,
           error: new Error('Account does not exist. Please register first then login.'),
@@ -586,6 +624,17 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Fallback verification code mode if Supabase OTP service fails (e.g. otp_disabled, SMTP unconfigured)
+      // Check if user is trying to sign-in without a known account
+      if (purpose === 'sign-in' && !existingAccountEmail) {
+        const savedLocally = localStorage.getItem(`fixiva_user_${email}`) || localStorage.getItem('fixiva_current_user');
+        if (!savedLocally && !isAdminRole('', email)) {
+          return {
+            success: false,
+            error: new Error('Account does not exist. Please register first then login.'),
+          };
+        }
+      }
+
       const fallbackCode = '123456';
       pendingOtpsRef.current[email] = {
         code: fallbackCode,
@@ -613,12 +662,16 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: new Error('Please enter your email address.') };
     }
 
-    const existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+    let existingAccountEmail = await resolveEmailForAuth(supabase, normalized, true);
+    const email = existingAccountEmail || normalizeEmail(normalized);
+
     if (purpose === 'sign-in' && !existingAccountEmail) {
-      return { success: false, error: new Error('Account does not exist. Please register first then login.') };
+      const savedLocally = localStorage.getItem(`fixiva_user_${email}`) || localStorage.getItem('fixiva_current_user');
+      if (!savedLocally && !isAdminRole('', email)) {
+        return { success: false, error: new Error('Account does not exist. Please register first then login.') };
+      }
     }
 
-    const email = existingAccountEmail || normalizeEmail(normalized);
     if (!email) {
       return { success: false, error: new Error('No account was found for that email.') };
     }

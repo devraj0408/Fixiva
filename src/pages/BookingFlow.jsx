@@ -30,13 +30,14 @@ const BookingFlow = () => {
 
   // Parse URL query parameters
   const queryParams = new URLSearchParams(location.search);
-  const initialServiceId = paramServiceId || queryParams.get('service') || 'electrician';
+  const explicitServiceId = paramServiceId || queryParams.get('service');
+  const initialServiceId = explicitServiceId || '';
   const initialParamState = queryParams.get('state') || localStorage.getItem('fixiva:last-state') || '';
   const initialParamDistrict = queryParams.get('district') || localStorage.getItem('fixiva:last-district') || '';
   const initialParamLocality = queryParams.get('locality') || localStorage.getItem('fixiva:last-locality') || '';
 
   // Step state: 1: Service, 2: Location, 3: Match Pros, 4: Schedule & Contact, 5: Confirmation
-  const [step, setStep] = useState(2);
+  const [step, setStep] = useState(explicitServiceId ? 2 : 1);
   const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId);
 
   // Location selection mode: 'manual' | 'gps'
@@ -105,15 +106,20 @@ const BookingFlow = () => {
   );
 
   // Active Service object
-  const activeService = activeServices.find(s => s.id === selectedServiceId) || services.find(s => s.id === selectedServiceId) || activeServices[0] || (selectedServiceId ? {
-    id: selectedServiceId,
-    name: selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1),
-    base_price: 0,
-    platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
-  } : null);
+  const activeService = selectedServiceId ? (
+    activeServices.find(s => s.id === selectedServiceId) || 
+    services.find(s => s.id === selectedServiceId) || 
+    {
+      id: selectedServiceId,
+      name: selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1),
+      base_price: 0,
+      platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
+    }
+  ) : null;
 
   // Run Locality Matching Engine when step 3 or location/service changes
   const runMatchingEngine = useCallback(async () => {
+    if (!selectedServiceId) return;
     setMatchingLoading(true);
     setCoverageRequested(false);
     try {
@@ -139,10 +145,12 @@ const BookingFlow = () => {
   }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality, userLat, userLng, showToast]);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      runMatchingEngine();
-    });
-  }, [runMatchingEngine]);
+    if (selectedServiceId && step >= 2) {
+      queueMicrotask(() => {
+        runMatchingEngine();
+      });
+    }
+  }, [selectedServiceId, step, runMatchingEngine]);
 
   // Handle GPS location detection (Switch strictly to GPS mode)
   const handleDetectGps = async () => {
@@ -262,7 +270,7 @@ const BookingFlow = () => {
           <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
             <div>
               <span className="text-[10px] font-black tracking-widest text-primary uppercase">Fixiva Dispatch</span>
-              <h1 className="text-2xl font-black text-slate-900">Book {activeService.name}</h1>
+              <h1 className="text-2xl font-black text-slate-900">{step === 1 || !activeService ? 'Choose Required Service' : `Book ${activeService.name}`}</h1>
             </div>
 
             <div className="flex items-center gap-2">
@@ -303,10 +311,24 @@ const BookingFlow = () => {
         {step === 1 && (
           <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
             <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
-              <h2 className="text-lg font-bold text-slate-900 mb-4">Choose Required Service</h2>
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">Choose Required Service</h2>
+                  <p className="text-xs text-slate-500 font-medium">Select any of our available professional home services to continue booking.</p>
+                </div>
+              </div>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {activeServices.map(s => {
+                {(activeServices.length > 0 ? activeServices : [
+                  { id: 'electrician', name: 'Electrician', base_price: 149, image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'plumber', name: 'Plumber', base_price: 129, image: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'house-cleaning', name: 'House Cleaning', base_price: 399, image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'labour', name: 'Construction Labour', base_price: 400, image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'pest-control', name: 'Pest Control', base_price: 499, image: 'https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'ac-repair', name: 'AC Repair', base_price: 299, image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'painter', name: 'Painter', inspection_fee: 99, image: 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&q=80&w=800' },
+                  { id: 'carpenter', name: 'Carpenter', base_price: 149, image: 'https://images.unsplash.com/photo-1622151834677-70f982c9adef?auto=format&fit=crop&q=80&w=800' }
+                ]).map(s => {
                   const imgUrl = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
                   const isSelected = selectedServiceId === s.id;
                   return (
@@ -316,10 +338,10 @@ const BookingFlow = () => {
                         setSelectedServiceId(s.id);
                         setStep(2);
                       }}
-                      className={`relative overflow-hidden p-4 rounded-2xl border text-left flex flex-col justify-between min-h-[110px] transition-all group ${
+                      className={`relative overflow-hidden p-4 rounded-2xl border text-left flex flex-col justify-between min-h-[120px] transition-all cursor-pointer group ${
                         isSelected 
                           ? 'border-primary shadow-lg ring-2 ring-primary/20'
-                          : 'border-slate-100 hover:border-slate-200 shadow-xs'
+                          : 'border-slate-100 hover:border-primary/40 hover:shadow-md'
                       }`}
                     >
                       {imgUrl ? (
@@ -330,13 +352,13 @@ const BookingFlow = () => {
                             className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-900/50 to-slate-900/30" />
-                          <div className="relative z-10 flex flex-col justify-between h-full w-full text-white min-h-[80px]">
+                          <div className="relative z-10 flex flex-col justify-between h-full w-full text-white min-h-[90px]">
                             <h3 className="font-extrabold text-sm leading-tight text-white drop-shadow-sm">{s.name}</h3>
                             <span className="text-[11px] text-amber-300 font-bold mt-auto">Starting ₹{s.base_price || s.inspection_fee || 0}</span>
                           </div>
                         </>
                       ) : (
-                        <div className="flex flex-col justify-between h-full min-h-[80px] text-slate-700">
+                        <div className="flex flex-col justify-between h-full min-h-[90px] text-slate-700">
                           <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary font-bold overflow-hidden shrink-0 mb-2">
                             <Sparkles size={20} />
                           </div>

@@ -70,11 +70,14 @@ const Login = () => {
       const { success, error, email, message: resMsg } = await requestOtp(identifier, 'sign-in');
       
       if (!success) {
-        setErrors({ identifier: 'Account does not exist. Redirecting to registration page...' });
-        showToast('Account does not exist. Redirecting to registration...', 'info');
-        setTimeout(() => {
-          navigate(`/register?email=${encodeURIComponent(normalizedIdentifier)}`);
-        }, 1200);
+        const errorText = error?.message || 'Account does not exist. Redirecting to registration page...';
+        setErrors({ identifier: errorText });
+        showToast(errorText, 'info');
+        if (errorText.toLowerCase().includes('register')) {
+          setTimeout(() => {
+            navigate(`/register?email=${encodeURIComponent(normalizedIdentifier)}`);
+          }, 1500);
+        }
         return;
       }
 
@@ -85,10 +88,8 @@ const Login = () => {
       setOtp('');
       setMessage(resMsg || `Verification code sent to ${email || 'your inbox'}.`);
     } catch (err) {
-      setErrors({ identifier: 'Account does not exist. Redirecting to registration page...' });
-      setTimeout(() => {
-        navigate(`/register?email=${encodeURIComponent(normalizedIdentifier)}`);
-      }, 1200);
+      const errMsg = err?.message || 'An error occurred while requesting OTP.';
+      setErrors({ identifier: errMsg });
     } finally {
       setLoading(false);
     }

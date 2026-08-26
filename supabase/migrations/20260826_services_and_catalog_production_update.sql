@@ -1,10 +1,34 @@
 -- ============================================================================
--- FIXIVA SUPABASE PRODUCTION MIGRATION SCRIPT
+-- FIXIVA SUPABASE PRODUCTION MIGRATION SCRIPT (COMPLETE & SELF-CONTAINED)
 -- Services Catalog, Image Storage Columns, RLS Policies & Storage Buckets
 -- Run this script in your Supabase Dashboard SQL Editor (https://supabase.com/dashboard)
 -- ============================================================================
 
--- 1. ENSURE CORE 'services' TABLE EXISTS AND HAS ALL REQUIRED COLUMNS
+-- 1. ENSURE CORE 'profiles' TABLE EXISTS AND HAS ALL REQUIRED COLUMNS
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id uuid PRIMARY KEY,
+  email text,
+  name text,
+  role text DEFAULT 'customer',
+  phone text,
+  city text,
+  state text,
+  district text,
+  account_status text DEFAULT 'active',
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS email text,
+  ADD COLUMN IF NOT EXISTS name text,
+  ADD COLUMN IF NOT EXISTS role text DEFAULT 'customer',
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS city text,
+  ADD COLUMN IF NOT EXISTS state text,
+  ADD COLUMN IF NOT EXISTS district text,
+  ADD COLUMN IF NOT EXISTS account_status text DEFAULT 'active';
+
+-- 2. ENSURE CORE 'services' TABLE EXISTS AND HAS ALL REQUIRED COLUMNS
 CREATE TABLE IF NOT EXISTS public.services (
   id text PRIMARY KEY,
   name text NOT NULL,
@@ -34,7 +58,7 @@ ALTER TABLE public.services
   ADD COLUMN IF NOT EXISTS inspection_fee numeric DEFAULT 0 NOT NULL,
   ADD COLUMN IF NOT EXISTS active boolean DEFAULT true NOT NULL;
 
--- 2. ENSURE CORE 'categories' TABLE EXISTS AND HAS ALL REQUIRED COLUMNS
+-- 3. ENSURE CORE 'categories' TABLE EXISTS AND HAS ALL REQUIRED COLUMNS
 CREATE TABLE IF NOT EXISTS public.categories (
   id text PRIMARY KEY,
   name text NOT NULL,
@@ -56,7 +80,14 @@ ALTER TABLE public.categories
   ADD COLUMN IF NOT EXISTS display_order int DEFAULT 0,
   ADD COLUMN IF NOT EXISTS active boolean DEFAULT true NOT NULL;
 
--- 3. ENSURE 'city_services' TABLE EXISTS
+-- 4. ENSURE 'cities' TABLE EXISTS (REQUIRED FOR CITY_SERVICES FOREIGN KEY)
+CREATE TABLE IF NOT EXISTS public.cities (
+  id int PRIMARY KEY,
+  name text NOT NULL,
+  region text
+);
+
+-- 5. ENSURE 'city_services' TABLE EXISTS
 CREATE TABLE IF NOT EXISTS public.city_services (
   city_id int REFERENCES public.cities(id) ON DELETE CASCADE,
   service_id text REFERENCES public.services(id) ON DELETE CASCADE,
@@ -64,7 +95,7 @@ CREATE TABLE IF NOT EXISTS public.city_services (
   PRIMARY KEY (city_id, service_id)
 );
 
--- 4. CASE-INSENSITIVE INDEX FOR SERVICES
+-- 6. CASE-INSENSITIVE INDEX FOR SERVICES
 DO $$
 BEGIN
   IF NOT EXISTS (
@@ -77,12 +108,18 @@ EXCEPTION
   WHEN OTHERS THEN NULL;
 END$$;
 
--- 5. ENABLE ROW LEVEL SECURITY (RLS) ON TABLES
+-- 7. ENABLE ROW LEVEL SECURITY (RLS) ON TABLES
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.services ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.city_services ENABLE ROW LEVEL SECURITY;
 
--- 6. PUBLIC READ ACCESS POLICIES (Allow any visitor to view services & catalog)
+-- 8. PUBLIC READ ACCESS POLICIES (Allow visitors & app to read data)
+DROP POLICY IF EXISTS "Public read profiles" ON public.profiles;
+CREATE POLICY "Public read profiles" ON public.profiles
+  FOR SELECT USING (true);
+
 DROP POLICY IF EXISTS "Public read services" ON public.services;
 CREATE POLICY "Public read services" ON public.services
   FOR SELECT USING (true);
@@ -91,11 +128,19 @@ DROP POLICY IF EXISTS "Public read categories" ON public.categories;
 CREATE POLICY "Public read categories" ON public.categories
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Public read cities" ON public.cities;
+CREATE POLICY "Public read cities" ON public.cities
+  FOR SELECT USING (true);
+
 DROP POLICY IF EXISTS "Public read city_services" ON public.city_services;
 CREATE POLICY "Public read city_services" ON public.city_services
   FOR SELECT USING (true);
 
--- 7. ADMIN / AUTHENTICATED MUTATION POLICIES (Allow insert/update/delete)
+-- 9. ADMIN / AUTHENTICATED MUTATION POLICIES (Allow insert/update/delete)
+DROP POLICY IF EXISTS "Admin write profiles" ON public.profiles;
+CREATE POLICY "Admin write profiles" ON public.profiles
+  FOR ALL USING (true) WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Admin write services" ON public.services;
 CREATE POLICY "Admin write services" ON public.services
   FOR ALL USING (true) WITH CHECK (true);
@@ -108,7 +153,7 @@ DROP POLICY IF EXISTS "Admin write city_services" ON public.city_services;
 CREATE POLICY "Admin write city_services" ON public.city_services
   FOR ALL USING (true) WITH CHECK (true);
 
--- 8. STORAGE BUCKETS CREATION FOR SERVICE & CMS IMAGES
+-- 10. STORAGE BUCKETS CREATION FOR SERVICE & CMS IMAGES & AVATARS
 INSERT INTO storage.buckets (id, name, public)
 VALUES ('cms-assets', 'cms-assets', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
@@ -117,7 +162,11 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('services', 'services', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- 9. STORAGE BUCKET RLS POLICIES (Allow public image viewing & admin upload)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+-- 11. STORAGE BUCKET RLS POLICIES (Allow public image viewing & admin upload)
 DROP POLICY IF EXISTS "Public Storage Read" ON storage.objects;
 CREATE POLICY "Public Storage Read" ON storage.objects
   FOR SELECT USING (bucket_id IN ('cms-assets', 'services', 'avatars'));

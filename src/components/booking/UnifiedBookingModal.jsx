@@ -41,9 +41,13 @@ const UnifiedBookingModal = () => {
 
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
-    setStep(1);
-    if (initialData.serviceId) setServiceId(initialData.serviceId);
-    else if (activeServices[0]?.id) setServiceId(activeServices[0].id);
+    if (initialData.serviceId) {
+      setServiceId(initialData.serviceId);
+      setStep(2);
+    } else {
+      setServiceId('');
+      setStep(1);
+    }
     if (initialData.state) setSelectedState(initialData.state);
     if (initialData.district || initialData.city) setSelectedDistrict(initialData.district || initialData.city);
     if (initialData.locality) setSelectedLocality(initialData.locality);
@@ -55,12 +59,16 @@ const UnifiedBookingModal = () => {
 
   if (!isOpen) return null;
 
-  const activeService = activeServices.find(s => s.id === serviceId) || services.find(s => s.id === serviceId) || activeServices[0] || (serviceId ? {
-    id: serviceId,
-    name: serviceId.charAt(0).toUpperCase() + serviceId.slice(1),
-    base_price: 0,
-    platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
-  } : null);
+  const activeService = serviceId ? (
+    activeServices.find(s => s.id === serviceId) || 
+    services.find(s => s.id === serviceId) || 
+    {
+      id: serviceId,
+      name: serviceId.charAt(0).toUpperCase() + serviceId.slice(1),
+      base_price: 0,
+      platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
+    }
+  ) : null;
 
   const handleSearchPros = async () => {
     setMatchingLoading(true);
