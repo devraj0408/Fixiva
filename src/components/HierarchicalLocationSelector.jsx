@@ -3,6 +3,7 @@ import SearchableDropdown from './SearchableDropdown';
 import { STATES, getDistrictsForState, getLocalitiesForDistrict, OTHER_LOCATION_OPTION } from '../data/locationData';
 import { MapPin } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const HierarchicalLocationSelector = ({
   selectedState = '',
@@ -10,9 +11,9 @@ const HierarchicalLocationSelector = ({
   selectedLocality = '',
   onChange, // Callback when selection changes: ({ state, district, locality }) => void
   disabled = false,
-  statePlaceholder = 'Select State',
-  districtPlaceholder = 'Select District',
-  localityPlaceholder = 'Select Locality',
+  statePlaceholder,
+  districtPlaceholder,
+  localityPlaceholder,
   layout = 'row', // 'row' | 'col'
   className = '',
   variant = 'boxed',
@@ -20,6 +21,11 @@ const HierarchicalLocationSelector = ({
   id
 }) => {
   const { states = [], districts = [] } = useApp();
+  const { t } = useLanguage();
+
+  const finalStatePh = statePlaceholder || t('selectState', 'Select State');
+  const finalDistrictPh = districtPlaceholder || t('selectDistrict', 'Select District');
+  const finalLocalityPh = localityPlaceholder || t('selectLocality', 'Select Locality');
 
   // Load from localStorage on mount if no initial props are provided
   useEffect(() => {
@@ -175,7 +181,7 @@ const HierarchicalLocationSelector = ({
             options={stateOptions}
             value={selectedState}
             onChange={handleStateChange}
-            placeholder={statePlaceholder}
+            placeholder={finalStatePh}
             searchPlaceholder="Search state..."
             disabled={disabled}
             icon={MapPin}
@@ -189,7 +195,7 @@ const HierarchicalLocationSelector = ({
             options={districtOptions}
             value={selectedDistrict}
             onChange={handleDistrictChange}
-            placeholder={districtPlaceholder}
+            placeholder={finalDistrictPh}
             searchPlaceholder="Search district..."
             disabled={disabled || !selectedState}
             icon={MapPin}
@@ -204,7 +210,7 @@ const HierarchicalLocationSelector = ({
               options={localityOptions}
               value={selectedLocality}
               onChange={handleLocalityChange}
-              placeholder={localityPlaceholder}
+              placeholder={finalLocalityPh}
               searchPlaceholder="Search locality..."
               disabled={disabled || !selectedDistrict}
               icon={MapPin}

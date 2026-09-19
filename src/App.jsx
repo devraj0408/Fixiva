@@ -12,6 +12,7 @@ import { getRouterBasename } from './lib/routePaths';
 import ScrollToTop from './components/ScrollToTop';
 import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
 import AIChatBotWidget from './components/support/AIChatBotWidget';
+import BrandLogo from './components/BrandLogo';
 
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
@@ -39,26 +40,13 @@ const ContractorDisabled = lazyWithRetry(() => import('./pages/ContractorDisable
 const routerBasename = getRouterBasename();
 
 const LoadingSkeleton = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#F8FAFC' }}>
+  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 160px)', gap: '1.5rem', background: '#FAFAF8' }}>
     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 40 40" style={{ boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)', borderRadius: '10px' }} className="animate-pulse">
-        <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
-        <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
-        <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
-        <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
-        <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
-        <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
-        <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
-        <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
-        <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
-        <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
-        <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
-      </svg>
+      <BrandLogo iconOnly height={48} className="animate-pulse" />
     </div>
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-      <div style={{ width: '16px', height: '16px', border: '2px solid #E2E8F0', borderTopColor: '#2563EB', borderRadius: '50%' }} className="animate-spin" />
-      <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Loading Fixiva</span>
+      <div style={{ width: '16px', height: '16px', border: '2px solid #E7E9E6', borderTopColor: '#2F6B5F', borderRadius: '50%' }} className="animate-spin" />
+      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6B716E', textTransform: 'uppercase', letterSpacing: '0.15em' }}>Loading Fixiva</span>
     </div>
   </div>
 );

@@ -47,7 +47,7 @@ const ensureContractorExists = async (contractorId, city) => {
         profile_id: contractorId,
         company: 'Contractor Agency',
         status: 'Active',
-        city: city || 'Ranchi'
+        city: city || ''
       }, { onConflict: 'id' });
     }
   } catch (e) {

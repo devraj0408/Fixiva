@@ -178,11 +178,13 @@ export const createCoupon = async (couponData, actor = {}) => {
     // Save to storage immediately
     saveCustomCouponToStorage(payload);
 
+    let dbError = null;
     if (supabase) {
       try {
         let { data, error } = await supabase.from('coupons').insert([payload]).select();
         if (error) {
           console.warn('createCoupon insert DB warning:', error);
+          dbError = error.message;
         } else if (Array.isArray(data) && data.length > 0) {
           saveCustomCouponToStorage(data[0]);
           payload.id = data[0].id;
@@ -190,6 +192,10 @@ export const createCoupon = async (couponData, actor = {}) => {
       } catch (e) {
         console.warn('createCoupon Supabase fallback:', e);
       }
+    }
+
+    if (dbError) {
+      return { data: null, error: dbError };
     }
 
     try {

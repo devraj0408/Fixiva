@@ -7,6 +7,7 @@ import { useTheme } from '../context/ThemeContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getDashboardPath } from '../lib/navbarUtils';
 import LanguageSelector from './LanguageSelector';
+import BrandLogo from './BrandLogo';
 
 const Navbar = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -37,102 +38,61 @@ const Navbar = () => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <nav className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-slate-200/80 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.22)] transition-all duration-300">
+    <nav className="sticky top-0 z-50 w-full bg-white/90 dark:bg-slate-950/90 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800 shadow-[0_10px_30px_-20px_rgba(15,23,42,0.22)] transition-all duration-300">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <Link to="/" className="flex items-center group select-none">
-              <svg xmlns="http://www.w3.org/2000/svg" width="160" height="40" viewBox="0 0 160 40" role="img" aria-label="Fixiva logo" className="shrink-0 transition-transform duration-300 group-hover:scale-[1.02]">
-                {/* Icon Mark Background */}
-                <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
-                
-                {/* Screwdriver Chimney */}
-                <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
-                <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
-
-                {/* Amber Shield-Roof */}
-                <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
-
-                {/* Blue House-Shield Body */}
-                <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
-
-                {/* Connected Service Windows */}
-                <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
-                <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
-                <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
-                <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
-
-                {/* White Door */}
-                <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
-
-                {/* Success Green Door Checkmark */}
-                <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-                {/* Foundation Beam */}
-                <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
-
-                {/* Wordmark (Premium Soft Geometric Design) */}
-                <g id="wordmark" fill="none" strokeWidth="3.3" strokeLinecap="round" strokeLinejoin="round">
-                  {/* F - Deep Blue */}
-                  <path id="letter-f" d="M60 13.5 H53.6 V26.5 M53.6 19.5 H58.5" stroke="#2563EB" />
-                  
-                  {/* I-1 - Dark Charcoal */}
-                  <path id="letter-i-1" d="M65.5 13.5 V26.5" stroke="#111827" />
-                  
-                  {/* X - Dark Charcoal */}
-                  <path id="letter-x" d="M71.5 13.5 L79.5 26.5 M79.5 13.5 L71.5 26.5" stroke="#111827" />
-                  
-                  {/* I-2 - Emerald */}
-                  <path id="letter-i-2" d="M85.5 13.5 V26.5" stroke="#10B981" />
-                  
-                  {/* V - Amber */}
-                  <path id="letter-v" d="M91.5 13.5 L96.5 26.5 L101.5 13.5" stroke="#F59E0B" />
-                  
-                  {/* A - Dark Charcoal */}
-                  <path id="letter-a" d="M107.5 26.5 L112.5 13.5 L117.5 26.5 M110.1 21 H114.9" stroke="#111827" />
-                </g>
-              </svg>
+              <BrandLogo mode={isDark ? 'dark' : 'light'} height={38} />
             </Link>
           </div>
 
           {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center gap-5">
+          <div className="hidden md:flex items-center gap-2 lg:gap-3">
             {!isAuthenticated ? (
               <>
                 <Link 
                   to="/" 
-                  className={`text-sm font-semibold transition-all hover:text-primary ${
-                    isActive('/') ? 'text-primary' : 'text-slate-600'
+                  className={`text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                    isActive('/') 
+                      ? 'text-[#2F6B5F] dark:text-emerald-400 bg-[#2F6B5F]/10 dark:bg-emerald-400/15 border border-[#2F6B5F]/20 dark:border-emerald-400/30 shadow-2xs' 
+                      : 'text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {t('home', 'Home')}
                 </Link>
                 <Link 
                   to="/services" 
-                  className={`text-sm font-semibold transition-all hover:text-primary ${
-                    isActive('/services') ? 'text-primary' : 'text-slate-600'
+                  className={`text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                    isActive('/services') 
+                      ? 'text-[#2F6B5F] dark:text-emerald-400 bg-[#2F6B5F]/10 dark:bg-emerald-400/15 border border-[#2F6B5F]/20 dark:border-emerald-400/30 shadow-2xs' 
+                      : 'text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {t('services', 'Services')}
                 </Link>
                 <Link 
                   to="/help" 
-                  className={`text-sm font-semibold transition-all hover:text-primary ${
-                    isActive('/help') ? 'text-primary' : 'text-slate-600'
+                  className={`text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                    isActive('/help') 
+                      ? 'text-[#2F6B5F] dark:text-emerald-400 bg-[#2F6B5F]/10 dark:bg-emerald-400/15 border border-[#2F6B5F]/20 dark:border-emerald-400/30 shadow-2xs' 
+                      : 'text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {t('helpCenter', 'Help Center')}
                 </Link>
                 <Link 
                   to="/help?tab=about" 
-                  className={`text-sm font-semibold transition-all hover:text-primary ${
-                    location.search.includes('tab=about') ? 'text-primary' : 'text-slate-600'
+                  className={`text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                    location.search.includes('tab=about') 
+                      ? 'text-[#2F6B5F] dark:text-emerald-400 bg-[#2F6B5F]/10 dark:bg-emerald-400/15 border border-[#2F6B5F]/20 dark:border-emerald-400/30 shadow-2xs' 
+                      : 'text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   {t('about', 'About')}
                 </Link>
                 
-                <div className="h-4 w-px bg-slate-200"></div>
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
                 {/* Language Selector */}
                 <LanguageSelector />
@@ -141,24 +101,24 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className="p-2 rounded-full text-slate-600 hover:text-primary hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-2 rounded-full text-slate-700 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                   aria-label="Toggle Theme"
                 >
-                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600" />}
+                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-700" />}
                 </button>
 
-                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700"></div>
+                <div className="h-4 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
                 <Link 
                   to="/login" 
-                  className="text-sm font-bold text-slate-700 hover:text-primary transition-all px-3 py-2 rounded-full hover:bg-slate-50"
+                  className="text-xs lg:text-sm font-black text-slate-800 dark:text-white hover:text-[#2F6B5F] dark:hover:text-emerald-400 transition-all px-4 py-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                   {t('login', 'Login')}
                 </Link>
                 <Link 
                   to="/register" 
-                  className="join-cta"
+                  className="join-cta text-xs lg:text-sm"
                 >
                   {t('joinFixiva', 'Join Fixiva')}
                 </Link>
@@ -167,34 +127,36 @@ const Navbar = () => {
               <>
                 <Link 
                   to={dashboardPath} 
-                  className={`flex items-center gap-1.5 text-sm font-semibold transition-all hover:text-primary ${
-                    location.pathname.startsWith('/dashboard') ? 'text-primary' : 'text-slate-600'
+                  className={`flex items-center gap-1.5 text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full transition-all duration-200 ${
+                    location.pathname.startsWith('/dashboard') 
+                      ? 'text-[#2F6B5F] dark:text-emerald-400 bg-[#2F6B5F]/10 dark:bg-emerald-400/15 border border-[#2F6B5F]/20 dark:border-emerald-400/30 shadow-2xs' 
+                      : 'text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Briefcase size={16} /> {t('dashboard', 'Dashboard')}
                 </Link>
                 <Link 
                   to={`${dashboardPath}?tab=bookings`} 
-                  className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
+                  className="flex items-center gap-1.5 text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                 >
                   <FileText size={16} /> {t('bookings', 'Bookings')}
                 </Link>
                 {normalizedUser.role !== 'admin' && (
                   <Link 
                     to={`${dashboardPath}?tab=support`} 
-                    className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
+                    className="flex items-center gap-1.5 text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                   >
                     <LifeBuoy size={16} /> {t('support', 'Support')}
                   </Link>
                 )}
                 <Link 
                   to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
-                  className="flex items-center gap-1.5 text-slate-600 hover:text-primary text-sm font-semibold transition-all"
+                  className="flex items-center gap-1.5 text-slate-700 dark:text-slate-100 hover:text-[#2F6B5F] dark:hover:text-emerald-400 text-xs lg:text-sm font-extrabold px-3.5 py-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
                 >
                   <Settings size={16} /> {t('profile', 'Profile')}
                 </Link>
 
-                <div className="h-5 w-px bg-slate-200"></div>
+                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
                 {/* Language Selector */}
                 <LanguageSelector />
@@ -203,46 +165,46 @@ const Navbar = () => {
                 <button
                   type="button"
                   onClick={toggleTheme}
-                  className="p-2 rounded-full text-slate-600 hover:text-primary hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 transition-all cursor-pointer"
+                  className="p-2 rounded-full text-slate-700 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                   aria-label="Toggle Theme"
                 >
-                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-600" />}
+                  {isDark ? <Sun size={18} className="text-amber-400" /> : <Moon size={18} className="text-slate-700" />}
                 </button>
 
-                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700"></div>
+                <div className="h-5 w-px bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
                 <div className="flex items-center gap-3">
                   <Link 
                     to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
-                    className="flex items-center gap-2 group"
+                    className="flex items-center gap-2 group p-1 pr-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-200 dark:hover:border-slate-700"
                   >
                     {normalizedUser.profile_photo_url ? (
                       <img
                         src={normalizedUser.profile_photo_url}
                         alt={normalizedUser.name}
-                        className="h-9 w-9 rounded-full object-cover shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all"
+                        className="h-8 w-8 rounded-full object-cover shadow-2xs ring-2 ring-primary/20 group-hover:ring-primary transition-all"
                       />
                     ) : (
-                      <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-xs flex items-center justify-center uppercase tracking-wider shadow-sm ring-2 ring-slate-100 group-hover:ring-primary/20 transition-all">
+                      <div className="h-8 w-8 rounded-full bg-[#2F6B5F] text-white font-extrabold text-xs flex items-center justify-center uppercase tracking-wider shadow-2xs ring-2 ring-primary/20 group-hover:ring-primary transition-all">
                         {getInitials(normalizedUser.name)}
                       </div>
                     )}
                     <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-800 leading-tight group-hover:text-primary transition-all">
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight group-hover:text-primary transition-all">
                         {normalizedUser.name || 'User'}
                       </span>
-                      <span className="text-[10px] text-slate-400 capitalize font-medium leading-none">
+                      <span className="text-[10px] text-slate-400 dark:text-slate-400 capitalize font-medium leading-none">
                         {normalizedUser.role || 'guest'}
                       </span>
                     </div>
                   </Link>
                   <button 
                     onClick={handleLogout} 
-                    className="h-9 w-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-danger hover:bg-slate-50 transition-all border border-transparent hover:border-slate-100" 
+                    className="h-8 w-8 rounded-full flex items-center justify-center text-slate-400 hover:text-danger hover:bg-red-50 dark:hover:bg-red-950/40 transition-all border border-transparent hover:border-red-200 dark:hover:border-red-900/40" 
                     title={t('logout', 'Logout')}
                   >
-                    <LogOut size={18} />
+                    <LogOut size={16} />
                   </button>
                 </div>
               </>
@@ -351,7 +313,7 @@ const Navbar = () => {
                         className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 ring-slate-200"
                       />
                     ) : (
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
+                      <div className="h-10 w-10 rounded-full bg-[#2F6B5F] text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
                         {getInitials(normalizedUser.name)}
                       </div>
                     )}

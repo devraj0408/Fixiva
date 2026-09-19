@@ -242,7 +242,7 @@ const BookingFlow = () => {
         customer_phone: customerPhone.trim(),
         worker_name: selectedPro?.name || 'Assigned Specialist',
         worker_phone: selectedPro?.whatsapp || '',
-        price: activeService.base_price || 199,
+        price: activeService.base_price || activeService.inspection_fee || 0,
         platform_fee: 0,
         booking_date: bookingDate
       });
@@ -292,12 +292,12 @@ const BookingFlow = () => {
               <div 
                 key={s.id} 
                 className={`flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                  s.id <= step ? 'text-primary font-bold' : 'text-slate-400 font-medium'
+                  s.id < step ? 'text-[#3D8068] font-bold' : s.id === step ? 'text-[#2F6B5F] font-bold' : 'text-slate-400 font-medium'
                 }`}
                 onClick={() => s.id < step && setStep(s.id)}
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black border ${
-                  s.id < step ? 'bg-primary text-white border-primary' : s.id === step ? 'bg-primary/10 text-primary border-primary' : 'bg-slate-50 text-slate-400 border-slate-200'
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${
+                  s.id < step ? 'bg-[#3D8068] text-white border-[#3D8068]' : s.id === step ? 'bg-[#E8F0ED] text-[#2F6B5F] border-[#2F6B5F]' : 'bg-slate-50 text-slate-400 border-slate-200'
                 }`}>
                   {s.id < step ? <Check size={14} /> : s.id}
                 </div>
@@ -317,19 +317,9 @@ const BookingFlow = () => {
                   <p className="text-xs text-slate-500 font-medium">Select any of our available professional home services to continue booking.</p>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {(activeServices.length > 0 ? activeServices : [
-                  { id: 'electrician', name: 'Electrician', base_price: 149, image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'plumber', name: 'Plumber', base_price: 129, image: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'house-cleaning', name: 'House Cleaning', base_price: 399, image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'labour', name: 'Construction Labour', base_price: 400, image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'pest-control', name: 'Pest Control', base_price: 499, image: 'https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'ac-repair', name: 'AC Repair', base_price: 299, image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'painter', name: 'Painter', inspection_fee: 99, image: 'https://images.unsplash.com/photo-1562259949-e8e7689d7828?auto=format&fit=crop&q=80&w=800' },
-                  { id: 'carpenter', name: 'Carpenter', base_price: 149, image: 'https://images.unsplash.com/photo-1622151834677-70f982c9adef?auto=format&fit=crop&q=80&w=800' }
-                ]).map(s => {
-                  const imgUrl = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
+              {activeServices.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {activeServices.map(s => {
                   const isSelected = selectedServiceId === s.id;
                   return (
                     <button
@@ -372,6 +362,11 @@ const BookingFlow = () => {
                   );
                 })}
               </div>
+              ) : (
+                <div className="py-12 text-center bg-slate-50 rounded-2xl border border-slate-200/60">
+                  <p className="text-sm font-semibold text-slate-500">No active services available at the moment.</p>
+                </div>
+              )}
             </div>
           </motion.div>
         )}

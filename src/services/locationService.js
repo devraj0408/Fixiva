@@ -171,6 +171,7 @@ export const createDistrict = async (districtData, actor = {}) => {
   };
 
   let createdData = null;
+  let dbError = null;
 
   if (supabase) {
     try {
@@ -192,14 +193,22 @@ export const createDistrict = async (districtData, actor = {}) => {
 
         if (!cityErr && cityData) {
           createdData = cityData;
+        } else if (cityErr) {
+          dbError = cityErr.message;
+        } else if (error) {
+          dbError = error.message;
         }
       }
     } catch (e) {
-      void e;
+      dbError = e instanceof Error ? e.message : String(e);
     }
   }
 
-  // Always save custom district to localStorage so district addition NEVER fails for admin
+  if (dbError && !createdData) {
+    return { data: null, error: dbError };
+  }
+
+  // Save custom district to localStorage so district addition works reliably
   saveCustomDistrictToStorage(payload);
 
   await logAdminAction({
@@ -713,15 +722,22 @@ export const createArea = async (areaData, actor = {}) => {
   };
 
   let dbResult = null;
+  let dbError = null;
   if (supabase) {
     try {
       const { data, error } = await supabase.from('areas').insert(payload).select().maybeSingle();
       if (!error && data) {
         dbResult = data;
+      } else if (error) {
+        dbError = error.message;
       }
     } catch (e) {
-      void e;
+      dbError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  if (dbError && !dbResult) {
+    return { data: null, error: dbError };
   }
 
   saveCustomAreaToStorage(payload);

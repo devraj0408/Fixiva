@@ -4,6 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { isAdminRole } from '../../lib/adminAccess';
 import { Loader2, Mail, ArrowRight } from 'lucide-react';
+import BrandLogo from '../../components/BrandLogo';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -247,61 +248,23 @@ const Login = () => {
       {/* Left split-screen Illustration & Brand Info */}
       <div className="hidden lg:flex lg:col-span-5 bg-gradient-to-tr from-slate-950 via-slate-900 to-indigo-950 p-12 flex-col justify-between relative overflow-hidden">
         <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-3xl"></div>
-
         <div className="relative z-10 flex items-center gap-2">
-          <svg xmlns="http://www.w3.org/2000/svg" width="144" height="36" viewBox="0 0 160 40" className="shrink-0">
-            {/* Icon Mark Background */}
-            <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
-            
-            {/* Screwdriver Chimney */}
-            <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
-            <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
-
-            {/* Amber Shield-Roof */}
-            <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
-
-            {/* Blue House-Shield Body */}
-            <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
-
-            {/* Connected Service Windows */}
-            <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
-            <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
-            <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
-            <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
-
-            {/* White Door */}
-            <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
-
-            {/* Success Green Door Checkmark */}
-            <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-            {/* Foundation Beam */}
-            <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
-
-            {/* Wordmark */}
-            <g id="wordmark" fill="none" strokeWidth="3.3" strokeLinecap="round" strokeLinejoin="round">
-              <path id="letter-f" d="M60 13.5 H53.6 V26.5 M53.6 19.5 H58.5" stroke="#2563EB" />
-              <path id="letter-i-1" d="M65.5 13.5 V26.5" stroke="#FFFFFF" />
-              <path id="letter-x" d="M71.5 13.5 L79.5 26.5 M79.5 13.5 L71.5 26.5" stroke="#FFFFFF" />
-              <path id="letter-i-2" d="M85.5 13.5 V26.5" stroke="#10B981" />
-              <path id="letter-v" d="M91.5 13.5 L96.5 26.5 L101.5 13.5" stroke="#F59E0B" />
-              <path id="letter-a" d="M107.5 26.5 L112.5 13.5 L117.5 26.5 M110.1 21 H114.9" stroke="#FFFFFF" />
-            </g>
-          </svg>
+          <BrandLogo mode="dark" height={42} />
         </div>
 
         <div className="relative z-10 space-y-6">
-          <h2 className="text-4xl font-extrabold text-white leading-tight">
+          <h2 className="text-4xl sm:text-5xl font-black text-white leading-tight tracking-tight">
             One App.<br/>
-            <span className="text-primary">Every Solution.</span>
+            <span className="bg-gradient-to-r from-emerald-400 to-teal-300 bg-clip-text text-transparent">
+              Every Solution.
+            </span>
           </h2>
-          <p className="text-slate-400 font-medium text-sm leading-relaxed max-w-sm">
+          <p className="text-slate-300 font-medium text-sm leading-relaxed max-w-sm">
             Sign in to access your dashboard, monitor schedules list, track verified workers, and manage platform support.
           </p>
         </div>
 
-        <div className="relative z-10 text-xs text-slate-500 font-semibold uppercase tracking-wider">
+        <div className="relative z-10 text-xs text-slate-400 font-bold uppercase tracking-wider">
           &copy; {new Date().getFullYear()} Fixiva Services. All rights reserved.
         </div>
       </div>

@@ -1,111 +1,199 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Zap, Droplets, Sparkles, HardHat, Bug, Wind, Paintbrush, Hammer } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShieldCheck, Zap, Sparkles, Wrench } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useApp } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
-const DEFAULT_SLIDES = [
+const LOCAL_SERVICE_ASSET_IMAGES = {
+  plumber: '/assets/hero-slideshow/plumber.jpg',
+  plumbing: '/assets/hero-slideshow/plumber.jpg',
+  electrician: '/assets/hero-slideshow/electrician.jpg',
+  electrical: '/assets/hero-slideshow/electrician.jpg',
+  cleaning: '/assets/hero-slideshow/cleaning.jpg',
+  'house cleaning': '/assets/hero-slideshow/cleaning.jpg',
+  'home cleaning': '/assets/hero-slideshow/cleaning.jpg',
+  'pest control': '/assets/hero-slideshow/pestcontrol.jpg',
+  pestcontrol: '/assets/hero-slideshow/pestcontrol.jpg',
+  labour: '/assets/hero-slideshow/labour.jpg',
+  'construction labour': '/assets/hero-slideshow/labour.jpg',
+  'ac repair': '/assets/hero-slideshow/ac_service.jpg',
+  'ac service': '/assets/hero-slideshow/ac_service.jpg',
+  painter: '/assets/hero-slideshow/painting.jpg',
+  painting: '/assets/hero-slideshow/painting.jpg',
+  carpenter: '/assets/hero-slideshow/carpenter.jpg',
+  carpentry: '/assets/hero-slideshow/carpenter.jpg',
+  'appliance repair': '/assets/hero-slideshow/appliance.jpg',
+  renovation: '/assets/hero-slideshow/renovation.jpg',
+  'home renovation': '/assets/hero-slideshow/renovation.jpg'
+};
+
+const HERO_SHOWCASE_ASSETS = [
   {
-    id: 'electrician',
-    title: 'Electrician Service',
+    id: 'hero-asset-1',
+    key: 'plumber',
+    title: 'Professional Plumbing Services',
+    subtitle: 'Leak repairs, pipe installations & fixture fittings by verified plumbers.',
+    category: 'Plumbing',
+    badgeIcon: Wrench,
+    image: '/assets/hero-slideshow/plumber.jpg'
+  },
+  {
+    id: 'hero-asset-2',
+    key: 'electrician',
+    title: 'Certified Electrical Solutions',
+    subtitle: 'Wiring, switchboard fixes, appliance safety & power troubleshooting.',
+    category: 'Electrical',
     badgeIcon: Zap,
-    badgeColor: 'from-amber-500 to-yellow-500',
-    image: 'https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800',
-    alt: 'Professional Electrician repairing breaker box'
+    image: '/assets/hero-slideshow/electrician.jpg'
   },
   {
-    id: 'plumber',
-    title: 'Plumbing Service',
-    badgeIcon: Droplets,
-    badgeColor: 'from-blue-500 to-cyan-500',
-    image: 'https://images.unsplash.com/photo-1607472586893-edb57bdc0e39?auto=format&fit=crop&q=80&w=800',
-    alt: 'Expert Plumber fixing pipe and sink fittings'
-  },
-  {
-    id: 'cleaning',
-    title: 'Home Cleaning',
+    id: 'hero-asset-3',
+    key: 'cleaning',
+    title: 'Deep Home & Office Cleaning',
+    subtitle: 'Sanitization, floor scrubbing & full home deep-cleaning services.',
+    category: 'Cleaning',
     badgeIcon: Sparkles,
-    badgeColor: 'from-purple-500 to-indigo-500',
-    image: 'https://images.unsplash.com/photo-1581578731548-c64695cc6952?auto=format&fit=crop&q=80&w=800',
-    alt: 'Deep Home Cleaning Specialist sanitizing home'
+    image: '/assets/hero-slideshow/cleaning.jpg'
   },
   {
-    id: 'labour',
-    title: 'Construction Labour',
-    badgeIcon: HardHat,
-    badgeColor: 'from-orange-500 to-amber-600',
-    image: 'https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&q=80&w=800',
-    alt: 'Skilled Labourer and Construction Worker at site'
+    id: 'hero-asset-4',
+    key: 'ac_service',
+    title: 'AC Maintenance & Repair',
+    subtitle: 'Cooling checks, gas charging & filter cleaning by HVAC specialists.',
+    category: 'AC Service',
+    badgeIcon: Wrench,
+    image: '/assets/hero-slideshow/ac_service.jpg'
   },
   {
-    id: 'pest-control',
-    title: 'Pest Control Service',
-    badgeIcon: Bug,
-    badgeColor: 'from-emerald-500 to-teal-600',
-    image: 'https://images.unsplash.com/photo-1632833239869-a37e3a5806d2?auto=format&fit=crop&q=80&w=800',
-    alt: 'Pest Control Expert carrying out treatment'
+    id: 'hero-asset-5',
+    key: 'pestcontrol',
+    title: 'Eco-Friendly Pest Control',
+    subtitle: 'Termite, cockroach & pest eradication using safe, odor-free treatments.',
+    category: 'Pest Control',
+    badgeIcon: ShieldCheck,
+    image: '/assets/hero-slideshow/pestcontrol.jpg'
   },
   {
-    id: 'ac-repair',
-    title: 'AC Repair & Service',
-    badgeIcon: Wind,
-    badgeColor: 'from-sky-500 to-blue-600',
-    image: 'https://images.unsplash.com/photo-1621905252507-b35492cc74b4?auto=format&fit=crop&q=80&w=800',
-    alt: 'HVAC Technician servicing air conditioner'
+    id: 'hero-asset-6',
+    key: 'appliance',
+    title: 'Appliance Repair Experts',
+    subtitle: 'Washing machine, refrigerator & microwave servicing at your doorstep.',
+    category: 'Appliance Repair',
+    badgeIcon: Wrench,
+    image: '/assets/hero-slideshow/appliance.jpg'
   }
 ];
 
-const HeroSlideshow = () => {
+const HeroSlideshow = ({ services: propServices }) => {
   const { t } = useLanguage();
+  const { services: contextServices = [] } = useApp();
+  const services = propServices && propServices.length > 0 ? propServices : contextServices;
+  const navigate = useNavigate();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState(1);
   const [isPaused, setIsPaused] = useState(false);
   const [touchStart, setTouchStart] = useState(null);
 
-  const slides = DEFAULT_SLIDES;
+  const heroServices = useMemo(() => {
+    const active = (services || []).filter(
+      (s) => s && s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+    
+    if (active.length === 0) {
+      return HERO_SHOWCASE_ASSETS;
+    }
+
+    return active.map((s, idx) => {
+      const sId = String(s.id || '').toLowerCase().trim();
+      const sName = String(s.name || '').toLowerCase().trim();
+
+      let matchedAsset = LOCAL_SERVICE_ASSET_IMAGES[sId] || LOCAL_SERVICE_ASSET_IMAGES[sName];
+      if (!matchedAsset) {
+        if (sName.includes('plumb')) matchedAsset = '/assets/hero-slideshow/plumber.jpg';
+        else if (sName.includes('electr')) matchedAsset = '/assets/hero-slideshow/electrician.jpg';
+        else if (sName.includes('clean')) matchedAsset = '/assets/hero-slideshow/cleaning.jpg';
+        else if (sName.includes('pest')) matchedAsset = '/assets/hero-slideshow/pestcontrol.jpg';
+        else if (sName.includes('ac') || sName.includes('cool') || sName.includes('air')) matchedAsset = '/assets/hero-slideshow/ac_service.jpg';
+        else if (sName.includes('paint')) matchedAsset = '/assets/hero-slideshow/painting.jpg';
+        else if (sName.includes('carpent') || sName.includes('wood')) matchedAsset = '/assets/hero-slideshow/carpenter.jpg';
+        else if (sName.includes('applianc') || sName.includes('repair')) matchedAsset = '/assets/hero-slideshow/appliance.jpg';
+        else if (sName.includes('labour') || sName.includes('work')) matchedAsset = '/assets/hero-slideshow/labour.jpg';
+        else if (sName.includes('renovat') || sName.includes('home')) matchedAsset = '/assets/hero-slideshow/renovation.jpg';
+        else matchedAsset = HERO_SHOWCASE_ASSETS[idx % HERO_SHOWCASE_ASSETS.length].image;
+      }
+
+      const resolvedImage = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null) || matchedAsset;
+
+      return {
+        id: String(s.id),
+        name: s.name,
+        title: s.name,
+        description: s.description || 'Professional service dispatched on demand.',
+        subtitle: s.description || 'Professional service dispatched on demand.',
+        base_price: Number(s.base_price || s.inspection_fee || 0),
+        price: Number(s.base_price || s.inspection_fee || 0),
+        category: s.category || 'Home Service',
+        badgeIcon: Wrench,
+        image: resolvedImage,
+        alt: s.name
+      };
+    });
+  }, [services]);
+
+  const slides = heroServices;
 
   const nextSlide = useCallback(() => {
+    if (slides.length <= 1) return;
     setDirection(1);
     setCurrentIndex((prev) => (prev + 1) % slides.length);
   }, [slides.length]);
 
   const prevSlide = useCallback(() => {
+    if (slides.length <= 1) return;
     setDirection(-1);
     setCurrentIndex((prev) => (prev - 1 + slides.length) % slides.length);
   }, [slides.length]);
 
   const goToSlide = (idx) => {
+    if (slides.length <= 1) return;
     setDirection(idx > currentIndex ? 1 : -1);
     setCurrentIndex(idx);
   };
 
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || slides.length <= 1) return;
     const interval = setInterval(() => {
       nextSlide();
     }, 4000);
     return () => clearInterval(interval);
-  }, [isPaused, nextSlide]);
+  }, [isPaused, nextSlide, slides.length]);
 
-  const currentSlide = slides[currentIndex];
-  const IconComponent = currentSlide.badgeIcon;
+  useEffect(() => {
+    if (currentIndex >= slides.length && slides.length > 0) {
+      setCurrentIndex(0);
+    }
+  }, [slides.length, currentIndex]);
+
+  const currentSlide = slides[currentIndex] || slides[0];
+  if (!currentSlide) return null;
+
+  const IconComponent = currentSlide.badgeIcon || Wrench;
 
   const slideVariants = {
     enter: (dir) => ({
-      x: dir > 0 ? 100 : -100,
-      opacity: 0,
-      scale: 0.96
+      x: dir > 0 ? 40 : -40,
+      opacity: 0
     }),
     center: {
       x: 0,
       opacity: 1,
-      scale: 1,
-      transition: { duration: 0.5, ease: 'easeOut' }
+      transition: { duration: 0.45, ease: 'easeOut' }
     },
     exit: (dir) => ({
-      x: dir > 0 ? -100 : 100,
+      x: dir > 0 ? -40 : 40,
       opacity: 0,
-      scale: 0.96,
-      transition: { duration: 0.4, ease: 'easeIn' }
+      transition: { duration: 0.35, ease: 'easeIn' }
     })
   };
 
@@ -128,90 +216,149 @@ const HeroSlideshow = () => {
 
   return (
     <div 
-      className="relative w-full max-w-[600px] flex flex-col gap-4 items-center group select-none"
+      className="relative w-full max-w-[560px] flex flex-col gap-4 items-center group select-none"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="absolute -top-6 -right-6 w-80 h-80 sm:w-96 sm:h-96 bg-gradient-to-tr from-primary to-indigo-500 rounded-full opacity-10 blur-3xl -z-10"></div>
-      
-      {/* Main Image Showcase Frame */}
-      <div className="relative w-full rounded-[28px] border-4 sm:border-[6px] border-white shadow-2xl shadow-slate-900/15 overflow-hidden aspect-[4/3] sm:aspect-[16/10.5] bg-slate-900 z-10">
-        <AnimatePresence initial={false} custom={direction} mode="wait">
-          <motion.img
-            key={currentSlide.id}
-            src={currentSlide.image}
-            alt={currentSlide.alt}
-            custom={direction}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
-            className="w-full h-full object-cover absolute inset-0"
-          />
-        </AnimatePresence>
-
-        {/* Top Right Service Category Pill Badge */}
-        <div className="absolute top-4 right-4 z-20 flex items-center gap-1.5 backdrop-blur-md px-3.5 py-1.5 rounded-full shadow-lg border border-white/20 transition-all pointer-events-none">
-          <div className={`flex items-center gap-1.5 text-white font-extrabold text-xs sm:text-sm`}>
-            <IconComponent size={15} />
-            <span>{currentSlide.title}</span>
+      {/* Main Showcase Panel Frame */}
+      <div 
+        onClick={() => {
+          if (heroServices.length > 0 && currentSlide.id && !currentSlide.id.startsWith('hero-asset-')) {
+            navigate(`/book/${currentSlide.id}`);
+          }
+        }}
+        className={`relative w-full rounded-[22px] border border-[#E7E9E6] shadow-md overflow-hidden bg-[#171918] p-5 sm:p-6 text-white flex flex-col justify-between z-10 transition-all ${
+          heroServices.length > 0 && !currentSlide.id?.startsWith('hero-asset-') ? 'cursor-pointer hover:border-[#2F6B5F]/60' : ''
+        }`}
+      >
+        {/* Top Header Row with Category Pill Badge */}
+        <div className="flex items-center justify-between mb-4 z-20">
+          <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 text-white text-xs font-bold">
+            <ShieldCheck size={14} className="text-[#2F6B5F]" />
+            <span>{currentSlide.category || 'Fixiva Service'}</span>
           </div>
+          {currentSlide.price > 0 && (
+            <span className="px-3 py-1 rounded-full bg-[#2F6B5F] text-white text-xs font-extrabold shadow-sm">
+              Starts ₹{currentSlide.price}
+            </span>
+          )}
         </div>
 
-        {/* Left Circular Arrow Button */}
-        <button
-          type="button"
-          onClick={prevSlide}
-          className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-900/40 hover:bg-slate-900/80 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-md"
-          aria-label="Previous slide"
-        >
-          <ChevronLeft size={20} />
-        </button>
+        {/* Primary Image Anchor Container (Responsive 16:7 Wide Landscape Frame) */}
+        <div className="relative w-full h-[170px] sm:h-[210px] lg:h-[240px] aspect-[16/7] rounded-xl overflow-hidden bg-slate-900 border border-white/10 mb-3.5 flex items-center justify-center">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
+            {currentSlide.image ? (
+              <motion.img
+                key={currentSlide.id}
+                src={currentSlide.image}
+                alt={currentSlide.alt || currentSlide.title}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                className="w-full h-full object-cover object-center absolute inset-0"
+              />
+            ) : (
+              <motion.div
+                key={currentSlide.id}
+                custom={direction}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                className="w-full h-full absolute inset-0 bg-gradient-to-br from-[#171918] via-[#2F6B5F]/40 to-[#171918] flex flex-col items-center justify-center p-6 text-center space-y-2"
+              >
+                <div className="h-12 w-12 rounded-2xl bg-[#2F6B5F] text-white flex items-center justify-center shadow-lg border border-white/20">
+                  <IconComponent size={24} />
+                </div>
+                <span className="text-xs font-bold text-slate-300">Fixiva Guaranteed Service</span>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
-        {/* Right Circular Arrow Button */}
-        <button
-          type="button"
-          onClick={nextSlide}
-          className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-slate-900/40 hover:bg-slate-900/80 text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-md"
-          aria-label="Next slide"
-        >
-          <ChevronRight size={20} />
-        </button>
+        {/* Slide Title & Description Footer */}
+        <div className="space-y-1 z-20 px-1 pb-6 sm:pb-5">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
+            <motion.div
+              key={currentSlide.id}
+              custom={direction}
+              variants={slideVariants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              className="space-y-1"
+            >
+              <h3 className="font-extrabold text-base sm:text-lg text-white leading-tight tracking-tight">
+                {currentSlide.title}
+              </h3>
+              {currentSlide.subtitle && (
+                <p className="text-xs text-slate-300 font-medium line-clamp-2 leading-relaxed">
+                  {currentSlide.subtitle}
+                </p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-        {/* Bottom Right Pagination Indicators */}
-        <div className="absolute bottom-4 right-4 z-20 flex items-center gap-1.5 bg-slate-900/60 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20">
-          {slides.map((_, idx) => (
+        {/* Navigation Controls: Left & Right Arrows */}
+        {slides.length > 1 && (
+          <>
             <button
-              key={idx}
               type="button"
-              onClick={() => goToSlide(idx)}
-              className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
-                idx === currentIndex ? 'w-5 bg-white' : 'w-2 bg-white/40 hover:bg-white/70'
-              }`}
-              aria-label={`Go to slide ${idx + 1}`}
-            />
-          ))}
-        </div>
+              onClick={(e) => { e.stopPropagation(); prevSlide(); }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-[#171918]/80 hover:bg-[#171918] text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-sm"
+              aria-label="Previous slide"
+            >
+              <ChevronLeft size={18} />
+            </button>
+
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); nextSlide(); }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-[#171918]/80 hover:bg-[#171918] text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-sm"
+              aria-label="Next slide"
+            >
+              <ChevronRight size={18} />
+            </button>
+
+            {/* Bottom Dynamic Indicators */}
+            <div className="absolute bottom-3 right-4 z-30 flex items-center gap-1.5 bg-[#171918]/70 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15">
+              {slides.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); goToSlide(idx); }}
+                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                    idx === currentIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'
+                  }`}
+                  aria-label={`Go to slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Trust Card below image container */}
-      <div className="w-full bg-white/95 backdrop-blur-md rounded-[20px] p-4 sm:p-4.5 shadow-xl border border-slate-200/80 grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3 z-20">
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-800">
-          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shrink-0">✓</span>
+      {/* Trust Bar below image container */}
+      <div className="w-full bg-white dark:bg-slate-900 rounded-[16px] p-4 border border-[#E7E9E6] dark:border-slate-800 shadow-xs grid grid-cols-2 gap-3 z-20">
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#171918] dark:text-slate-200">
+          <span className="w-4 h-4 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/80 text-[#3D8068] dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
           <span>{t('verifiedPros', 'Verified Professionals')}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-800">
-          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shrink-0">✓</span>
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#171918] dark:text-slate-200">
+          <span className="w-4 h-4 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/80 text-[#3D8068] dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
           <span>{t('transparentPricing', 'Transparent Pricing')}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-800">
-          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shrink-0">✓</span>
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#171918] dark:text-slate-200">
+          <span className="w-4 h-4 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/80 text-[#3D8068] dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
           <span>{t('qualityAssured', 'Quality Assured Services')}</span>
         </div>
-        <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold text-slate-800">
-          <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-xs font-black shrink-0">✓</span>
+        <div className="flex items-center gap-2 text-xs font-semibold text-[#171918] dark:text-slate-200">
+          <span className="w-4 h-4 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/80 text-[#3D8068] dark:text-emerald-400 flex items-center justify-center text-[10px] font-bold shrink-0">✓</span>
           <span>{t('easyBooking', 'Easy Booking Experience')}</span>
         </div>
       </div>

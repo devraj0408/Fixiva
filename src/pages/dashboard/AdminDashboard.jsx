@@ -28,14 +28,20 @@ const TicketsPanel = React.lazy(() => import('../../components/admin/TicketsPane
 const ReportsPanel = React.lazy(() => import('../../components/admin/ReportsPanel'));
 const SettingsPanel = React.lazy(() => import('../../components/admin/SettingsPanel'));
 
-const PanelLoader = () => (
-  <div className="flex h-64 flex-col items-center justify-center gap-3">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-primary"></div>
-    <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Loading Module...</p>
-  </div>
-);
+import { useLanguage } from '../../context/LanguageContext';
+
+const PanelLoader = () => {
+  const { t } = useLanguage();
+  return (
+    <div className="flex h-64 flex-col items-center justify-center gap-3">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-primary"></div>
+      <p className="text-xs font-bold uppercase tracking-wider text-slate-400">{t('loadingModule', 'Loading Module...')}</p>
+    </div>
+  );
+};
 
 const AdminDashboard = () => {
+  const { t } = useLanguage();
   const {
     user,
     bookings,
@@ -68,14 +74,14 @@ const AdminDashboard = () => {
     const completedBookings = (bookings || []).filter((booking) => booking.status === 'Completed').length;
 
     return [
-      { label: 'Customers', value: customersCount, icon: Users, tone: 'bg-sky-100 text-sky-700' },
-      { label: 'Workers', value: workersCount, icon: Briefcase, tone: 'bg-amber-100 text-amber-700' },
-      { label: 'Bookings', value: (bookings || []).length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
-      { label: 'Active', value: pendingBookings, icon: Clock, tone: 'bg-blue-100 text-blue-700' },
-      { label: 'Completed', value: completedBookings, icon: CheckCircle, tone: 'bg-emerald-100 text-emerald-700' },
-      { label: 'Support', value: (tickets || []).length, icon: MessageCircle, tone: 'bg-violet-100 text-violet-700' },
+      { label: t('customers', 'Customers'), value: customersCount, icon: Users, tone: 'bg-sky-100 text-sky-700' },
+      { label: t('workers', 'Workers'), value: workersCount, icon: Briefcase, tone: 'bg-amber-100 text-amber-700' },
+      { label: t('bookings', 'Bookings'), value: (bookings || []).length, icon: FileText, tone: 'bg-slate-100 text-slate-700' },
+      { label: t('active', 'Active'), value: pendingBookings, icon: Clock, tone: 'bg-blue-100 text-blue-700' },
+      { label: t('statusCompleted', 'Completed'), value: completedBookings, icon: CheckCircle, tone: 'bg-emerald-100 text-emerald-700' },
+      { label: t('support', 'Support'), value: (tickets || []).length, icon: MessageCircle, tone: 'bg-violet-100 text-violet-700' },
     ];
-  }, [bookings, cmsCustomers, profiles, tickets, workers]);
+  }, [bookings, cmsCustomers, profiles, tickets, workers, t]);
 
   const recentActivity = useMemo(() => {
     return [...(bookings || [])]

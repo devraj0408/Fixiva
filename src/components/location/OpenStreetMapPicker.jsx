@@ -113,10 +113,10 @@ const OpenStreetMapPicker = ({
         <div style="
           width: 36px;
           height: 36px;
-          background: #2563eb;
+          background: #2F6B5F;
           border: 3px solid #ffffff;
           border-radius: 50%;
-          box-shadow: 0 6px 16px rgba(37,99,235,0.45);
+          box-shadow: 0 4px 12px rgba(47,107,95,0.3);
           display: flex;
           align-items: center;
           justify-content: center;

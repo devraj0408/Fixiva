@@ -103,7 +103,7 @@ class ErrorBoundary extends Component {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.5rem',
-                  backgroundColor: '#2563EB',
+                  backgroundColor: '#2F6B5F',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '10px',
@@ -111,11 +111,10 @@ class ErrorBoundary extends Component {
                   fontSize: '0.875rem',
                   fontWeight: 600,
                   cursor: 'pointer',
-                  boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
                   transition: 'all 0.2s ease'
                 }}
-                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#1D4ED8'}
-                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2563EB'}
+                onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#285C52'}
+                onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#2F6B5F'}
               >
                 <RefreshCw size={16} />
                 Refresh Page

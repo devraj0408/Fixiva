@@ -1,76 +1,53 @@
 import { Link } from 'react-router-dom';
 import { Mail, MapPin, Share2 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import BrandLogo from './BrandLogo';
 
 const Footer = () => {
   const { t } = useLanguage();
 
   return (
-    <footer className="bg-slate-950 text-slate-400 border-t border-slate-800/80">
+    <footer className="bg-[#0B0F19] text-slate-400 border-t border-slate-800/80">
+      {/* Top Trust & Protection Bar */}
+      <div className="border-b border-slate-800/60 bg-slate-950/60 py-6">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-300">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>🔒 100% Identity-Verified Experts</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>⚡ Upfront Base Pricing & On-Site Payment Protection</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>💬 24/7 Operations & Help Support</span>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-12">
           {/* Brand Info */}
           <div className="space-y-6">
             <Link to="/" className="flex items-center gap-2 group">
-              <svg xmlns="http://www.w3.org/2000/svg" width="144" height="36" viewBox="0 0 160 40" className="shrink-0 group">
-                {/* Icon Mark Background */}
-                <rect x="0" y="0" width="40" height="40" rx="10" fill="#F8FAFC" />
-                
-                {/* Screwdriver Chimney */}
-                <rect x="24.5" y="6" width="3.5" height="5.5" rx="0.8" fill="#F59E0B" />
-                <rect x="25.5" y="11.5" width="1.5" height="4.5" fill="#F59E0B" />
-
-                {/* Amber Shield-Roof */}
-                <polygon points="8,19 20,9 32,19 29,19 20,12.5 11,19" fill="#F59E0B" />
-
-                {/* Blue House-Shield Body */}
-                <path d="M 11 19 L 29 19 L 29 27 C 29 32.5 20 35 20 35 C 20 35 11 32.5 11 27 Z" fill="#2563EB" />
-
-                {/* Connected Service Windows */}
-                <line x1="15" y1="21.5" x2="25" y2="21.5" stroke="#FFFFFF" strokeWidth="1" />
-                <circle cx="15" cy="21.5" r="1.5" fill="#FFFFFF" />
-                <circle cx="20" cy="21.5" r="1.5" fill="#FFFFFF" />
-                <circle cx="25" cy="21.5" r="1.5" fill="#FFFFFF" />
-
-                {/* White Door */}
-                <rect x="15" y="24" width="10" height="9.5" rx="1" fill="#FFFFFF" />
-
-                {/* Success Green Door Checkmark */}
-                <path d="M17.5 28.5 L19.5 30.5 L22.5 26" stroke="#10B981" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-
-                {/* Foundation Beam */}
-                <rect x="12" y="32.5" width="16" height="1.2" rx="0.6" fill="#FFFFFF" opacity="0.3" />
-
-                {/* Wordmark (Premium Soft Geometric Design for Dark Background) */}
-                <g id="wordmark" fill="none" strokeWidth="3.3" strokeLinecap="round" strokeLinejoin="round">
-                  {/* F - Deep Blue */}
-                  <path id="letter-f" d="M60 13.5 H53.6 V26.5 M53.6 19.5 H58.5" stroke="#2563EB" />
-                  
-                  {/* I-1 - White with Hover Transition */}
-                  <path id="letter-i-1" d="M65.5 13.5 V26.5" className="stroke-white group-hover:stroke-primary transition-all duration-300" />
-                  
-                  {/* X - White with Hover Transition */}
-                  <path id="letter-x" d="M71.5 13.5 L79.5 26.5 M79.5 13.5 L71.5 26.5" className="stroke-white group-hover:stroke-primary transition-all duration-300" />
-                  
-                  {/* I-2 - Emerald */}
-                  <path id="letter-i-2" d="M85.5 13.5 V26.5" stroke="#10B981" />
-                  
-                  {/* V - Amber */}
-                  <path id="letter-v" d="M91.5 13.5 L96.5 26.5 L101.5 13.5" stroke="#F59E0B" />
-                  
-                  {/* A - White with Hover Transition */}
-                  <path id="letter-a" d="M107.5 26.5 L112.5 13.5 L117.5 26.5 M110.1 21 H114.9" className="stroke-white group-hover:stroke-primary transition-all duration-300" />
-                </g>
-              </svg>
+              <BrandLogo mode="dark" height={36} />
             </Link>
-            <p className="text-sm text-slate-400 leading-relaxed font-medium">
+            <p className="text-sm text-slate-400 leading-relaxed font-semibold">
               {t('footerTagline', 'Fixiva is a modern home-service control plane connecting customers with verified professionals.')}
             </p>
             <div className="flex items-center gap-3">
               <a 
+                href="mailto:fixiva869@gmail.com" 
+                className="h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:border-primary/50 hover:bg-primary hover:text-white flex items-center justify-center text-slate-400 transition-all cursor-pointer shadow-xs"
+                aria-label="Contact Email"
+                title="Email Support"
+              >
+                <Mail size={16} />
+              </a>
+              <a 
                 href="#" 
-                className="h-9 w-9 rounded-xl bg-slate-800 hover:bg-primary hover:text-white flex items-center justify-center text-slate-400 transition-all"
-                aria-label="Social Link"
+                className="h-9 w-9 rounded-xl bg-slate-900 border border-slate-800 hover:border-primary/50 hover:bg-primary hover:text-white flex items-center justify-center text-slate-400 transition-all cursor-pointer shadow-xs"
+                aria-label="Share"
+                title="Share Fixiva"
               >
                 <Share2 size={16} />
               </a>
@@ -79,8 +56,8 @@ const Footer = () => {
 
           {/* Quick Links */}
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('quickLinks', 'Quick Links')}</h4>
-            <ul className="space-y-3.5 text-sm font-medium">
+            <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6">{t('quickLinks', 'Quick Links')}</h4>
+            <ul className="space-y-3.5 text-xs font-bold">
               <li>
                 <Link to="/services" className="hover:text-white transition-colors">
                   {t('services', 'Services')}
@@ -102,7 +79,7 @@ const Footer = () => {
                 </Link>
               </li>
               <li>
-                <Link to="/register?role=worker" className="hover:text-white transition-colors text-primary font-bold">
+                <Link to="/register?role=worker" className="hover:text-white transition-colors text-[#3D8068] font-extrabold">
                   {t('joinFixiva', 'Join Fixiva')}
                 </Link>
               </li>
@@ -111,8 +88,8 @@ const Footer = () => {
 
           {/* Legal Links */}
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('legalPolicies', 'Legal & Policies')}</h4>
-            <ul className="space-y-3.5 text-sm font-medium">
+            <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6">{t('legalPolicies', 'Legal & Policies')}</h4>
+            <ul className="space-y-3.5 text-xs font-bold">
               <li>
                 <Link to="/privacy" className="hover:text-white transition-colors">
                   Privacy Policy
@@ -138,8 +115,8 @@ const Footer = () => {
 
           {/* Contact Details */}
           <div className="space-y-6">
-            <h4 className="text-xs font-bold text-white uppercase tracking-widest mb-6">{t('contactInfo', 'Contact Information')}</h4>
-            <div className="space-y-4 text-sm font-medium">
+            <h4 className="text-xs font-black text-white uppercase tracking-widest mb-6">{t('contactInfo', 'Contact Information')}</h4>
+            <div className="space-y-4 text-xs font-bold">
               <div className="flex items-center gap-3">
                 <Mail size={16} className="text-primary shrink-0" />
                 <a href="mailto:fixiva869@gmail.com" className="hover:text-white transition-colors break-all">
@@ -155,8 +132,11 @@ const Footer = () => {
         </div>
 
         {/* Footer Bottom */}
-        <div className="mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium">
+        <div className="mt-16 pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-semibold text-slate-500">
           <p>&copy; {new Date().getFullYear()} Fixiva Services. {t('allRightsReserved', 'All rights reserved.')}</p>
+          <p className="flex items-center gap-1.5">
+            <span>Built with precision for seamless home services</span>
+          </p>
         </div>
       </div>
     </footer>

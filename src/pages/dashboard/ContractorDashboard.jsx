@@ -801,7 +801,7 @@ const ContractorDashboard = () => {
                             ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                             : b.status === 'Accepted'
                             ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-blue-50 text-primary border border-blue-200'
+                            : 'bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6]'
                         }`}
                       >
                         ● {b.status}
@@ -861,7 +861,7 @@ const ContractorDashboard = () => {
                             setAssigningBooking(b);
                             setSelectedStaffName('');
                           }}
-                          className="flex-1 py-2.5 rounded-2xl bg-primary text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all"
+                          className="flex-1 py-2.5 rounded-2xl bg-primary text-xs font-extrabold text-white shadow-sm hover:bg-[#285C52] transition-all"
                         >
                           {b.worker_name ? 'Reassign Staff' : 'Assign Worker'}
                         </button>
@@ -1025,7 +1025,7 @@ const ContractorDashboard = () => {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className={`px-3 py-1 rounded-full font-black text-[10px] uppercase ${j.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-blue-50 text-primary'}`}>
+                      <span className={`px-3 py-1 rounded-full font-black text-[10px] uppercase ${j.status === 'Completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-[#E8F0ED] text-[#2F6B5F]'}`}>
                         {j.status}
                       </span>
                       {j.status !== 'Completed' && (

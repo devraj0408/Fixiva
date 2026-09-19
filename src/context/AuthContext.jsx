@@ -190,6 +190,29 @@ export const AuthProvider = ({ children }) => {
       return data || [];
     };
 
+    const DEFAULT_SERVICE_IMAGES = {
+      plumber: '/assets/hero-slideshow/plumber.jpg',
+      plumbing: '/assets/hero-slideshow/plumber.jpg',
+      electrician: '/assets/hero-slideshow/electrician.jpg',
+      electrical: '/assets/hero-slideshow/electrician.jpg',
+      cleaning: '/assets/hero-slideshow/cleaning.jpg',
+      'house cleaning': '/assets/hero-slideshow/cleaning.jpg',
+      'home cleaning': '/assets/hero-slideshow/cleaning.jpg',
+      'pest control': '/assets/hero-slideshow/pestcontrol.jpg',
+      pestcontrol: '/assets/hero-slideshow/pestcontrol.jpg',
+      labour: '/assets/hero-slideshow/labour.jpg',
+      'construction labour': '/assets/hero-slideshow/labour.jpg',
+      'ac repair': '/assets/hero-slideshow/ac_service.jpg',
+      'ac service': '/assets/hero-slideshow/ac_service.jpg',
+      painter: '/assets/hero-slideshow/painting.jpg',
+      painting: '/assets/hero-slideshow/painting.jpg',
+      carpenter: '/assets/hero-slideshow/carpenter.jpg',
+      carpentry: '/assets/hero-slideshow/carpenter.jpg',
+      'appliance repair': '/assets/hero-slideshow/appliance.jpg',
+      renovation: '/assets/hero-slideshow/renovation.jpg',
+      'home renovation': '/assets/hero-slideshow/renovation.jpg'
+    };
+
     const fetchServices = async () => {
       if (!supabase) {
         return [];
@@ -197,7 +220,19 @@ export const AuthProvider = ({ children }) => {
 
       const { data, error } = await supabase.from('services').select('*');
       if (!error) {
-        return (data || []).map((item) => ({ ...item, category: item.category || '' }));
+        return (data || []).map((item) => {
+          const sId = String(item.id || '').toLowerCase().trim();
+          const sName = String(item.name || '').toLowerCase().trim();
+          const defaultImg = DEFAULT_SERVICE_IMAGES[sId] || DEFAULT_SERVICE_IMAGES[sName];
+          const img = item.image_url || item.image || (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:')) ? item.icon : null) || defaultImg;
+
+          return { 
+            ...item, 
+            category: item.category || '',
+            image_url: img,
+            image: img
+          };
+        });
       }
       return [];
     };

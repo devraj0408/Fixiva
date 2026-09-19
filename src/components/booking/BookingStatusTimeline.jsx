@@ -1,15 +1,16 @@
 import { Check } from 'lucide-react';
+import { useLanguage } from '../../context/LanguageContext';
 
 const STAGES = [
-  { id: 'created', label: 'Booking Created', statuses: ['NEW', 'LEAD SENT', 'Pending', 'New Request'] },
-  { id: 'contractor_accepted', label: 'Contractor Accepted', statuses: ['CONTRACTOR ACCEPTED', 'Confirmed'] },
-  { id: 'worker_assigned', label: 'Worker Assigned', statuses: ['WORKER ASSIGNED', 'PENDING ACCEPTANCE', 'Assigned'] },
-  { id: 'worker_accepted', label: 'Worker Accepted', statuses: ['ACCEPTED'] },
-  { id: 'on_the_way', label: 'On The Way', statuses: ['ON THE WAY'] },
-  { id: 'arrived', label: 'Arrived', statuses: ['ARRIVED'] },
-  { id: 'work_started', label: 'Work Started', statuses: ['WORK IN PROGRESS', 'Work Started', 'In Progress'] },
-  { id: 'completed', label: 'Completed', statuses: ['COMPLETED', 'Completed'] },
-  { id: 'reviewed', label: 'Reviewed', statuses: ['REVIEWED', 'Reviewed'] }
+  { id: 'created', key: 'statusPending', label: 'Booking Created', statuses: ['NEW', 'LEAD SENT', 'Pending', 'New Request'] },
+  { id: 'contractor_accepted', key: 'statusContractorAccepted', label: 'Contractor Accepted', statuses: ['CONTRACTOR ACCEPTED', 'Confirmed'] },
+  { id: 'worker_assigned', key: 'statusWorkerAssigned', label: 'Worker Assigned', statuses: ['WORKER ASSIGNED', 'PENDING ACCEPTANCE', 'Assigned'] },
+  { id: 'worker_accepted', key: 'statusWorkerAccepted', label: 'Worker Accepted', statuses: ['ACCEPTED'] },
+  { id: 'on_the_way', key: 'statusOnTheWay', label: 'On The Way', statuses: ['ON THE WAY'] },
+  { id: 'arrived', key: 'statusArrived', label: 'Arrived', statuses: ['ARRIVED'] },
+  { id: 'work_started', key: 'statusWorkStarted', label: 'Work Started', statuses: ['WORK IN PROGRESS', 'Work Started', 'In Progress'] },
+  { id: 'completed', key: 'statusCompleted', label: 'Completed', statuses: ['COMPLETED', 'Completed'] },
+  { id: 'reviewed', key: 'statusReviewed', label: 'Reviewed', statuses: ['REVIEWED', 'Reviewed'] }
 ];
 
 const getActiveStageIndex = (status) => {
@@ -24,14 +25,20 @@ const getActiveStageIndex = (status) => {
 };
 
 const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
+  const { t } = useLanguage();
   const currentIndex = getActiveStageIndex(status);
+
+  const getStageLabel = (stage) => {
+    if (!stage) return status;
+    return t(stage.key, stage.label);
+  };
 
   if (compact) {
     const currentStage = STAGES[currentIndex] || STAGES[0];
     return (
       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider bg-blue-50 text-primary border border-blue-100">
         <span className="w-2 h-2 rounded-full bg-primary animate-ping shrink-0"></span>
-        <span>{currentStage.label}</span>
+        <span>{getStageLabel(currentStage)}</span>
       </div>
     );
   }
@@ -39,8 +46,8 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
   return (
     <div className="w-full py-4 space-y-3">
       <div className="flex items-center justify-between text-xs font-bold text-slate-500 mb-1">
-        <span>Lifecycle Status</span>
-        <span className="text-primary font-black uppercase tracking-wider">{STAGES[currentIndex]?.label || status}</span>
+        <span>{t('status', 'Lifecycle Status')}</span>
+        <span className="text-primary font-black uppercase tracking-wider">{getStageLabel(STAGES[currentIndex])}</span>
       </div>
 
       {/* Horizontal Progress Bar for Desktop */}
@@ -54,6 +61,7 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
         {STAGES.map((stage, idx) => {
           const isDone = idx < currentIndex;
           const isCurrent = idx === currentIndex;
+          const translatedLabel = getStageLabel(stage);
           return (
             <div key={stage.id} className="relative z-10 flex flex-col items-center group">
               <div
@@ -64,7 +72,7 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
                     ? 'bg-primary text-white shadow-md ring-4 ring-blue-100 scale-110'
                     : 'bg-white text-slate-400 border-2 border-slate-300'
                 }`}
-                title={stage.label}
+                title={translatedLabel}
               >
                 {isDone ? <Check size={14} /> : idx + 1}
               </div>
@@ -73,7 +81,7 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
                   isCurrent ? 'text-primary font-extrabold' : isDone ? 'text-emerald-600' : 'text-slate-400'
                 }`}
               >
-                {stage.label}
+                {translatedLabel}
               </span>
             </div>
           );
@@ -86,6 +94,7 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
           const isDone = idx < currentIndex;
           const isCurrent = idx === currentIndex;
           if (idx > currentIndex + 1 && idx < STAGES.length - 1) return null; // Collapse future steps on mobile
+          const translatedLabel = getStageLabel(stage);
           return (
             <div key={stage.id} className="flex items-center gap-2 text-xs">
               <div
@@ -100,7 +109,7 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false }) => {
                 {isDone ? '✓' : idx + 1}
               </div>
               <span className={`font-bold ${isCurrent ? 'text-primary font-extrabold' : isDone ? 'text-emerald-700' : 'text-slate-400'}`}>
-                {stage.label} {isCurrent && '(Current Step)'}
+                {translatedLabel} {isCurrent && '(Current Step)'}
               </span>
             </div>
           );

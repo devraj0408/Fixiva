@@ -285,7 +285,7 @@ export const createBooking = async (bookingData, actor = {}) => {
 
     if (error) {
       console.error('createBooking DB error:', error);
-      return { data: payload, error: null };
+      return { data: null, error: error.message || 'Booking creation failed in database' };
     }
 
     await logAdminAction({

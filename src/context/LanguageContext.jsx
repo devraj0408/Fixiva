@@ -20,10 +20,13 @@ export const LanguageProvider = ({ children }) => {
 
   const t = (key, fallback = '') => {
     const langDict = translations[language] || translations['en'];
-    if (langDict && langDict[key]) {
+    if (langDict && langDict[key] !== undefined) {
       return langDict[key];
     }
-    return translations['en']?.[key] || fallback || key;
+    if (translations['en'] && translations['en'][key] !== undefined) {
+      return translations['en'][key];
+    }
+    return fallback || key;
   };
 
   const currentLangObj = LANGUAGES.find(l => l.code === language) || LANGUAGES[0];

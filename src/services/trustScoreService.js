@@ -174,8 +174,8 @@ export const calculateWorkerTrustScore = (worker, bookings = [], reviews = [], t
     tierColor = 'emerald';
   } else if (finalScore >= 75) {
     tier = 'Very Good';
-    badgeBg = 'bg-blue-50 text-blue-700 border-blue-200';
-    tierColor = 'blue';
+    badgeBg = 'bg-[#E8F0ED] text-[#2F6B5F] border-[#E7E9E6]';
+    tierColor = 'teal';
   } else if (finalScore >= 60) {
     tier = 'Good';
     badgeBg = 'bg-teal-50 text-teal-700 border-teal-200';

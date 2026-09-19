@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, ArrowRight } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
 import RapidoLocationSelector from '../location/RapidoLocationSelector';
 import { findAvailableProfessionals, createBooking } from '../../services/bookingService';
@@ -10,6 +11,7 @@ import { BUSINESS_CONFIG } from '../../config/businessConfig';
 
 const UnifiedBookingModal = () => {
   const { bookingModalState, closeBookingModal, services = [], user, showToast } = useApp();
+  const { t } = useLanguage();
   const { isOpen, initialData = {} } = bookingModalState;
 
   const [prevIsOpen, setPrevIsOpen] = useState(false);
@@ -18,7 +20,7 @@ const UnifiedBookingModal = () => {
     (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
   );
 
-  const [serviceId, setServiceId] = useState(initialData.serviceId || activeServices[0]?.id || 'plumber');
+  const [serviceId, setServiceId] = useState(initialData.serviceId || activeServices[0]?.id || '');
   const [selectedState, setSelectedState] = useState(() => {
     try { return localStorage.getItem('fixiva:last-state') || ''; } catch { return ''; }
   });
@@ -86,7 +88,7 @@ const UnifiedBookingModal = () => {
       }
       setStep(2);
     } catch {
-      showToast('Error matching professionals', 'error');
+      showToast(t('somethingWentWrong', 'Error matching professionals'), 'error');
     } finally {
       setMatchingLoading(false);
     }
@@ -94,7 +96,7 @@ const UnifiedBookingModal = () => {
 
   const handleConfirm = async () => {
     if (!customerName || !customerPhone) {
-      showToast('Please enter your name and phone number', 'error');
+      showToast(t('enterName', 'Please enter your name and phone number'), 'error');
       return;
     }
     setSubmitting(true);
@@ -115,12 +117,12 @@ const UnifiedBookingModal = () => {
 
       if (res.data) {
         setBookingSuccess(true);
-        showToast('Booking submitted successfully!', 'success');
+        showToast(t('bookingSuccessfulTitle', 'Booking submitted successfully!'), 'success');
       } else {
-        showToast(res.error || 'Failed to place booking.', 'error');
+        showToast(res.error || t('somethingWentWrong', 'Failed to place booking.'), 'error');
       }
     } catch {
-      showToast('Failed to place booking.', 'error');
+      showToast(t('somethingWentWrong', 'Failed to place booking.'), 'error');
     } finally {
       setSubmitting(false);
     }
@@ -151,8 +153,8 @@ const UnifiedBookingModal = () => {
               />
             ) : null}
             <div>
-              <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">Instant Booking</span>
-              <h2 className="text-lg font-black text-slate-900 leading-tight">{activeService?.name || 'Home'} Service</h2>
+              <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">{t('quickBooking', 'Quick Booking')}</span>
+              <h2 className="text-lg font-black text-slate-900 leading-tight">{activeService?.name || t('services', 'Service')}</h2>
             </div>
           </div>
 
@@ -185,7 +187,7 @@ const UnifiedBookingModal = () => {
                         }
                         setStep(2);
                       } catch {
-                        showToast('Error matching professionals', 'error');
+                        showToast(t('somethingWentWrong', 'Error matching professionals'), 'error');
                       } finally {
                         setMatchingLoading(false);
                       }
@@ -198,24 +200,24 @@ const UnifiedBookingModal = () => {
                 availablePros.length === 0 ? (
                   <div className="p-6 text-center space-y-3 bg-blue-50/50 rounded-2xl border border-blue-100">
                     <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
-                      Coming Soon
+                      {t('comingSoon', 'Coming Soon')}
                     </span>
                     <h3 className="text-base font-black text-slate-900 pt-1">
-                      Services Coming Soon to {selectedLocality}, {selectedDistrict}
+                      {t('currentlyExpanding', 'Services Coming Soon to your area')} ({selectedLocality}, {selectedDistrict})
                     </h3>
                     <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                      No active registered workers or contractors are currently available for this service in your area. Fixiva is expanding rapidly!
+                      {t('noWorkerInArea', 'No active registered workers or contractors are currently available for this service in your area. Fixiva is expanding rapidly!')}
                     </p>
                     <button
                       onClick={() => setStep(1)}
                       className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl shadow-sm mt-2"
                     >
-                      Change Location / Service
+                      {t('selectLocationTitle', 'Select Location')}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <span className="text-xs font-bold text-slate-700">Available Professionals near {selectedLocality}</span>
+                    <span className="text-xs font-bold text-slate-700">{t('matchingProsTitle', 'Verified Professionals Available')} ({selectedLocality})</span>
                     
                     <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
                       {availablePros.map(pro => (
@@ -231,7 +233,7 @@ const UnifiedBookingModal = () => {
                             <div>
                               <h4 className="font-bold text-slate-900">{pro.name}</h4>
                               <span className="text-[10px] text-slate-500 font-semibold">
-                                {pro.distance_km !== null && pro.distance_km !== undefined ? `${pro.distance_km} km away • ETA ${pro.eta_text || 'Nearby'}` : 'Verified Professional'}
+                                {pro.distance_km !== null && pro.distance_km !== undefined ? `${pro.distance_km} km away • ETA ${pro.eta_text || 'Nearby'}` : t('fixivaVerified', 'Fixiva Verified')}
                               </span>
                             </div>
                           </div>
@@ -244,14 +246,14 @@ const UnifiedBookingModal = () => {
                   <div className="space-y-2 pt-2 border-t border-slate-100">
                     <input
                       type="text"
-                      placeholder="Your Full Name"
+                      placeholder={t('fullNameLabel', 'Full Name')}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                     />
                     <input
                       type="tel"
-                      placeholder="Mobile Phone Number"
+                      placeholder={t('phoneLabel', 'Mobile Number')}
                       className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
@@ -263,14 +265,14 @@ const UnifiedBookingModal = () => {
                       onClick={() => setStep(1)}
                       className="w-1/3 py-2.5 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50"
                     >
-                      Back
+                      {t('back', 'Back')}
                     </button>
                     <button
                       onClick={handleConfirm}
                       disabled={submitting}
                       className="btn-primary w-2/3 py-2.5 text-xs font-bold rounded-xl shadow-md"
                     >
-                      {submitting ? 'Confirming...' : 'Confirm Booking'}
+                      {submitting ? t('submitting', 'Submitting...') : t('confirmBookingBtn', 'Confirm Booking')}
                     </button>
                   </div>
                 </div>
@@ -279,8 +281,8 @@ const UnifiedBookingModal = () => {
               {step === 2 && !isDistrictActiveStatus && (
                 <div className="text-center py-6 space-y-4">
                   <span className="text-2xl">🚨</span>
-                  <h3 className="text-base font-bold text-slate-900">Fixiva is unavailable in {selectedDistrict} yet.</h3>
-                  <p className="text-xs text-slate-500">We are expanding rapidly to your area!</p>
+                  <h3 className="text-base font-bold text-slate-900">{t('notInCityYet', 'Not in city yet')} ({selectedDistrict})</h3>
+                  <p className="text-xs text-slate-500">{t('requestCoverageDesc', 'We are expanding rapidly to your area!')}</p>
                   <button
                     onClick={() => {
                       submitCoverageRequest({
@@ -290,12 +292,12 @@ const UnifiedBookingModal = () => {
                         district: selectedDistrict,
                         locality: selectedLocality
                       });
-                      showToast('Coverage requested!', 'success');
+                      showToast(t('requested', 'Coverage requested!'), 'success');
                       closeBookingModal();
                     }}
                     className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl"
                   >
-                    Request Coverage
+                    {t('submitRequest', 'Request Coverage')}
                   </button>
                 </div>
               )}
@@ -303,10 +305,10 @@ const UnifiedBookingModal = () => {
           ) : (
             <div className="text-center py-8 space-y-4">
               <span className="text-3xl">🎉</span>
-              <h3 className="text-lg font-extrabold text-slate-900">Booking Confirmed!</h3>
-              <p className="text-xs text-slate-500">Our specialist has been notified and will arrive in {selectedLocality}.</p>
+              <h3 className="text-lg font-extrabold text-slate-900">{t('bookingSuccessfulTitle', 'Booking Confirmed!')}</h3>
+              <p className="text-xs text-slate-500">{t('bookingSuccessMsg', 'Our specialist has been notified.')}</p>
               <button onClick={closeBookingModal} className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl">
-                Close
+                {t('close', 'Close')}
               </button>
             </div>
           )}

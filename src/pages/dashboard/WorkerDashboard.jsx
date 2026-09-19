@@ -31,6 +31,7 @@ import { uploadImage } from '../../services/storageService';
 import { updateWorkerLiveLocation, saveUserGpsLocation, calculateDistanceInKm } from '../../services/locationService';
 
 const WorkerDashboard = () => {
+  const { t } = useLanguage();
   const {
     user,
     bookings,
@@ -631,15 +632,15 @@ const WorkerDashboard = () => {
 
   // Sidebar Items matching exact prompt requirement
   const navItems = [
-    { id: 'overview', label: 'Dashboard', icon: BarChart3 },
-    { id: 'assigned-jobs', label: 'Assigned Jobs', icon: Briefcase, count: pendingJobs.length + activeJobs.length },
-    { id: 'history', label: 'Job History', icon: Clock, count: completedJobs.length },
-    { id: 'earnings', label: 'Earnings', icon: IndianRupee },
-    { id: 'availability', label: 'Availability', icon: CheckSquare },
-    { id: 'support', label: 'Support Desk', icon: Headphones },
-    { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter(n => !n.read).length },
-    { id: 'reviews', label: 'Reviews', icon: Star },
-    { id: 'profile', label: 'Profile', icon: Settings },
+    { id: 'overview', label: t('dashboard', 'Dashboard'), icon: BarChart3 },
+    { id: 'assigned-jobs', label: t('currentJob', 'Assigned Jobs'), icon: Briefcase, count: pendingJobs.length + activeJobs.length },
+    { id: 'history', label: t('bookings', 'Job History'), icon: Clock, count: completedJobs.length },
+    { id: 'earnings', label: t('earnings', 'Earnings'), icon: IndianRupee },
+    { id: 'availability', label: t('workAvailability', 'Availability'), icon: CheckSquare },
+    { id: 'support', label: t('support', 'Support Desk'), icon: Headphones },
+    { id: 'notifications', label: t('notifications', 'Notifications'), icon: Bell, count: notifications.filter(n => !n.read).length },
+    { id: 'reviews', label: t('reviewsModeration', 'Reviews'), icon: Star },
+    { id: 'profile', label: t('profile', 'Profile'), icon: Settings },
   ];
 
   const renderTabContent = () => {
@@ -688,7 +689,7 @@ const WorkerDashboard = () => {
                       <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2 font-semibold text-slate-700">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-900 font-extrabold">Customer: {job.customer_name || 'Client'}</span>
-                          <span className="text-[10px] font-black text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-black text-[#2F6B5F] bg-[#E8F0ED] px-2 py-0.5 rounded-full">
                             📍 {job.locality || job.district || 'Assigned Coverage Area'}
                           </span>
                         </div>
@@ -712,7 +713,7 @@ const WorkerDashboard = () => {
                       <div className="flex gap-3 flex-wrap">
                         <button
                           onClick={() => handleJobStatusUpdate(job.id, 'Accepted')}
-                          className="flex-1 rounded-2xl bg-primary py-3 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700 transition-all flex items-center justify-center gap-1"
+                          className="flex-1 rounded-2xl bg-primary py-3 text-xs font-extrabold text-white shadow-sm hover:bg-[#285C52] transition-all flex items-center justify-center gap-1"
                         >
                           <CheckSquare size={14} /> Accept Offer
                         </button>
@@ -747,7 +748,7 @@ const WorkerDashboard = () => {
                           <span className="text-[10px] font-black text-primary uppercase">ACTIVE BOOKING #{job.id}</span>
                           <h4 className="font-extrabold text-slate-900 text-base mt-0.5">{job.service_name}</h4>
                         </div>
-                        <span className="px-3 py-1 bg-blue-50 text-primary font-black text-[10px] uppercase rounded-full border border-blue-200">
+                        <span className="px-3 py-1 bg-[#E8F0ED] text-[#2F6B5F] font-black text-[10px] uppercase rounded-full border border-[#E7E9E6]">
                           ● {job.status}
                         </span>
                       </div>
@@ -1435,7 +1436,7 @@ const WorkerDashboard = () => {
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Today's Jobs</p>
                     <p className="mt-2 text-2xl font-black text-slate-900">{todaysJobsCount}</p>
                   </div>
-                  <div className="rounded-2xl p-2.5 bg-blue-100 text-blue-700">
+                  <div className="rounded-2xl p-2.5 bg-[#E8F0ED] text-[#2F6B5F]">
                     <Calendar size={20} />
                   </div>
                 </div>
@@ -1459,7 +1460,7 @@ const WorkerDashboard = () => {
                     <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Active Jobs</p>
                     <p className="mt-2 text-2xl font-black text-slate-900">{activeJobs.length}</p>
                   </div>
-                  <div className="rounded-2xl p-2.5 bg-sky-100 text-sky-700">
+                  <div className="rounded-2xl p-2.5 bg-[#E8F0ED] text-[#2F6B5F]">
                     <Briefcase size={20} />
                   </div>
                 </div>
@@ -1527,7 +1528,7 @@ const WorkerDashboard = () => {
                       </div>
                       <button
                         onClick={() => handleJobStatusUpdate(item.id, 'Accepted')}
-                        className="rounded-xl bg-primary px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700"
+                        className="rounded-xl bg-primary px-3.5 py-2 text-xs font-extrabold text-white shadow-sm hover:bg-[#285C52]"
                       >
                         Accept
                       </button>
@@ -1568,7 +1569,7 @@ const WorkerDashboard = () => {
                     <span>{label}</span>
                   </div>
                   {count !== undefined && count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-[#E8F0ED] text-[#2F6B5F]'}`}>
                       {count}
                     </span>
                   )}

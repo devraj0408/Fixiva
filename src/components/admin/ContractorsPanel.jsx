@@ -64,7 +64,7 @@ const ContractorsPanel = () => {
                     <p className="text-xs text-slate-500">Owner: {contractor.owner_name || contractor.name || 'Owner'}</p>
                   </td>
                   <td className="px-4 py-3 font-semibold text-slate-700">{contractor.gst || 'Pending Submission'}</td>
-                  <td className="px-4 py-3 text-slate-600">{contractor.city || 'Ranchi'}</td>
+                  <td className="px-4 py-3 text-slate-600">{contractor.city || contractor.district || 'Coverage Area'}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-extrabold ${contractor.status === 'Suspended' ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
                       {contractor.status || 'Active'}

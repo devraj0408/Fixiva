@@ -346,15 +346,15 @@ const Register = () => {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16">
-      <div className="bg-white rounded-3xl border border-slate-100 p-8 sm:p-12 shadow-xl shadow-slate-100/50 space-y-8">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 p-8 sm:p-12 shadow-xl shadow-slate-100/50 dark:shadow-none space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">{t('registerTitle', 'Create Account')}</h1>
-          <p className="text-xs text-slate-400 font-semibold">{t('registerSubtitle', 'Join Fixiva as a Customer, Worker, or Partner.')}</p>
+          <h1 className="text-3xl font-black text-slate-900 dark:text-white tracking-tight">{t('registerTitle', 'Create Account')}</h1>
+          <p className="text-xs text-slate-400 dark:text-slate-400 font-semibold">{t('registerSubtitle', 'Join Fixiva as a Customer, Worker, or Partner.')}</p>
         </div>
 
         <div className="flex flex-col items-center justify-center gap-3">
-          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600">
-            <span className="rounded-full bg-primary/10 p-1 text-primary"><User size={12} /></span>
+          <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300">
+            <span className="rounded-full bg-primary/10 dark:bg-emerald-950/60 p-1 text-primary dark:text-emerald-400"><User size={12} /></span>
             Joining as {role === 'worker' ? t('workerRole', 'Worker') : role === 'contractor' ? t('contractorRole', 'Contractor') : t('customerRole', 'Customer')}
           </div>
           <div className="grid grid-cols-2 gap-3 w-full max-w-md">
@@ -362,7 +362,7 @@ const Register = () => {
               <button
                 key={option}
                 type="button"
-                className={`w-full rounded-2xl border px-3 py-2 text-xs font-bold uppercase transition ${role === option ? 'border-primary bg-primary text-white' : 'border-slate-200 bg-slate-50 text-slate-600 hover:border-slate-300'}`}
+                className={`w-full rounded-2xl border px-3 py-2 text-xs font-bold uppercase transition ${role === option ? 'border-primary bg-primary text-white' : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'}`}
                 onClick={() => {
                   if (!otpSent) setRole(option);
                 }}
@@ -378,14 +378,14 @@ const Register = () => {
           {!otpSent ? (
             <div className="space-y-6">
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Account details</h3>
+                <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Account details</h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('fullNameLabel', 'Full Name')}</label>
                     <div className="relative">
                       <User className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Rahul Sharma" />
+                      <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Rahul Sharma" />
                     </div>
                     {errors.name && <p className="text-danger text-[10px] font-bold text-red-500">{errors.name}</p>}
                   </div>
@@ -394,7 +394,7 @@ const Register = () => {
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('phoneLabel', 'Mobile Number')}</label>
                     <div className="relative">
                       <Phone className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                      <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="10-digit mobile" />
+                      <input type="text" className="w-full h-11 pl-10 pr-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="10-digit mobile" />
                     </div>
                     {errors.phone && <p className="text-danger text-[10px] font-bold text-red-500">{errors.phone}</p>}
                   </div>
@@ -404,13 +404,13 @@ const Register = () => {
                   <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">{t('emailLabel', 'Email Address')}</label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-3.5 text-slate-400" size={16} />
-                    <input type="email" className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="name@email.com" />
+                    <input type="email" className="w-full h-11 pl-10 pr-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="name@email.com" />
                   </div>
                   {errors.email && <p className="text-danger text-[10px] font-bold text-red-500">{errors.email}</p>}
                 </div>
 
                 {/* Location Section - Full Width Responsive Layout */}
-                <div className="space-y-4 pt-3 border-t border-slate-100">
+                <div className="space-y-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
                       {t('cityLabel', 'Operating Location (State, District, Locality)')}
@@ -437,18 +437,18 @@ const Register = () => {
                   </div>
 
                   {/* Clean Current Location GPS Card & Trigger Button */}
-                  <div className="p-4 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-3">
+                  <div className="p-4 bg-slate-50/90 dark:bg-slate-950/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 min-w-0">
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                          <LocateFixed size={14} className="text-primary shrink-0" /> Current location
+                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                          <LocateFixed size={14} className="text-primary dark:text-emerald-400 shrink-0" /> Current location
                         </span>
                         {formData.locationLatitude && formData.locationLongitude ? (
-                          <p className="text-xs font-black text-slate-800 font-mono tracking-tight pl-5">
+                          <p className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono tracking-tight pl-5">
                             {Number(formData.locationLatitude).toFixed(4)}, {Number(formData.locationLongitude).toFixed(4)}
                           </p>
                         ) : (
-                          <p className="text-xs font-semibold text-slate-400 pl-5">
+                          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 pl-5">
                             Not detected
                           </p>
                         )}
@@ -458,7 +458,7 @@ const Register = () => {
                         type="button"
                         onClick={handleUseCurrentLocation}
                         disabled={geoLoading}
-                        className="w-full sm:w-auto h-10 px-4 rounded-xl border border-sky-200 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
+                        className="w-full sm:w-auto h-10 px-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
                       >
                         {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
                         <span>{geoLoading ? 'Detecting...' : '📍 Use Current Location'}</span>
@@ -466,13 +466,13 @@ const Register = () => {
                     </div>
 
                     {/* Address Landmark Field */}
-                    <div className="pt-2 border-t border-slate-200/60">
-                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1">
+                    <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                      <label className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-1">
                         Precise Locality / Landmark Address
                       </label>
                       <input
                         type="text"
-                        className="w-full h-11 px-4 bg-white border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800 shadow-xs"
+                        className="w-full h-11 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-slate-100 shadow-xs"
                         value={formData.locationText || ''}
                         onChange={(e) => setFormData({ ...formData, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' })}
                         placeholder="Precise locality, street, or landmark"
@@ -484,8 +484,8 @@ const Register = () => {
                   {geoMessage && (
                     <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
                       geoMessage.includes('successfully')
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
+                        ? 'bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                        : 'bg-amber-50 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                     }`}>
                       <span>{geoMessage.includes('successfully') ? '✅' : '⚠️'}</span>
                       <span>{geoMessage}</span>
@@ -495,40 +495,40 @@ const Register = () => {
               </div>
 
               {role === 'worker' && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Professional details</h3>
+                <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Professional details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Primary Skills</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.skills} onChange={(e) => setFormData({ ...formData, skills: e.target.value })} placeholder="Plumber, Electrician" />{errors.skills && <p className="text-danger text-[10px] font-bold text-red-500">{errors.skills}</p>}</div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Experience</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.experience} onChange={(e) => setFormData({ ...formData, experience: e.target.value })} placeholder="5 years" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Primary Skills</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.skills} onChange={(e) => setFormData({ ...formData, skills: e.target.value })} placeholder="Plumber, Electrician" />{errors.skills && <p className="text-danger text-[10px] font-bold text-red-500">{errors.skills}</p>}</div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Experience</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.experience} onChange={(e) => setFormData({ ...formData, experience: e.target.value })} placeholder="5 years" /></div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WhatsApp Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.whatsapp} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })} placeholder="WhatsApp number" />{errors.whatsapp && <p className="text-danger text-[10px] font-bold text-red-500">{errors.whatsapp}</p>}</div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ID Proof Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.id_proof_number} onChange={(e) => setFormData({ ...formData, id_proof_number: e.target.value })} placeholder="PAN / Aadhaar" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WhatsApp Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.whatsapp} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })} placeholder="WhatsApp number" />{errors.whatsapp && <p className="text-danger text-[10px] font-bold text-red-500">{errors.whatsapp}</p>}</div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">ID Proof Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.id_proof_number} onChange={(e) => setFormData({ ...formData, id_proof_number: e.target.value })} placeholder="PAN / Aadhaar" /></div>
                   </div>
                 </div>
               )}
 
               {role === 'contractor' && (
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Business details</h3>
+                <div className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <h3 className="text-xs font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Business details</h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Company Name</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} placeholder="Your firm name" />{errors.company && <p className="text-danger text-[10px] font-bold text-red-500">{errors.company}</p>}</div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Owner Name</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.owner_name} onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })} placeholder="Owner / Proprietor" />{errors.owner_name && <p className="text-danger text-[10px] font-bold text-red-500">{errors.owner_name}</p>}</div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Company Name</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} placeholder="Your firm name" />{errors.company && <p className="text-danger text-[10px] font-bold text-red-500">{errors.company}</p>}</div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Owner Name</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.owner_name} onChange={(e) => setFormData({ ...formData, owner_name: e.target.value })} placeholder="Owner / Proprietor" />{errors.owner_name && <p className="text-danger text-[10px] font-bold text-red-500">{errors.owner_name}</p>}</div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WhatsApp Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.whatsapp} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })} placeholder="Company WhatsApp" /></div>
-                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">GSTIN</label><input type="text" className="w-full h-11 px-4 bg-slate-50 border border-slate-200 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all text-slate-800" value={formData.gst} onChange={(e) => setFormData({ ...formData, gst: e.target.value })} placeholder="Optional" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">WhatsApp Number</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.whatsapp} onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })} placeholder="Company WhatsApp" /></div>
+                    <div className="space-y-1.5"><label className="text-[10px] font-black text-slate-400 uppercase tracking-wider">GSTIN</label><input type="text" className="w-full h-11 px-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-white" value={formData.gst} onChange={(e) => setFormData({ ...formData, gst: e.target.value })} placeholder="Optional" /></div>
                   </div>
                 </div>
               )}
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="text-center bg-slate-50 p-4 rounded-2xl border border-slate-100/80">
-                <p className="text-xs text-slate-500 font-semibold mb-1.5">
+              <div className="text-center bg-slate-50 dark:bg-slate-800 p-4 rounded-2xl border border-slate-100/80 dark:border-slate-700">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold mb-1.5">
                   Verification code sent to:
                 </p>
-                <p className="text-xs font-black text-slate-850 break-all">{formData.email}</p>
+                <p className="text-xs font-black text-slate-850 dark:text-slate-200 break-all">{formData.email}</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -540,7 +540,7 @@ const Register = () => {
                     setErrors({});
                     setMessage('');
                   }}
-                  className="text-primary hover:underline text-[11px] font-bold mt-2 inline-flex items-center gap-1"
+                  className="text-primary dark:text-emerald-400 hover:underline text-[11px] font-bold mt-2 inline-flex items-center gap-1"
                 >
                   Change Email
                 </button>
@@ -561,7 +561,7 @@ const Register = () => {
                       value={val}
                       onChange={(e) => handleOtpChange(idx, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                      className="w-11 h-11 text-center text-base font-black bg-slate-50 border border-slate-200 focus:border-primary focus:ring-4 focus:ring-primary/5 rounded-xl outline-none transition-all text-slate-800"
+                      className="w-11 h-11 text-center text-base font-black bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:border-primary focus:ring-4 focus:ring-primary/5 rounded-xl outline-none transition-all"
                       ref={(el) => (otpRefs.current[idx] = el)}
                       autoFocus={idx === 0}
                     />
@@ -573,14 +573,14 @@ const Register = () => {
               <div className="text-center pt-1">
                 {resendDisabled ? (
                   <p className="text-[11px] text-slate-400 font-semibold">
-                    Resend code in <span className="text-slate-700 font-bold">{countdown}s</span>
+                    Resend code in <span className="text-slate-700 dark:text-slate-300 font-bold">{countdown}s</span>
                   </p>
                 ) : (
                   <button
                     type="button"
                     onClick={handleResendOtp}
                     disabled={loading}
-                    className="text-primary hover:underline text-[11px] font-bold disabled:opacity-50"
+                    className="text-primary dark:text-emerald-400 hover:underline text-[11px] font-bold disabled:opacity-50"
                   >
                     Resend Verification Code
                   </button>
@@ -591,8 +591,8 @@ const Register = () => {
 
           {message && <p className="text-xs text-success font-semibold text-center">{message}</p>}
 
-          <div className="p-4 bg-slate-50 rounded-2xl flex gap-3 items-start border border-slate-100 text-[10px] leading-relaxed text-slate-500 font-semibold">
-            <ShieldCheck className="shrink-0 text-primary mt-0.5" size={16} />
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl flex gap-3 items-start border border-slate-100 dark:border-slate-800 text-[10px] leading-relaxed text-slate-500 dark:text-slate-400 font-semibold">
+            <ShieldCheck className="shrink-0 text-primary dark:text-emerald-400 mt-0.5" size={16} />
             <p>By proceeding, you agree to our terms. Your account will be created with secure 6-digit Email OTP verification powered by Supabase.</p>
           </div>
 
@@ -608,8 +608,8 @@ const Register = () => {
           </button>
         </form>
 
-        <div className="text-center pt-4 border-t border-slate-100">
-          <p className="text-xs text-slate-500 font-semibold">Already registered? <Link to="/login" className="text-primary font-bold hover:underline">Sign in instead</Link></p>
+        <div className="text-center pt-4 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold">Already registered? <Link to="/login" className="text-primary dark:text-emerald-400 font-bold hover:underline">Sign in instead</Link></p>
         </div>
       </div>
     </div>

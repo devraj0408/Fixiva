@@ -44,6 +44,29 @@ export const getServiceImageFromCache = (id, name) => {
   return null;
 };
 
+const DEFAULT_SERVICE_IMAGES = {
+  plumber: '/assets/hero-slideshow/plumber.jpg',
+  plumbing: '/assets/hero-slideshow/plumber.jpg',
+  electrician: '/assets/hero-slideshow/electrician.jpg',
+  electrical: '/assets/hero-slideshow/electrician.jpg',
+  cleaning: '/assets/hero-slideshow/cleaning.jpg',
+  'house cleaning': '/assets/hero-slideshow/cleaning.jpg',
+  'home cleaning': '/assets/hero-slideshow/cleaning.jpg',
+  'pest control': '/assets/hero-slideshow/pestcontrol.jpg',
+  pestcontrol: '/assets/hero-slideshow/pestcontrol.jpg',
+  labour: '/assets/hero-slideshow/labour.jpg',
+  'construction labour': '/assets/hero-slideshow/labour.jpg',
+  'ac repair': '/assets/hero-slideshow/ac_service.jpg',
+  'ac service': '/assets/hero-slideshow/ac_service.jpg',
+  painter: '/assets/hero-slideshow/painting.jpg',
+  painting: '/assets/hero-slideshow/painting.jpg',
+  carpenter: '/assets/hero-slideshow/carpenter.jpg',
+  carpentry: '/assets/hero-slideshow/carpenter.jpg',
+  'appliance repair': '/assets/hero-slideshow/appliance.jpg',
+  renovation: '/assets/hero-slideshow/renovation.jpg',
+  'home renovation': '/assets/hero-slideshow/renovation.jpg'
+};
+
 export const getServices = async () => {
   if (!supabase) return { data: [], error: 'Supabase client not initialized' };
 
@@ -60,9 +83,14 @@ export const getServices = async () => {
 
     const cachedImages = getServiceImagesCache();
     const hydrated = (data || []).map((s) => {
+      const sId = String(s.id || '').toLowerCase().trim();
+      const sName = String(s.name || '').toLowerCase().trim();
+      const defaultImg = DEFAULT_SERVICE_IMAGES[sId] || DEFAULT_SERVICE_IMAGES[sName];
+      
       const img = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null)
         || cachedImages[String(s.id)]
-        || cachedImages[String(s.name || '').toLowerCase().trim()];
+        || cachedImages[sName]
+        || defaultImg;
       return img ? { ...s, image_url: img, image: img, icon: img } : s;
     });
 

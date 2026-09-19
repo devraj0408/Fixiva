@@ -92,7 +92,7 @@ const HomePromotionalBanner = ({ banners, navigate }) => {
           onMouseLeave={() => setIsHovered(false)}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
-          className="relative overflow-hidden rounded-[1.8rem] bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white shadow-xl border border-slate-800"
+          className="relative overflow-hidden rounded-[1.8rem] bg-[#171918] text-white shadow-md border border-slate-800"
         >
           <div className="flex flex-col md:flex-row items-center justify-between p-6 sm:p-8 gap-6">
             {banner.image_url ? (
@@ -317,62 +317,52 @@ const Home = () => {
   };
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100">
       {/* Hero Section */}
-      <section className="relative py-12 sm:py-16 lg:py-20 hero-shell overflow-hidden border-b border-slate-100">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl -z-10"></div>
-        <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-3xl -z-10"></div>
+      <section className="relative py-12 sm:py-16 lg:py-20 hero-shell overflow-hidden border-b border-slate-200/80 dark:border-slate-800">
 
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           {/* Hero Left Content */}
           <motion.div 
-            className="lg:col-span-6 space-y-6 sm:space-y-8"
+            className="lg:col-span-6 space-y-6"
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="section-label inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-black uppercase tracking-wider border border-primary/20">
-              <ShieldCheck size={14} /> {t('heroBadge', 'OFFICIAL MARKETPLACE')}
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/60 text-[#2F6B5F] dark:text-emerald-400 text-xs font-extrabold uppercase tracking-wider border border-[#2F6B5F]/20 dark:border-emerald-800/40 shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2F6B5F] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2F6B5F]"></span>
+              </span>
+              <ShieldCheck size={14} /> {t('heroBadge', 'TRUSTED CONSUMER MARKETPLACE')}
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight text-slate-900 leading-[1.05]">
-              {t('heroTitle1', 'One App.')}<br/>
-              <span className="bg-gradient-to-r from-primary via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                {t('heroTitle2', 'Every Solution.')}
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-[#171918] dark:text-white leading-[1.08]">
+              {t('heroTitle1', 'Trusted home services,')}<br/>
+              <span className="bg-gradient-to-r from-[#2F6B5F] to-[#3D8068] dark:from-[#3D8068] dark:to-[#4FA387] bg-clip-text text-transparent">
+                {t('heroTitle2', 'simply booked.')}
               </span>
             </h1>
 
-            <p className="text-base sm:text-lg text-slate-600 font-medium max-w-xl leading-relaxed">
+            <p className="text-base sm:text-lg text-[#6B716E] dark:text-slate-300 font-semibold max-w-xl leading-relaxed">
               {t('heroSubtitle', 'Book professional home services with instant dispatch, verified experts, and a clear experience from first click to final service.')}
             </p>
 
-            <div className="flex flex-wrap gap-2.5">
-              <span className="stat-pill inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 text-slate-700 text-xs font-bold border border-slate-200/80 shadow-sm">
-                <ShieldCheck size={16} className="text-primary" /> {t('backgroundVerified', 'Background Verified')}
-              </span>
-              <span className="stat-pill inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 text-slate-700 text-xs font-bold border border-slate-200/80 shadow-sm">
-                <Clock size={16} className="text-primary" /> {t('quickBooking', 'Quick Booking')}
-              </span>
-              <span className="stat-pill inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/80 text-slate-700 text-xs font-bold border border-slate-200/80 shadow-sm">
-                <Lock size={16} className="text-primary" /> {t('secureBooking', 'Secure Booking')}
-              </span>
-            </div>
-
-            {/* Premium search & Location controls */}
-            <form onSubmit={handleSearchSubmit} className="hero-panel p-5 sm:p-6 rounded-[24px] flex flex-col gap-4 max-w-2xl w-full shadow-xl border border-slate-200/80 bg-white">
-              {/* Search input field */}
-              <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200/80 focus-within:border-primary focus-within:bg-white focus-within:ring-4 focus-within:ring-primary/10 transition-all">
-                <Search size={20} className="text-slate-400 shrink-0" />
+            {/* Premium Search & Location Card Container */}
+            <form onSubmit={handleSearchSubmit} className="p-5 sm:p-6 rounded-2xl flex flex-col gap-4 max-w-2xl w-full border border-[#E7E9E6] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md hover:shadow-lg transition-all duration-300">
+              {/* Search Input Field */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#FAFAF8] dark:bg-slate-950 rounded-xl border border-[#E7E9E6] dark:border-slate-800 focus-within:border-[#2F6B5F] focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-3 focus-within:ring-[#2F6B5F]/15 transition-all">
+                <Search size={18} className="text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
                 <input 
                   type="text" 
                   placeholder={t('searchPlaceholder', 'What service do you need? (e.g. Electrician, Plumber, AC Repair)')} 
-                  className="w-full bg-transparent border-0 outline-none text-slate-900 text-sm font-semibold placeholder-slate-400 focus:ring-0"
+                  className="w-full bg-transparent border-0 outline-none text-[#171918] dark:text-slate-100 text-sm font-bold placeholder-slate-400 dark:placeholder-slate-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              {/* Location Selectors */}
+              {/* Hierarchical Location Selector */}
               <div className="w-full">
                 <HierarchicalLocationSelector
                   selectedState={selectedState}
@@ -397,24 +387,43 @@ const Home = () => {
                 />
               </div>
 
-              {/* Action Bar: Current Location & Book Now */}
-              <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100">
+              {/* Quick Tags shortcut */}
+              {activeServices.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Popular:</span>
+                  {activeServices.slice(0, 4).map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(service.name);
+                      }}
+                      className="text-xs font-bold text-slate-600 hover:text-primary px-2.5 py-1 rounded-lg bg-slate-100/70 hover:bg-primary/10 border border-slate-200/60 hover:border-primary/30 transition-all cursor-pointer"
+                    >
+                      ⚡ {service.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Action Bar */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#E7E9E6] dark:border-slate-800">
                 <button
                   type="button"
                   onClick={handleDetectLocation}
                   disabled={detectingGps}
-                  className="text-xs font-extrabold px-4 py-3 rounded-xl border border-slate-200/80 hover:border-primary text-slate-700 hover:text-primary flex items-center gap-2 transition-all bg-slate-50 hover:bg-primary/5 active:scale-95 disabled:opacity-50"
+                  className="text-xs font-extrabold px-3.5 py-2.5 rounded-xl border border-[#E7E9E6] dark:border-slate-700 hover:border-[#2F6B5F] text-[#171918] dark:text-slate-200 hover:text-[#2F6B5F] dark:hover:text-emerald-400 flex items-center gap-2 transition-all bg-[#FAFAF8] dark:bg-slate-800 hover:bg-[#E8F0ED] dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
-                  <span className="text-primary text-base">📍</span>
-                  {detectingGps ? 'Locating...' : 'Current Location'}
+                  <span className="text-[#2F6B5F] dark:text-emerald-400 text-sm">📍</span>
+                  {detectingGps ? 'Locating...' : 'Use Location'}
                 </button>
 
                 <button 
                   type="submit" 
-                  className="btn-primary text-sm font-extrabold px-7 py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transition-all active:scale-95 shrink-0"
+                  className="btn-primary text-sm font-extrabold px-7 py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer"
                 >
                   {t('bookNowBtn', 'Book Now')}
-                  <ArrowRight size={18} />
+                  <ArrowRight size={16} />
                 </button>
               </div>
             </form>
@@ -427,7 +436,7 @@ const Home = () => {
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <HeroServiceSlideshow />
+            <HeroServiceSlideshow services={services} />
           </motion.div>
         </div>
       </section>
@@ -496,15 +505,15 @@ const Home = () => {
                   key={idx} 
                   variants={itemVariants}
                   whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                  className="elevated-card p-8 rounded-[1.65rem] transition-all duration-300 flex flex-col justify-between"
+                  className="p-7 sm:p-8 rounded-[1.65rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-primary/40 dark:hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between"
                 >
                   <div className="space-y-4">
-                    <div className={`h-11 w-11 rounded-xl bg-gradient-to-tr ${item.color} text-white flex items-center justify-center shadow-sm`}>
-                      <IconComp size={20} />
+                    <div className="h-12 w-12 rounded-2xl bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 flex items-center justify-center border border-primary/20 dark:border-emerald-800/40 shadow-2xs">
+                      <IconComp size={22} />
                     </div>
                     <div className="space-y-2">
-                      <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">{item.title}</h4>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-semibold">{item.desc}</p>
+                      <h4 className="font-black text-slate-900 dark:text-white text-base tracking-tight">{item.title}</h4>
+                      <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-semibold">{item.desc}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -567,9 +576,15 @@ const Home = () => {
                                 {s.name}
                               </h4>
                               <div className="mt-auto pt-3">
-                                <span className="inline-block px-3 py-1 rounded-full bg-primary/95 text-white text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur-xs">
-                                  Starts ₹{s.base_price || s.inspection_fee || 0}
-                                </span>
+                                {(s.base_price || s.inspection_fee) > 0 ? (
+                                  <span className="inline-block px-3 py-1 rounded-full bg-primary/95 text-white text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur-xs">
+                                    Starts ₹{s.base_price || s.inspection_fee}
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-3 py-1 rounded-full bg-[#171918]/75 text-white text-[10px] font-bold shadow-sm">
+                                    Price on selection
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </>
@@ -582,9 +597,15 @@ const Home = () => {
                               {s.name}
                             </h4>
                             <div className="mt-auto pt-4">
-                              <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-                                Starts ₹{s.base_price || s.inspection_fee || 0}
-                              </p>
+                              {(s.base_price || s.inspection_fee) > 0 ? (
+                                <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                                  Starts ₹{s.base_price || s.inspection_fee}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                  Price on selection
+                                </p>
+                              )}
                             </div>
                           </div>
                         )}
@@ -597,15 +618,15 @@ const Home = () => {
                 <div className="w-[220px] sm:w-[250px] shrink-0 snap-start">
                   <Link
                     to="/services"
-                    className="group p-6 rounded-[1.35rem] bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white hover:shadow-xl hover:-translate-y-1 border border-slate-800 transition-all text-center flex flex-col items-center justify-center h-full min-h-[220px] relative overflow-hidden"
+                    className="group p-6 rounded-[1.35rem] bg-[#171918] text-white hover:shadow-md hover:-translate-y-1 border border-slate-800 transition-all text-center flex flex-col items-center justify-center h-full min-h-[220px] relative overflow-hidden"
                   >
-                    <div className="w-12 h-12 rounded-2xl bg-primary/20 text-primary border border-primary/30 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                    <div className="w-12 h-12 rounded-2xl bg-[#2F6B5F] text-white flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                       <ArrowRight size={22} className="text-white group-hover:translate-x-1 transition-transform" />
                     </div>
-                    <h4 className="font-black text-base text-white leading-tight">
+                    <h4 className="font-bold text-base text-white leading-tight">
                       View More Services
                     </h4>
-                    <p className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1 group-hover:text-primary transition-colors">
+                    <p className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1 group-hover:text-[#2F6B5F] transition-colors">
                       Explore full catalog →
                     </p>
                   </Link>
@@ -648,29 +669,29 @@ const Home = () => {
       </section>
 
       {/* Service Region & Expansion Hub */}
-      <section className="py-24 bg-white border-b border-slate-100">
+      <section className="py-24 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Bring Fixiva to Your City Section */}
-          <div className="bg-slate-50 rounded-[2rem] border border-slate-200/60 p-8 sm:p-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 p-8 sm:p-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
             <div className="lg:col-span-5 space-y-4">
-              <h3 className="text-2xl font-black text-slate-900">Bring Fixiva to Your City</h3>
-              <p className="text-slate-500 text-xs sm:text-sm font-medium leading-relaxed font-semibold">
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white">Bring Fixiva to Your City</h3>
+              <p className="text-slate-500 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed font-semibold">
                 Can't find your city? Tell us where you need Fixiva. Every request helps us decide where to expand next, and you'll be among the first to know when our services launch in your area.
               </p>
             </div>
 
-            <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-2xl border border-slate-100 shadow-sm">
+            <div className="lg:col-span-7 bg-white dark:bg-slate-950 p-6 sm:p-8 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
               {isSuccess ? (
                 <div className="text-center space-y-4 py-4">
                   <div className="text-4xl">🎉</div>
-                  <h4 className="text-lg font-extrabold text-slate-950">Thank you!</h4>
-                  <p className="text-slate-500 text-xs sm:text-sm font-semibold max-w-md mx-auto leading-relaxed">
+                  <h4 className="text-lg font-extrabold text-slate-950 dark:text-white">Thank you!</h4>
+                  <p className="text-slate-500 dark:text-slate-300 text-xs sm:text-sm font-semibold max-w-md mx-auto leading-relaxed">
                     Your city has been added to our expansion wishlist. Our team reviews every request carefully, and we'll notify you as soon as Fixiva launches in your area.
                   </p>
                   <button 
                     onClick={() => setIsSuccess(false)}
-                    className="btn-secondary text-xs px-4 py-2 rounded-xl mt-2 cursor-pointer"
+                    className="btn-secondary text-xs px-4 py-2 rounded-xl mt-2 cursor-pointer dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
                   >
                     Submit another request
                   </button>
@@ -678,16 +699,16 @@ const Home = () => {
               ) : (
                 <form onSubmit={handleRequestSubmit} className="space-y-5">
                   {/* Unified Location Card */}
-                  <div className="p-5 bg-slate-50/90 rounded-2xl border border-slate-200/80 space-y-4 shadow-sm">
+                  <div className="p-5 bg-slate-50/90 dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-sm">
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                        <MapPin size={14} className="text-primary" /> Select Your Location
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-primary dark:text-emerald-400" /> Select Your Location
                       </span>
                       <button
                         type="button"
                         onClick={handleDetectCoverageLocation}
                         disabled={detectingCoverageGps}
-                        className="text-xs font-black text-primary hover:text-blue-700 inline-flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs hover:border-primary/40 transition-all cursor-pointer disabled:opacity-50"
+                        className="text-xs font-black text-primary dark:text-emerald-400 hover:text-[#285C52] inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs hover:border-primary/40 dark:hover:border-emerald-500/40 transition-all cursor-pointer disabled:opacity-50"
                       >
                         <Navigation size={12} className={detectingCoverageGps ? 'animate-spin' : ''} />
                         <span>{detectingCoverageGps ? 'Detecting...' : 'Use Current Location'}</span>
@@ -712,16 +733,16 @@ const Home = () => {
 
                     {/* Selected Location Summary Preview */}
                     {(reqDistrict || reqState) && (
-                      <div className="p-3 bg-white rounded-xl border border-primary/20 text-xs flex items-center justify-between gap-2 shadow-xs">
+                      <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-primary/20 dark:border-slate-800 text-xs flex items-center justify-between gap-2 shadow-xs">
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 flex items-center justify-center shrink-0">
                             <MapPin size={16} />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-black text-slate-900 truncate">
+                            <p className="font-black text-slate-900 dark:text-white truncate">
                               📍 {[reqLocality, reqDistrict].filter(Boolean).join(', ')}
                             </p>
-                            <p className="text-[11px] text-slate-500 font-semibold truncate">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
                               {[reqDistrict, reqState].filter(Boolean).join(', ')} {reqPincode ? `• ${reqPincode}` : ''}
                             </p>
                           </div>
@@ -729,7 +750,7 @@ const Home = () => {
                         <button
                           type="button"
                           onClick={() => { setReqState(''); setReqDistrict(''); setReqLocality(''); setReqPincode(''); setReqLat(null); setReqLng(null); }}
-                          className="text-[11px] font-black text-slate-400 hover:text-slate-700 shrink-0 px-2 py-1 hover:bg-slate-100 rounded-lg transition-colors"
+                          className="text-[11px] font-black text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 shrink-0 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
                         >
                           Reset
                         </button>
@@ -738,14 +759,14 @@ const Home = () => {
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Email Address</label>
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Email Address</label>
                     <input 
                       type="email" 
                       required
                       placeholder="Enter your email address..."
                       value={reqEmail}
                       onChange={(e) => setReqEmail(e.target.value)}
-                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 focus:outline-none focus:border-primary/50 shadow-xs"
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary/50 shadow-xs"
                     />
                   </div>
 
@@ -854,17 +875,16 @@ const Home = () => {
       {/* Book CTA callout */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-primary rounded-[2.5rem] p-12 text-center text-white shadow-[0_25px_55px_-20px_rgba(15,23,42,0.35)] relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-3xl"></div>
-            <div className="relative z-10 space-y-6 max-w-xl mx-auto">
+          <div className="bg-[#171918] rounded-[2rem] p-10 sm:p-12 text-center text-white shadow-md border border-slate-800 relative overflow-hidden">
+            <div className="relative z-10 space-y-5 max-w-xl mx-auto">
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Ready to clear your tasks list?</h2>
-              <p className="text-blue-100 text-sm font-medium">
+              <p className="text-slate-300 text-sm font-medium leading-relaxed">
                 Book professional assistance in a few clicks. Verified professionals, transparent platform billing.
               </p>
-              <div className="pt-4">
+              <div className="pt-2">
                 <Link 
                   to="/services" 
-                  className="inline-flex btn-secondary px-8 py-4 rounded-xl shadow-lg text-center"
+                  className="inline-flex btn-primary px-8 py-3.5 rounded-[10px] text-sm text-center"
                 >
                   Book Your First Service
                 </Link>

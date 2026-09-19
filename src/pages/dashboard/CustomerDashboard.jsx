@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { supabase } from '../../lib/supabaseClient';
 import {
   BarChart3,
@@ -27,6 +28,7 @@ import { uploadImage } from '../../services/storageService';
 import { getAssignedWorkerLocation, subscribeToWorkerLiveLocation, calculateDistanceInKm } from '../../services/locationService';
 
 const WorkerLiveTrackingCard = ({ booking }) => {
+  const { t } = useLanguage();
   const [workerLoc, setWorkerLoc] = useState(null);
 
   useEffect(() => {
@@ -84,12 +86,12 @@ const WorkerLiveTrackingCard = ({ booking }) => {
             <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500" />
           </span>
           <span className="text-xs font-black uppercase text-emerald-400 tracking-wider">
-            Worker is on the way
+            {t('workerOnTheWay', 'Worker is on the way')}
           </span>
         </div>
         {etaText && (
           <span className="text-[11px] font-extrabold text-slate-300 bg-slate-800 px-3 py-1 rounded-full border border-slate-700">
-            ETA: {etaText}
+            {t('etaLabel', 'ETA')}: {etaText}
           </span>
         )}
       </div>
@@ -100,16 +102,21 @@ const WorkerLiveTrackingCard = ({ booking }) => {
             👤
           </div>
           <div>
-            <p className="font-extrabold text-white">{booking.worker_name || 'Specialist Partner'}</p>
-            <p className="text-[10px] text-slate-400 font-medium">{booking.service_name || 'Home Service'}</p>
+            <h4 className="font-bold text-white leading-tight">{booking.worker_name || t('workerRole', 'Assigned Specialist')}</h4>
+            <p className="text-[10px] text-slate-400 font-medium">
+              {distanceKm !== null ? `${distanceKm} km ${t('distanceLabel', 'distance')}` : t('fixivaVerified', 'Fixiva Verified Specialist')}
+            </p>
           </div>
         </div>
-        <div className="text-right">
-          <span className="text-[10px] uppercase font-bold text-slate-400 block">Distance</span>
-          <span className="font-black text-emerald-400 text-sm">
-            {distanceKm !== null ? `${distanceKm} km` : 'Live GPS active'}
-          </span>
-        </div>
+
+        {booking.worker_phone && (
+          <a
+            href={`tel:${booking.worker_phone}`}
+            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm"
+          >
+            {t('callCustomer', 'Call Specialist')}
+          </a>
+        )}
       </div>
 
       {/* Live Map Frame */}
@@ -532,22 +539,24 @@ const CustomerDashboard = () => {
   };
 
   const getStatusLabel = (status) => {
-    if (status === 'New Request') return 'Pending';
-    if (status === 'Confirmed') return 'Worker Assigned';
-    if (status === 'In Progress') return 'Work Started';
+    if (status === 'New Request' || status === 'Pending') return t('statusPending', 'Pending');
+    if (status === 'Confirmed' || status === 'Worker Assigned') return t('statusWorkerAssigned', 'Worker Assigned');
+    if (status === 'In Progress' || status === 'Work Started') return t('statusWorkStarted', 'Work Started');
+    if (status === 'Completed') return t('statusCompleted', 'Completed');
+    if (status === 'Cancelled') return t('statusCancelled', 'Cancelled');
     return status;
   };
 
   // Sidebar Items
   const navItems = [
-    { id: 'overview', label: 'Dashboard', icon: BarChart3 },
-    { id: 'bookings', label: 'My Bookings', icon: FileText, count: upcomingBookings.length },
-    { id: 'support', label: 'Support Desk', icon: Headphones },
-    { id: 'contractors', label: 'Contractors', icon: Building },
-    { id: 'workers', label: 'Workers', icon: User },
-    { id: 'notifications', label: 'Notifications', icon: Bell, count: notifications.filter(n => !n.read).length },
-    { id: 'reviews', label: 'Reviews', icon: Star },
-    { id: 'profile', label: 'My Profile', icon: Settings },
+    { id: 'overview', label: t('dashboard', 'Dashboard'), icon: BarChart3 },
+    { id: 'bookings', label: t('bookings', 'My Bookings'), icon: FileText, count: upcomingBookings.length },
+    { id: 'support', label: t('support', 'Support Desk'), icon: Headphones },
+    { id: 'contractors', label: t('contractorRole', 'Contractors'), icon: Building },
+    { id: 'workers', label: t('workers', 'Workers'), icon: User },
+    { id: 'notifications', label: t('notifications', 'Notifications'), icon: Bell, count: notifications.filter(n => !n.read).length },
+    { id: 'reviews', label: t('reviewsModeration', 'Reviews'), icon: Star },
+    { id: 'profile', label: t('myProfile', 'My Profile'), icon: Settings },
   ];
 
   // Render Content Switch
@@ -706,7 +715,7 @@ const CustomerDashboard = () => {
                         <h3 className="font-extrabold text-slate-900 text-sm">{b.service_name || 'Home Service'}</h3>
                       </div>
 
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black bg-blue-50 text-primary border border-blue-100 w-fit">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6] w-fit">
                         ● {getStatusLabel(b.status)}
                       </span>
                     </div>
@@ -774,7 +783,7 @@ const CustomerDashboard = () => {
                   <div className="flex items-start justify-between">
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-sm">{c.company || c.owner_name}</h3>
-                      <p className="text-xs text-slate-500 font-medium">{c.city || 'Ranchi'} District</p>
+                      <p className="text-xs text-slate-500 font-medium">{c.city || c.district || 'Coverage Area'}</p>
                     </div>
 
                     <button onClick={() => toggleSaveContractor(c.id)} className="text-rose-500">
@@ -787,7 +796,7 @@ const CustomerDashboard = () => {
                   </p>
 
                   <button
-                    onClick={() => navigate(`/book?district=${encodeURIComponent(c.city || 'Ranchi')}`)}
+                    onClick={() => navigate(`/book?district=${encodeURIComponent(c.city || c.district || '')}`)}
                     className="btn-primary w-full py-2.5 rounded-xl text-xs font-bold shadow-sm"
                   >
                     Book Agency Service
@@ -824,7 +833,7 @@ const CustomerDashboard = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => navigate(`/book?district=${encodeURIComponent(w.district || w.city || 'Ranchi')}`)} className="btn-primary text-xs px-4 py-2 rounded-xl font-bold shadow-sm">
+                  <button onClick={() => navigate(`/book?district=${encodeURIComponent(w.district || w.city || '')}`)} className="btn-primary text-xs px-4 py-2 rounded-xl font-bold shadow-sm">
                     Hire Now
                   </button>
                 </div>
@@ -1080,7 +1089,7 @@ const CustomerDashboard = () => {
               </div>
 
               {upcomingBookings.length === 0 ? (
-                <div className="p-8 text-center bg-gradient-to-b from-blue-50/40 to-slate-50 rounded-3xl border border-blue-100/80 space-y-3">
+                <div className="p-8 text-center bg-[#F3F4F1] rounded-3xl border border-[#E7E9E6] space-y-3">
                   <div className="w-14 h-14 rounded-2xl bg-white text-primary flex items-center justify-center mx-auto shadow-md border border-slate-100">
                     <Sparkles size={28} />
                   </div>
@@ -1098,7 +1107,7 @@ const CustomerDashboard = () => {
                     <div key={b.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                         <span className="text-[10px] font-black uppercase text-primary">BOOKING ID: {b.id}</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-blue-50 text-primary border border-blue-100">
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6]">
                           ● {getStatusLabel(b.status)}
                         </span>
                       </div>
@@ -1267,7 +1276,7 @@ const CustomerDashboard = () => {
                     <span>{label}</span>
                   </div>
                   {count !== undefined && count > 0 && (
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-blue-50 text-primary'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${isActive ? 'bg-white/20 text-white' : 'bg-[#E8F0ED] text-[#2F6B5F]'}`}>
                       {count}
                     </span>
                   )}
@@ -1313,7 +1322,7 @@ const CustomerDashboard = () => {
                 <label className="text-xs font-bold text-slate-600 block mb-1">Locality / Landmark</label>
                 <input
                   type="text"
-                  placeholder="e.g. Lalpur Main Road"
+                  placeholder="e.g. Main Street, Sector 4"
                   className="w-full px-3 py-2 rounded-xl border text-xs font-semibold"
                   value={newAddrLocality}
                   onChange={(e) => setNewAddrLocality(e.target.value)}
