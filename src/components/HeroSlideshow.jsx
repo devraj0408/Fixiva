@@ -229,14 +229,14 @@ const HeroSlideshow = ({ services: propServices }) => {
             navigate(`/book/${currentSlide.id}`);
           }
         }}
-        className={`relative w-full rounded-[22px] border border-[#E7E9E6] shadow-md overflow-hidden bg-[#171918] p-5 sm:p-6 text-white flex flex-col justify-between z-10 transition-all ${
+        className={`relative w-full rounded-[22px] border border-slate-200/90 dark:border-slate-800 shadow-md hover:shadow-lg overflow-hidden bg-white dark:bg-[#171918] p-5 sm:p-6 text-slate-900 dark:text-white flex flex-col justify-between z-10 transition-all ${
           heroServices.length > 0 && !currentSlide.id?.startsWith('hero-asset-') ? 'cursor-pointer hover:border-[#2F6B5F]/60' : ''
         }`}
       >
         {/* Top Header Row with Category Pill Badge */}
         <div className="flex items-center justify-between mb-4 z-20">
-          <div className="inline-flex items-center gap-1.5 bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-white/15 text-white text-xs font-bold">
-            <ShieldCheck size={14} className="text-[#2F6B5F]" />
+          <div className="inline-flex items-center gap-1.5 bg-[#E8F0ED] dark:bg-white/10 backdrop-blur-md px-3 py-1 rounded-full border border-[#2F6B5F]/20 dark:border-white/15 text-[#2F6B5F] dark:text-white text-xs font-bold">
+            <ShieldCheck size={14} className="text-[#2F6B5F] dark:text-emerald-400" />
             <span>{currentSlide.category || 'Fixiva Service'}</span>
           </div>
           {currentSlide.price > 0 && (
@@ -247,8 +247,8 @@ const HeroSlideshow = ({ services: propServices }) => {
         </div>
 
         {/* Primary Image Anchor Container (Responsive 16:7 Wide Landscape Frame) */}
-        <div className="relative w-full h-[170px] sm:h-[210px] lg:h-[240px] aspect-[16/7] rounded-xl overflow-hidden bg-slate-900 border border-white/10 mb-3.5 flex items-center justify-center">
-          <AnimatePresence initial={false} custom={direction} mode="wait">
+        <div className="relative w-full h-[170px] sm:h-[210px] lg:h-[240px] aspect-[16/7] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/80 dark:border-white/10 mb-3.5 flex items-center justify-center">
+          <AnimatePresence initial={false} custom={direction}>
             {currentSlide.image ? (
               <motion.img
                 key={currentSlide.id}
@@ -259,6 +259,10 @@ const HeroSlideshow = ({ services: propServices }) => {
                 initial="enter"
                 animate="center"
                 exit="exit"
+                onError={(e) => {
+                  e.currentTarget.onerror = null;
+                  e.currentTarget.src = '/assets/hero-slideshow/plumber.jpg';
+                }}
                 className="w-full h-full object-cover object-center absolute inset-0"
               />
             ) : (
@@ -269,12 +273,12 @@ const HeroSlideshow = ({ services: propServices }) => {
                 initial="enter"
                 animate="center"
                 exit="exit"
-                className="w-full h-full absolute inset-0 bg-gradient-to-br from-[#171918] via-[#2F6B5F]/40 to-[#171918] flex flex-col items-center justify-center p-6 text-center space-y-2"
+                className="w-full h-full absolute inset-0 bg-gradient-to-br from-slate-100 via-[#E8F0ED] to-slate-100 dark:from-[#171918] dark:via-[#2F6B5F]/40 dark:to-[#171918] flex flex-col items-center justify-center p-6 text-center space-y-2"
               >
                 <div className="h-12 w-12 rounded-2xl bg-[#2F6B5F] text-white flex items-center justify-center shadow-lg border border-white/20">
                   <IconComponent size={24} />
                 </div>
-                <span className="text-xs font-bold text-slate-300">Fixiva Guaranteed Service</span>
+                <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Fixiva Guaranteed Service</span>
               </motion.div>
             )}
           </AnimatePresence>
@@ -292,11 +296,11 @@ const HeroSlideshow = ({ services: propServices }) => {
               exit="exit"
               className="space-y-1"
             >
-              <h3 className="font-extrabold text-base sm:text-lg text-white leading-tight tracking-tight">
+              <h3 className="font-extrabold text-base sm:text-lg text-[#171918] dark:text-white leading-tight tracking-tight">
                 {currentSlide.title}
               </h3>
               {currentSlide.subtitle && (
-                <p className="text-xs text-slate-300 font-medium line-clamp-2 leading-relaxed">
+                <p className="text-xs text-[#6B716E] dark:text-slate-300 font-medium line-clamp-2 leading-relaxed">
                   {currentSlide.subtitle}
                 </p>
               )}
@@ -310,7 +314,7 @@ const HeroSlideshow = ({ services: propServices }) => {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); prevSlide(); }}
-              className="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-[#171918]/80 hover:bg-[#171918] text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-sm"
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/90 hover:bg-white dark:bg-[#171918]/80 dark:hover:bg-[#171918] text-slate-800 dark:text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-slate-200/80 dark:border-white/20 shadow-md"
               aria-label="Previous slide"
             >
               <ChevronLeft size={18} />
@@ -319,21 +323,21 @@ const HeroSlideshow = ({ services: propServices }) => {
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); nextSlide(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-[#171918]/80 hover:bg-[#171918] text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-white/20 shadow-sm"
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-30 w-8 h-8 rounded-full bg-white/90 hover:bg-white dark:bg-[#171918]/80 dark:hover:bg-[#171918] text-slate-800 dark:text-white backdrop-blur-md flex items-center justify-center transition-all opacity-80 group-hover:opacity-100 cursor-pointer border border-slate-200/80 dark:border-white/20 shadow-md"
               aria-label="Next slide"
             >
               <ChevronRight size={18} />
             </button>
 
             {/* Bottom Dynamic Indicators */}
-            <div className="absolute bottom-3 right-4 z-30 flex items-center gap-1.5 bg-[#171918]/70 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/15">
+            <div className="absolute bottom-3 right-4 z-30 flex items-center gap-1.5 bg-slate-100/90 dark:bg-[#171918]/70 backdrop-blur-md px-2.5 py-1 rounded-full border border-slate-200/80 dark:border-white/15 shadow-2xs">
               {slides.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={(e) => { e.stopPropagation(); goToSlide(idx); }}
                   className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
-                    idx === currentIndex ? 'w-4 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'
+                    idx === currentIndex ? 'w-4 bg-[#2F6B5F] dark:bg-white' : 'w-1.5 bg-slate-400/60 dark:bg-white/40 hover:bg-slate-600 dark:hover:bg-white/70'
                   }`}
                   aria-label={`Go to slide ${idx + 1}`}
                 />

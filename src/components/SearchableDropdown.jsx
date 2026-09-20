@@ -170,19 +170,19 @@ const SearchableDropdown = ({
         onKeyDown={handleKeyDown}
         disabled={disabled}
         className={isBorderless
-          ? `w-full h-10 pl-9 pr-6 bg-transparent border-0 outline-none text-xs font-bold text-slate-700 text-left cursor-pointer flex items-center justify-between focus:ring-0 focus:outline-none transition-all ${
+          ? `w-full h-10 pl-9 pr-6 bg-transparent border-0 outline-none text-xs font-bold text-slate-700 dark:text-slate-200 text-left cursor-pointer flex items-center justify-between focus:ring-0 focus:outline-none transition-all ${
               disabled ? 'opacity-50 cursor-not-allowed' : ''
             }`
-          : `w-full h-11 pl-10 pr-10 bg-slate-50 border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-xs font-bold text-slate-700 text-left outline-none cursor-pointer transition-all flex items-center justify-between ${
-              disabled ? 'opacity-60 cursor-not-allowed bg-slate-100' : ''
+          : `w-full h-11 pl-10 pr-10 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 text-left outline-none cursor-pointer transition-all flex items-center justify-between ${
+              disabled ? 'opacity-60 cursor-not-allowed bg-slate-100 dark:bg-slate-800' : ''
             }`
         }
       >
         {Icon && (
           <Icon 
             className={isBorderless 
-              ? "absolute left-2.5 top-3 text-slate-400" 
-              : "absolute left-3.5 top-3.5 text-slate-400"
+              ? "absolute left-2.5 top-3 text-slate-400 dark:text-slate-500" 
+              : "absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500"
             } 
             size={16} 
           />
@@ -192,12 +192,12 @@ const SearchableDropdown = ({
             ? (value.name || value.district || value.state || value.locality || '') 
             : String(value || '');
           return (
-            <span className={`truncate flex-1 text-left min-w-0 pr-1 ${displayValue ? 'text-slate-800' : 'text-slate-400'}`}>
+            <span className={`truncate flex-1 text-left min-w-0 pr-1 ${displayValue ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}`}>
               {displayValue || placeholder}
             </span>
           );
         })()}
-        <ChevronDown size={14} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown size={14} className={`text-slate-400 dark:text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown Panel */}
@@ -211,7 +211,7 @@ const SearchableDropdown = ({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.96 }}
                 transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                className="fixed bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-[0_15px_50px_-12px_rgba(0,0,0,0.08)] overflow-hidden"
+                className="fixed bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-100 dark:border-slate-800 rounded-2xl shadow-[0_15px_50px_-12px_rgba(0,0,0,0.18)] overflow-hidden"
                 style={{
                   top: `${coords.top + 8}px`,
                   left: `${coords.left}px`,
@@ -220,8 +220,8 @@ const SearchableDropdown = ({
                 }}
               >
                 {/* Search Input */}
-                <div className="relative border-b border-slate-100 p-2.5 bg-slate-50/50">
-                  <Search className="absolute left-4.5 top-4.5 text-slate-400" size={14} />
+                <div className="relative border-b border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-950/50">
+                  <Search className="absolute left-4.5 top-4.5 text-slate-400 dark:text-slate-500" size={14} />
                   <input
                     ref={searchInputRef}
                     type="text"
@@ -232,7 +232,7 @@ const SearchableDropdown = ({
                     }}
                     onKeyDown={handleKeyDown}
                     placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
-                    className="w-full h-9.5 pl-8 pr-3 bg-white border border-slate-200 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all placeholder-slate-400"
+                    className="w-full h-9.5 pl-8 pr-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500"
                   />
                 </div>
 
@@ -255,19 +255,19 @@ const SearchableDropdown = ({
                           aria-selected={isSelected}
                           className={`w-[calc(100%-8px)] mx-1 px-3.5 py-2.5 text-left text-xs font-bold transition-all flex items-center justify-between cursor-pointer rounded-xl ${
                             isSelected 
-                              ? 'text-primary bg-primary/5 font-extrabold' 
+                              ? 'text-primary dark:text-emerald-400 bg-primary/5 dark:bg-emerald-400/10 font-extrabold' 
                               : isFocused 
-                                ? 'text-slate-800 bg-slate-50/80' 
-                                : 'text-slate-650 hover:bg-slate-50/50 hover:text-slate-850'
+                                ? 'text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800' 
+                                : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
                           }`}
                         >
                         <span className="truncate pr-2">{option}</span>
-                          {isSelected && <Check size={12} className="text-primary" />}
+                          {isSelected && <Check size={12} className="text-primary dark:text-emerald-400" />}
                         </button>
                       );
                     })
                   ) : (
-                    <div className="px-4 py-3.5 text-center text-xs font-medium text-slate-400">
+                    <div className="px-4 py-3.5 text-center text-xs font-medium text-slate-400 dark:text-slate-500">
                       No matches found
                     </div>
                   )}
@@ -285,11 +285,11 @@ const SearchableDropdown = ({
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8, scale: 0.96 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute left-0 right-0 z-50 mt-2 bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-[0_15px_50px_-12px_rgba(0,0,0,0.08)] overflow-hidden"
+              className="absolute left-0 right-0 z-50 mt-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-100 dark:border-slate-800 rounded-2xl shadow-[0_15px_50px_-12px_rgba(0,0,0,0.18)] overflow-hidden"
             >
               {/* Search Input */}
-              <div className="relative border-b border-slate-100 p-2.5 bg-slate-50/50">
-                <Search className="absolute left-4.5 top-4.5 text-slate-400" size={14} />
+              <div className="relative border-b border-slate-100 dark:border-slate-800 p-2.5 bg-slate-50/50 dark:bg-slate-950/50">
+                <Search className="absolute left-4.5 top-4.5 text-slate-400 dark:text-slate-500" size={14} />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -300,7 +300,7 @@ const SearchableDropdown = ({
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder={searchPlaceholder || `Search ${placeholder.toLowerCase()}...`}
-                  className="w-full h-9.5 pl-8 pr-3 bg-white border border-slate-200 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 outline-none transition-all placeholder-slate-400"
+                  className="w-full h-9.5 pl-8 pr-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:border-primary/50 focus:ring-4 focus:ring-primary/5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-200 outline-none transition-all placeholder-slate-400 dark:placeholder-slate-500"
                 />
               </div>
 
@@ -323,19 +323,19 @@ const SearchableDropdown = ({
                         aria-selected={isSelected}
                         className={`w-[calc(100%-8px)] mx-1 px-3.5 py-2.5 text-left text-xs font-bold transition-all flex items-center justify-between cursor-pointer rounded-xl ${
                           isSelected 
-                            ? 'text-primary bg-primary/5 font-extrabold' 
+                            ? 'text-primary dark:text-emerald-400 bg-primary/5 dark:bg-emerald-400/10 font-extrabold' 
                             : isFocused 
-                              ? 'text-slate-800 bg-slate-50/80' 
-                              : 'text-slate-650 hover:bg-slate-50/50 hover:text-slate-850'
+                              ? 'text-slate-800 dark:text-slate-100 bg-slate-100 dark:bg-slate-800' 
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100/70 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
                         }`}
                       >
                         <span className="truncate pr-2">{option}</span>
-                        {isSelected && <Check size={12} className="text-primary" />}
+                        {isSelected && <Check size={12} className="text-primary dark:text-emerald-400" />}
                       </button>
                     );
                   })
                 ) : (
-                  <div className="px-4 py-3.5 text-center text-xs font-medium text-slate-400">
+                  <div className="px-4 py-3.5 text-center text-xs font-medium text-slate-400 dark:text-slate-500">
                     No matches found
                   </div>
                 )}
