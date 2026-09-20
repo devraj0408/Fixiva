@@ -16,6 +16,30 @@ const getActionIcon = (type) => {
   return <LogIn size={14} />;
 };
 
+const getWelcomeText = (userName, tFn, currentLanguage) => {
+  const welcomeFn = tFn('welcomeAi');
+  if (typeof welcomeFn === 'function') {
+    return welcomeFn(userName || 'there');
+  }
+
+  const firstName = userName || 'there';
+  const defaultText = `Hello ${firstName}! 👋 I am the **Fixiva AI Assistant**.\n\nHow can I help you with your home service bookings, worker dispatches, payouts, or platform questions today?`;
+
+  if (currentLanguage === 'hi') {
+    return `नमस्ते ${firstName}! 👋 मैं **Fixiva AI Assistant** हूँ।\n\nआज आप अपनी होम सर्विस बुकिंग, वर्कर डिस्पैच, पेआउट या प्लेटफ़ॉर्म सवालों में कैसे मदद कर सकता हूँ?`;
+  }
+
+  if (currentLanguage === 'bn') {
+    return `হ্যালো ${firstName}! 👋 আমি **Fixiva AI Assistant**।\n\nআজ আপনাকে হোম সার্ভিস বুকিং, ওয়ার্কার ডিস্ট্যাচ, পেআউট বা প্ল্যাটফর্ম সম্পর্কিত প্রশ্নে কীভাবে সহায়তা করতে পারি?`;
+  }
+
+  if (currentLanguage === 'hinglish') {
+    return `Hello ${firstName}! 👋 I am the **Fixiva AI Assistant**.\n\nAaj main aapki home service bookings, worker dispatches, payouts, aur platform questions mein kaise help kar sakta hoon?`;
+  }
+
+  return defaultText;
+};
+
 export default function AIChatBotWidget() {
   const navigate = useNavigate();
   const { user, bookings, services, cities } = useApp();
@@ -26,9 +50,7 @@ export default function AIChatBotWidget() {
     {
       id: 'welcome-1',
       sender: 'ai',
-      text: typeof t('welcomeAi') === 'function' 
-        ? t('welcomeAi')(user?.name || 'there')
-        : `Hello ${user?.name || 'there'}! 👋 I am the **Fixiva AI Assistant**.\n\nHow can I help you with your home service bookings, worker dispatches, payouts, or platform questions today?`,
+      text: getWelcomeText(user?.name, t, language),
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -51,21 +73,6 @@ export default function AIChatBotWidget() {
       setIsListening(false);
     }
   }, [isOpen]);
-
-  // Update initial message if language changes and chat has 1 message
-  useEffect(() => {
-    if (messages.length === 1 && messages[0].sender === 'ai') {
-      const welcomeFn = t('welcomeAi');
-      if (typeof welcomeFn === 'function') {
-        setMessages([
-          {
-            ...messages[0],
-            text: welcomeFn(user?.name || 'there')
-          }
-        ]);
-      }
-    }
-  }, [language]);
 
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -213,14 +220,11 @@ export default function AIChatBotWidget() {
     setWidgetAction(null);
     setWidgetCountdown(0);
     setWidgetCancelled(false);
-    const welcomeFn = t('welcomeAi');
     setMessages([
       {
         id: 'welcome-reset',
         sender: 'ai',
-        text: typeof welcomeFn === 'function'
-          ? welcomeFn(user?.name || 'User')
-          : `Chat reset! How can I assist you today, ${user?.name || 'User'}?`,
+        text: getWelcomeText(user?.name || 'User', t, language),
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }
     ]);
