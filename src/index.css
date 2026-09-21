@@ -569,3 +569,38 @@ a.disabled,
     linear-gradient(to bottom, rgba(255, 255, 255, 0.075) 1px, transparent 1px) !important;
   background-size: 20px 20px !important;
 }
+
+/* AI Assistant Ambient Round Strip Light */
+@keyframes aiStripLightBreathe {
+  0%, 100% {
+    opacity: 0.65;
+    filter: blur(2.5px);
+  }
+  50% {
+    opacity: 0.95;
+    filter: blur(4px);
+  }
+}
+
+.ai-strip-light {
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, rgba(47, 107, 95, 0.8), rgba(61, 128, 104, 0.6), rgba(47, 107, 95, 0.8));
+  animation: aiStripLightBreathe 3s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+  transition: all 0.3s ease;
+}
+
+.group:hover .ai-strip-light {
+  opacity: 1;
+  inset: -3px;
+  filter: blur(4.5px);
+}
+
+.dark .ai-strip-light,
+[data-theme='dark'] .ai-strip-light,
+:where(.dark, .dark *) .ai-strip-light {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.8), rgba(20, 184, 166, 0.7), rgba(16, 185, 129, 0.8));
+}

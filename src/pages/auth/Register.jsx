@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed } from 'lucide-react';
+import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed, Navigation } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
 
 const Register = () => {
@@ -458,9 +458,13 @@ const Register = () => {
                         type="button"
                         onClick={handleUseCurrentLocation}
                         disabled={geoLoading}
-                        className="w-full sm:w-auto h-10 px-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
+                        className="w-full sm:w-auto h-10 px-5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#2F6B5F] dark:text-emerald-400 text-xs font-extrabold shadow-xs hover:shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
                       >
-                        {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} className="text-red-400" />}
+                        {geoLoading ? (
+                          <Loader2 size={15} className="animate-spin text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
+                        ) : (
+                          <Navigation size={15} className="text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
+                        )}
                         <span>{geoLoading ? 'Detecting...' : 'Use Current Location'}</span>
                       </button>
                     </div>

@@ -234,27 +234,32 @@ export default function AIChatBotWidget() {
     <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[100] font-sans">
       {/* Floating Toggle Button */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="group relative flex items-center gap-2.5 bg-white dark:bg-slate-900 hover:bg-[#FAFAF8] dark:hover:bg-slate-800 text-[#171918] dark:text-white p-3.5 sm:px-4 sm:py-3.5 rounded-full shadow-lg border border-[#E7E9E6] dark:border-slate-800 transition-all duration-300 transform hover:scale-105 active:scale-95"
-          title="Ask Fixiva AI Assistant"
-        >
-          <div className="relative flex items-center justify-center">
-            <span className="absolute -top-1 -right-1 flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2F6B5F] dark:bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#2F6B5F] dark:bg-emerald-400"></span>
-            </span>
-            <div className="p-2 rounded-full bg-[#2F6B5F] dark:bg-emerald-600 text-white shadow-xs">
-              <Bot size={20} className="group-hover:rotate-12 transition-transform" />
+        <div className="relative group inline-flex items-center">
+          {/* Round Side Strip Light Ambient Glow */}
+          <div className="ai-strip-light" />
+
+          <button
+            onClick={() => setIsOpen(true)}
+            className="relative z-10 flex items-center gap-2.5 bg-white dark:bg-slate-900 hover:bg-[#FAFAF8] dark:hover:bg-slate-800 text-[#171918] dark:text-white p-3.5 sm:px-4 sm:py-3.5 rounded-full border border-[#2F6B5F]/35 dark:border-emerald-500/40 shadow-[0_0_12px_rgba(47,107,95,0.18)] dark:shadow-[0_0_16px_rgba(16,185,129,0.25)] transition-all duration-300 transform group-hover:scale-105 active:scale-95 cursor-pointer"
+            title="Ask Fixiva AI Assistant"
+          >
+            <div className="relative flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2F6B5F] dark:bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-[#2F6B5F] dark:bg-emerald-400"></span>
+              </span>
+              <div className="p-2 rounded-full bg-[#2F6B5F] dark:bg-emerald-600 text-white shadow-xs">
+                <Bot size={20} className="group-hover:rotate-12 transition-transform" />
+              </div>
             </div>
-          </div>
-          <div className="hidden sm:flex flex-col items-start text-left pr-1">
-            <span className="text-xs font-bold leading-tight flex items-center gap-1 text-[#171918] dark:text-slate-100">
-              {t('aiTitle', 'Fixiva AI Assistant')} <Sparkles size={12} className="text-[#2F6B5F] dark:text-emerald-400" />
-            </span>
-            <span className="text-[10px] text-[#6B716E] dark:text-slate-400 font-medium">{t('askQuestion', 'Ask any question')}</span>
-          </div>
-        </button>
+            <div className="hidden sm:flex flex-col items-start text-left pr-1">
+              <span className="text-xs font-bold leading-tight flex items-center gap-1 text-[#171918] dark:text-slate-100">
+                {t('aiTitle', 'Fixiva AI Assistant')} <Sparkles size={12} className="text-[#2F6B5F] dark:text-emerald-400" />
+              </span>
+              <span className="text-[10px] text-[#6B716E] dark:text-slate-400 font-medium">{t('askQuestion', 'Ask any question')}</span>
+            </div>
+          </button>
+        </div>
       )}
 
       {/* Floating Chat Modal */}
