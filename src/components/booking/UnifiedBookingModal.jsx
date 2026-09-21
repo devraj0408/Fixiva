@@ -10,7 +10,7 @@ import { submitCoverageRequest } from '../../services/coverageService';
 import { BUSINESS_CONFIG } from '../../config/businessConfig';
 
 const UnifiedBookingModal = () => {
-  const { bookingModalState, closeBookingModal, services = [], user, showToast } = useApp();
+  const { bookingModalState, closeBookingModal, services = [], user, showToast, settings = {} } = useApp();
   const { t } = useLanguage();
   const { isOpen, initialData = {} } = bookingModalState;
 
@@ -95,6 +95,10 @@ const UnifiedBookingModal = () => {
   };
 
   const handleConfirm = async () => {
+    if (settings?.maintenanceMode) {
+      showToast('Fixiva is currently in Maintenance Mode. Booking is temporarily paused.', 'error');
+      return;
+    }
     if (!customerName || !customerPhone) {
       showToast(t('enterName', 'Please enter your name and phone number'), 'error');
       return;
@@ -135,11 +139,11 @@ const UnifiedBookingModal = () => {
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 relative overflow-hidden"
+          className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 dark:border-slate-800 relative overflow-hidden"
         >
           <button
             onClick={closeBookingModal}
-            className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all"
+            className="absolute top-4 right-4 p-2 rounded-full text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
           >
             <X size={18} />
           </button>
@@ -149,12 +153,12 @@ const UnifiedBookingModal = () => {
               <img
                 src={activeService.image_url || activeService.image || activeService.icon}
                 alt={activeService.name}
-                className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0 shadow-xs"
+                className="w-10 h-10 rounded-xl object-cover border border-slate-200 dark:border-slate-700 shrink-0 shadow-xs"
               />
             ) : null}
             <div>
-              <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2.5 py-0.5 rounded-md">{t('quickBooking', 'Quick Booking')}</span>
-              <h2 className="text-lg font-black text-slate-900 leading-tight">{activeService?.name || t('services', 'Service')}</h2>
+              <span className="text-[10px] font-black uppercase text-primary dark:text-emerald-400 bg-primary/10 dark:bg-emerald-950/60 px-2.5 py-0.5 rounded-md border border-primary/20 dark:border-emerald-800/40">{t('quickBooking', 'Quick Booking')}</span>
+              <h2 className="text-lg font-black text-slate-900 dark:text-white leading-tight">{activeService?.name || t('services', 'Service')}</h2>
             </div>
           </div>
 
@@ -198,14 +202,14 @@ const UnifiedBookingModal = () => {
 
               {step === 2 && isDistrictActiveStatus && (
                 availablePros.length === 0 ? (
-                  <div className="p-6 text-center space-y-3 bg-blue-50/50 rounded-2xl border border-blue-100">
-                    <span className="px-2.5 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20">
+                  <div className="p-6 text-center space-y-3 bg-blue-50/50 dark:bg-slate-800/50 rounded-2xl border border-blue-100 dark:border-slate-700">
+                    <span className="px-2.5 py-1 bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 rounded-full text-[10px] font-black uppercase tracking-widest border border-primary/20 dark:border-emerald-800/40">
                       {t('comingSoon', 'Coming Soon')}
                     </span>
-                    <h3 className="text-base font-black text-slate-900 pt-1">
+                    <h3 className="text-base font-black text-slate-900 dark:text-white pt-1">
                       {t('currentlyExpanding', 'Services Coming Soon to your area')} ({selectedLocality}, {selectedDistrict})
                     </h3>
-                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium leading-relaxed">
                       {t('noWorkerInArea', 'No active registered workers or contractors are currently available for this service in your area. Fixiva is expanding rapidly!')}
                     </p>
                     <button
@@ -217,62 +221,68 @@ const UnifiedBookingModal = () => {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <span className="text-xs font-bold text-slate-700">{t('matchingProsTitle', 'Verified Professionals Available')} ({selectedLocality})</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{t('matchingProsTitle', 'Verified Professionals Available')} ({selectedLocality})</span>
                     
-                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
+                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
                       {availablePros.map(pro => (
                         <div
                           key={pro.id}
                           onClick={() => setSelectedPro(pro)}
                           className={`p-3 rounded-2xl border cursor-pointer text-xs flex items-center justify-between transition-all ${
-                            selectedPro?.id === pro.id ? 'border-primary bg-primary/5 font-bold' : 'border-slate-100 hover:bg-slate-50'
+                            selectedPro?.id === pro.id ? 'border-primary dark:border-emerald-500 bg-primary/5 dark:bg-emerald-950/40 font-bold' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                           }`}
                         >
                           <div className="flex items-center gap-3">
                             <img src={pro.profile_photo_url} alt={pro.name} className="w-9 h-9 rounded-xl object-cover" />
                             <div>
-                              <h4 className="font-bold text-slate-900">{pro.name}</h4>
-                              <span className="text-[10px] text-slate-500 font-semibold">
+                              <h4 className="font-bold text-slate-900 dark:text-white">{pro.name}</h4>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
                                 {pro.distance_km !== null && pro.distance_km !== undefined ? `${pro.distance_km} km away • ETA ${pro.eta_text || 'Nearby'}` : t('fixivaVerified', 'Fixiva Verified')}
                               </span>
                             </div>
                           </div>
 
-                          <span className="font-black text-slate-900">₹{pro.starting_price}</span>
+                          <span className="font-black text-slate-900 dark:text-white">₹{pro.starting_price}</span>
                         </div>
                       ))}
                     </div>
 
-                  <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
                     <input
                       type="text"
                       placeholder={t('fullNameLabel', 'Full Name')}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold outline-none focus:border-primary dark:focus:border-emerald-500"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                     />
                     <input
                       type="tel"
                       placeholder={t('phoneLabel', 'Mobile Number')}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold outline-none focus:border-primary"
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-semibold outline-none focus:border-primary dark:focus:border-emerald-500"
                       value={customerPhone}
                       onChange={(e) => setCustomerPhone(e.target.value)}
                     />
                   </div>
 
+                  {settings?.maintenanceMode && (
+                    <div className="p-3 bg-amber-50 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 rounded-xl text-xs font-semibold">
+                      ⚠️ Fixiva is currently in Maintenance Mode. Booking creation is temporarily paused.
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <button
                       onClick={() => setStep(1)}
-                      className="w-1/3 py-2.5 text-xs font-bold rounded-xl border border-slate-200 hover:bg-slate-50"
+                      className="w-1/3 py-2.5 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer transition-colors"
                     >
                       {t('back', 'Back')}
                     </button>
                     <button
                       onClick={handleConfirm}
-                      disabled={submitting}
-                      className="btn-primary w-2/3 py-2.5 text-xs font-bold rounded-xl shadow-md"
+                      disabled={submitting || settings?.maintenanceMode}
+                      className="btn-primary w-2/3 py-2.5 text-xs font-bold rounded-xl shadow-md disabled:opacity-50"
                     >
-                      {submitting ? t('submitting', 'Submitting...') : t('confirmBookingBtn', 'Confirm Booking')}
+                      {settings?.maintenanceMode ? 'Maintenance Mode' : submitting ? t('submitting', 'Submitting...') : t('confirmBookingBtn', 'Confirm Booking')}
                     </button>
                   </div>
                 </div>
@@ -281,8 +291,8 @@ const UnifiedBookingModal = () => {
               {step === 2 && !isDistrictActiveStatus && (
                 <div className="text-center py-6 space-y-4">
                   <span className="text-2xl">🚨</span>
-                  <h3 className="text-base font-bold text-slate-900">{t('notInCityYet', 'Not in city yet')} ({selectedDistrict})</h3>
-                  <p className="text-xs text-slate-500">{t('requestCoverageDesc', 'We are expanding rapidly to your area!')}</p>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">{t('notInCityYet', 'Not in city yet')} ({selectedDistrict})</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('requestCoverageDesc', 'We are expanding rapidly to your area!')}</p>
                   <button
                     onClick={() => {
                       submitCoverageRequest({
@@ -305,8 +315,8 @@ const UnifiedBookingModal = () => {
           ) : (
             <div className="text-center py-8 space-y-4">
               <span className="text-3xl">🎉</span>
-              <h3 className="text-lg font-extrabold text-slate-900">{t('bookingSuccessfulTitle', 'Booking Confirmed!')}</h3>
-              <p className="text-xs text-slate-500">{t('bookingSuccessMsg', 'Our specialist has been notified.')}</p>
+              <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">{t('bookingSuccessfulTitle', 'Booking Confirmed!')}</h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('bookingSuccessMsg', 'Our specialist has been notified.')}</p>
               <button onClick={closeBookingModal} className="btn-primary w-full py-2.5 text-xs font-bold rounded-xl">
                 {t('close', 'Close')}
               </button>

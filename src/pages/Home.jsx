@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon,
-  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle, MapPin, Navigation, ChevronLeft, ChevronRight
+  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle, MapPin, Navigation, ChevronLeft, ChevronRight, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { useCms } from '../context/CmsContext';
@@ -158,8 +158,9 @@ const HomePromotionalBanner = ({ banners, navigate }) => {
 const HeroServiceSlideshow = HeroSlideshow;
 
 const Home = () => {
-  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest } = useApp();
-  const { reviews: cmsReviews, banners, cities: cmsCities } = useCms();
+  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest, settings: authSettings } = useApp();
+  const { reviews: cmsReviews, banners, cities: cmsCities, settings: cmsSettings } = useCms();
+  const settings = cmsSettings || authSettings || {};
   const { t } = useLanguage();
   const navigate = useNavigate();
 
@@ -198,7 +199,11 @@ const Home = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const [detectingCoverageGps, setDetectingCoverageGps] = useState(false);
 
-  const handleDetectLocation = async () => {
+  const handleDetectLocation = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (detectingGps) return;
+
     setDetectingGps(true);
     try {
       const loc = await detectCurrentLocation();
@@ -216,7 +221,7 @@ const Home = () => {
         if (locName) localStorage.setItem('fixiva:last-locality', locName);
       } catch { void 0; }
 
-      showToast(`📍 Location set: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
+      showToast(`Location set: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
     } catch {
       showToast('Could not access current location. You can select your location manually.', 'error');
     } finally {
@@ -234,7 +239,7 @@ const Home = () => {
       if (loc.pincode) setReqPincode(loc.pincode);
       if (loc.latitude) setReqLat(loc.latitude);
       if (loc.longitude) setReqLng(loc.longitude);
-      showToast(`📍 Location detected: ${[loc.locality, loc.district, loc.state].filter(Boolean).join(', ')}`, 'success');
+      showToast(`Location detected: ${[loc.locality, loc.district, loc.state].filter(Boolean).join(', ')}`, 'success');
     } catch {
       showToast('Could not detect current location. Select manually.', 'error');
     } finally {
@@ -318,6 +323,11 @@ const Home = () => {
 
   return (
     <div className="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100">
+      {settings.maintenanceMode && (
+        <div className="bg-amber-600 text-white px-4 py-2.5 text-center text-xs font-bold shadow-sm flex items-center justify-center gap-2">
+          <span>🔧 System Maintenance Notice: New customer booking creation is currently paused. You can still browse services and check availability.</span>
+        </div>
+      )}
       {/* Hero Section */}
       <section className="relative py-12 sm:py-16 lg:py-20 hero-shell overflow-hidden border-b border-slate-200/80 dark:border-slate-800">
 
@@ -390,7 +400,9 @@ const Home = () => {
               {/* Quick Tags shortcut */}
               {activeServices.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
-                  <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">Popular:</span>
+                  <span className="text-[11px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                    {t('popularLabel', 'Popular:')}
+                  </span>
                   {activeServices.slice(0, 4).map((service) => (
                     <button
                       key={service.id}
@@ -398,9 +410,10 @@ const Home = () => {
                       onClick={() => {
                         setSearchQuery(service.name);
                       }}
-                      className="text-xs font-bold text-slate-600 hover:text-primary px-2.5 py-1 rounded-lg bg-slate-100/70 hover:bg-primary/10 border border-slate-200/60 hover:border-primary/30 transition-all cursor-pointer"
+                      className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-slate-800 hover:bg-primary/10 dark:hover:bg-slate-700/90 border border-slate-200/80 dark:border-slate-700 hover:border-primary/30 dark:hover:border-slate-600 transition-all cursor-pointer inline-flex items-center shadow-2xs"
                     >
-                      ⚡ {service.name}
+                      <span className="text-amber-500 dark:text-amber-400 mr-1 text-[11px]">⚡</span>
+                      {service.name}
                     </button>
                   ))}
                 </div>
@@ -410,11 +423,11 @@ const Home = () => {
               <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#E7E9E6] dark:border-slate-800">
                 <button
                   type="button"
-                  onClick={handleDetectLocation}
+                  onClick={(e) => handleDetectLocation(e)}
                   disabled={detectingGps}
-                  className="text-xs font-extrabold px-3.5 py-2.5 rounded-xl border border-[#E7E9E6] dark:border-slate-700 hover:border-[#2F6B5F] text-[#171918] dark:text-slate-200 hover:text-[#2F6B5F] dark:hover:text-emerald-400 flex items-center gap-2 transition-all bg-[#FAFAF8] dark:bg-slate-800 hover:bg-[#E8F0ED] dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer shadow-2xs"
+                  className="text-xs font-extrabold px-3.5 py-2.5 rounded-xl border border-[#E7E9E6] dark:border-slate-700 hover:border-red-500/50 text-[#171918] dark:text-slate-200 hover:text-red-500 dark:hover:text-red-400 flex items-center gap-2 transition-all bg-[#FAFAF8] dark:bg-slate-800 hover:bg-red-50/50 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer shadow-2xs group"
                 >
-                  <span className="text-[#2F6B5F] dark:text-emerald-400 text-sm">📍</span>
+                  <LocateFixed size={16} className={`text-red-500 shrink-0 ${detectingGps ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
                   {detectingGps ? 'Locating...' : 'Use Location'}
                 </button>
 
@@ -524,25 +537,27 @@ const Home = () => {
       </section>
 
       {/* Admin Controlled Promotional Banner */}
-      <HomePromotionalBanner banners={banners} navigate={navigate} />
+      {settings.enableOffers !== false && (
+        <HomePromotionalBanner banners={banners} navigate={navigate} />
+      )}
 
       {/* Popular Services Horizontal Showcase */}
-      <section className="py-20 bg-white overflow-hidden">
+      <section className="py-20 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-end mb-10">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Catalog Categories</span>
-              <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">Popular Home Services</h2>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Catalog Categories</span>
+              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">Popular Home Services</h2>
             </div>
-            <Link to="/services" className="text-sm font-bold text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link to="/services" className="text-sm font-bold text-primary dark:text-emerald-400 flex items-center gap-1 hover:gap-2 transition-all">
               Browse All Services <ArrowRight size={16} />
             </Link>
           </div>
 
           {activeServices.length === 0 ? (
-            <div className="py-16 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl">
-              <Zap size={36} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-slate-500 text-sm font-semibold">No active services available right now.</p>
+            <div className="py-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl">
+              <Zap size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">No active services available right now.</p>
             </div>
           ) : (
             <div className="relative">
@@ -555,7 +570,7 @@ const Home = () => {
                     <div key={s.id} className="w-[220px] sm:w-[250px] shrink-0 snap-start">
                       <Link 
                         to={`/book/${s.id}`} 
-                        className="group relative overflow-hidden section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center justify-between h-full min-h-[220px] border border-slate-200/80 bg-white"
+                        className="group relative overflow-hidden section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary dark:hover:border-emerald-500 transition-all text-center flex flex-col items-center justify-between h-full min-h-[220px] border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900"
                       >
                         {serviceImg ? (
                           <>
@@ -590,19 +605,19 @@ const Home = () => {
                           </>
                         ) : (
                           <div className="flex flex-col items-center justify-between h-full w-full">
-                            <div className="h-16 w-16 rounded-2xl bg-slate-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all overflow-hidden border border-slate-100 shadow-xs shrink-0">
+                            <div className="h-16 w-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-primary dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white dark:group-hover:bg-emerald-600 transition-all overflow-hidden border border-slate-100 dark:border-slate-700 shadow-xs shrink-0">
                               <Icon size={26} />
                             </div>
-                            <h4 className="font-extrabold text-sm text-slate-900 leading-tight group-hover:text-primary transition-colors line-clamp-2">
+                            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight group-hover:text-primary dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
                               {s.name}
                             </h4>
                             <div className="mt-auto pt-4">
                               {(s.base_price || s.inspection_fee) > 0 ? (
-                                <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider">
                                   Starts ₹{s.base_price || s.inspection_fee}
                                 </p>
                               ) : (
-                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
                                   Price on selection
                                 </p>
                               )}
@@ -618,7 +633,7 @@ const Home = () => {
                 <div className="w-[220px] sm:w-[250px] shrink-0 snap-start">
                   <Link
                     to="/services"
-                    className="group p-6 rounded-[1.35rem] bg-[#171918] text-white hover:shadow-md hover:-translate-y-1 border border-slate-800 transition-all text-center flex flex-col items-center justify-center h-full min-h-[220px] relative overflow-hidden"
+                    className="group p-6 rounded-[1.35rem] bg-[#171918] dark:bg-slate-900 text-white hover:shadow-md hover:-translate-y-1 border border-slate-800 hover:border-primary dark:hover:border-emerald-500 transition-all text-center flex flex-col items-center justify-center h-full min-h-[220px] relative overflow-hidden"
                   >
                     <div className="w-12 h-12 rounded-2xl bg-[#2F6B5F] text-white flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
                       <ArrowRight size={22} className="text-white group-hover:translate-x-1 transition-transform" />
@@ -626,7 +641,7 @@ const Home = () => {
                     <h4 className="font-bold text-base text-white leading-tight">
                       View More Services
                     </h4>
-                    <p className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1 group-hover:text-[#2F6B5F] transition-colors">
+                    <p className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1 group-hover:text-emerald-400 transition-colors">
                       Explore full catalog →
                     </p>
                   </Link>
@@ -638,12 +653,12 @@ const Home = () => {
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 bg-slate-50">
+      <section className="py-20 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-16">
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Simple Booking</span>
-            <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">How It Works</h2>
-            <p className="text-slate-500 font-medium text-sm mt-3">Book home services with pricing guarantee in 4 quick steps.</p>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Simple Booking</span>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">How It Works</h2>
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm mt-3">Book home services with pricing guarantee in 4 quick steps.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -655,13 +670,13 @@ const Home = () => {
             ].map((item, idx) => (
               <div 
                 key={idx} 
-                className="elevated-card p-8 rounded-[1.4rem] transition-all text-center flex flex-col items-center"
+                className="elevated-card p-8 rounded-[1.4rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 transition-all text-center flex flex-col items-center shadow-sm hover:shadow-lg"
               >
-                <div className="h-12 w-12 rounded-full bg-primary/10 text-primary font-black text-base flex items-center justify-center mb-6">
+                <div className="h-12 w-12 rounded-full bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 font-black text-base flex items-center justify-center mb-6 border border-primary/20 dark:border-emerald-800/40">
                   {item.step}
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-2">{item.title}</h3>
-                <p className="text-slate-500 text-xs leading-relaxed font-semibold">{item.desc}</p>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base mb-2">{item.title}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-semibold">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -708,9 +723,9 @@ const Home = () => {
                         type="button"
                         onClick={handleDetectCoverageLocation}
                         disabled={detectingCoverageGps}
-                        className="text-xs font-black text-primary dark:text-emerald-400 hover:text-[#285C52] inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs hover:border-primary/40 dark:hover:border-emerald-500/40 transition-all cursor-pointer disabled:opacity-50"
+                        className="text-xs font-black text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs hover:border-red-300 dark:hover:border-red-800 transition-all cursor-pointer disabled:opacity-50"
                       >
-                        <Navigation size={12} className={detectingCoverageGps ? 'animate-spin' : ''} />
+                        <LocateFixed size={13} className={`text-red-500 shrink-0 ${detectingCoverageGps ? 'animate-spin' : ''}`} />
                         <span>{detectingCoverageGps ? 'Detecting...' : 'Use Current Location'}</span>
                       </button>
                     </div>
@@ -739,8 +754,9 @@ const Home = () => {
                             <MapPin size={16} />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-black text-slate-900 dark:text-white truncate">
-                              📍 {[reqLocality, reqDistrict].filter(Boolean).join(', ')}
+                            <p className="font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                              <LocateFixed size={13} className="text-red-500 shrink-0 inline" />
+                              <span>{[reqLocality, reqDistrict].filter(Boolean).join(', ')}</span>
                             </p>
                             <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
                               {[reqDistrict, reqState].filter(Boolean).join(', ')} {reqPincode ? `• ${reqPincode}` : ''}
@@ -788,16 +804,16 @@ const Home = () => {
             {[
               { emoji: '🏠', title: 'Expanding Across India', desc: 'Active growth focus' },
               { emoji: '👨‍🔧', title: 'Verified Professionals', desc: 'Strict identity check' },
-              { emoji: '📍', title: 'Multiple Cities Covered', desc: 'Growing footprint' },
+              { emoji: '🎯', title: 'Multiple Cities Covered', desc: 'Growing footprint' },
               { emoji: '⚡', title: 'New Cities Added Regularly', desc: 'Based on demand' }
             ].map((stat, idx) => (
               <div 
                 key={idx} 
-                className="p-5 rounded-2xl border border-slate-100 bg-slate-50/50 flex flex-col items-center text-center space-y-2 hover:shadow-[0_8px_20px_-6px_rgba(0,0,0,0.05)] transition-shadow"
+                className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 flex flex-col items-center text-center space-y-2 hover:shadow-md transition-shadow"
               >
                 <span className="text-2xl">{stat.emoji}</span>
-                <h4 className="font-extrabold text-slate-800 text-xs">{stat.title}</h4>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{stat.desc}</p>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs">{stat.title}</h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">{stat.desc}</p>
               </div>
             ))}
           </div>
@@ -806,24 +822,24 @@ const Home = () => {
       </section>
 
       {/* Guarantee Banner */}
-      <section className="py-16 bg-slate-900 text-white relative overflow-hidden">
+      <section className="py-16 bg-slate-900 dark:bg-slate-950 text-white relative overflow-hidden border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="flex gap-4 items-start">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><ShieldCheck size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><ShieldCheck size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Identity Checked Experts</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Strict Aadhaar identity uploads check verification on all local workers.</p>
             </div>
           </div>
           <div className="flex gap-4 items-start border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><Clock size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><Clock size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Late Protection</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Automated reassignment tools protect bookings from partner delays.</p>
             </div>
           </div>
           <div className="flex gap-4 items-start border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><ThumbsUp size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><ThumbsUp size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Settlement Protections</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Upfront pricing details mean you only pay flat rates directly on-site.</p>
@@ -833,58 +849,60 @@ const Home = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-xl mx-auto mb-16">
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Reviews & Feedback</span>
-            <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">Verified Testimonials</h2>
-          </div>
+      {settings.enableReviews !== false && (
+        <section className="py-20 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-xl mx-auto mb-16">
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Reviews & Feedback</span>
+              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">Verified Testimonials</h2>
+            </div>
 
-          {reviews.length === 0 ? (
-            <div className="py-16 text-center bg-white rounded-3xl border border-slate-200/60 max-w-lg mx-auto shadow-sm">
-              <Star size={36} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-slate-400 text-sm font-semibold">No reviews registered in the system yet.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {reviews.slice(0, 3).map((r, idx) => (
-                <div key={idx} className="elevated-card p-8 rounded-[1.5rem] flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex gap-1 text-warning mb-4">
-                      {[...Array(5)].map((_, j) => (
-                        <Star key={j} size={14} fill={j < r.rating ? "currentColor" : "none"} />
-                      ))}
+            {reviews.length === 0 ? (
+              <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800 max-w-lg mx-auto shadow-sm">
+                <Star size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-semibold">No reviews registered in the system yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {reviews.slice(0, 3).map((r, idx) => (
+                  <div key={idx} className="elevated-card p-8 rounded-[1.5rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between h-full shadow-sm hover:shadow-lg transition-all">
+                    <div>
+                      <div className="flex gap-1 text-warning mb-4">
+                        {[...Array(5)].map((_, j) => (
+                          <Star key={j} size={14} fill={j < r.rating ? "currentColor" : "none"} />
+                        ))}
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-300 italic text-sm leading-relaxed">
+                        "{r.comment}"
+                      </p>
                     </div>
-                    <p className="text-slate-600 italic text-sm leading-relaxed">
-                      "{r.comment}"
-                    </p>
+                    <div className="flex justify-between items-center pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">{r.userName || 'Customer'}</span>
+                      <span className="text-[9px] uppercase font-black tracking-widest text-primary dark:text-emerald-400">
+                        {r.serviceType}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center pt-6 mt-6 border-t border-slate-50">
-                    <span className="font-bold text-sm text-slate-900">{r.userName || 'Customer'}</span>
-                    <span className="text-[9px] uppercase font-black tracking-widest text-primary">
-                      {r.serviceType}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Book CTA callout */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white dark:bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-[#171918] rounded-[2rem] p-10 sm:p-12 text-center text-white shadow-md border border-slate-800 relative overflow-hidden">
+          <div className="bg-[#171918] dark:bg-slate-900 rounded-[2rem] p-10 sm:p-12 text-center text-white shadow-lg border border-slate-800 relative overflow-hidden">
             <div className="relative z-10 space-y-5 max-w-xl mx-auto">
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Ready to clear your tasks list?</h2>
-              <p className="text-slate-300 text-sm font-medium leading-relaxed">
+              <p className="text-slate-300 dark:text-slate-300 text-sm font-medium leading-relaxed">
                 Book professional assistance in a few clicks. Verified professionals, transparent platform billing.
               </p>
               <div className="pt-2">
                 <Link 
                   to="/services" 
-                  className="inline-flex btn-primary px-8 py-3.5 rounded-[10px] text-sm text-center"
+                  className="inline-flex btn-primary px-8 py-3.5 rounded-[10px] text-sm text-center font-bold"
                 >
                   Book Your First Service
                 </Link>

@@ -310,7 +310,7 @@ export default function AIChatBotWidget() {
           </div>
 
           {/* Chat Messages */}
-          <div className="flex-1 p-4 overflow-y-auto space-y-3.5 bg-[#FAFAF8] dark:bg-slate-950 text-xs">
+          <div className="flex-1 p-4 overflow-y-auto space-y-3.5 fixiva-ai-tiles-bg text-xs">
             {messages.map((m) => (
               <div key={m.id} className={`flex ${m.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div
@@ -428,7 +428,7 @@ export default function AIChatBotWidget() {
           )}
 
           {/* Quick Suggestions */}
-          <div className="px-3 py-2 bg-[#FAFAF8] dark:bg-slate-950 border-t border-[#E7E9E6] dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <div className="px-3 py-2 fixiva-ai-tiles-bg border-t border-[#E7E9E6] dark:border-slate-800 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
             {quickPrompts.map((prompt, idx) => (
               <button
                 key={idx}
@@ -469,14 +469,14 @@ export default function AIChatBotWidget() {
               e.preventDefault();
               handleSend();
             }}
-            className="p-3 bg-white dark:bg-slate-900 border-t border-[#E7E9E6] dark:border-slate-800 flex items-center gap-2 shrink-0"
+            className="p-3 bg-[#2F6B5F] dark:bg-[#20483F] border-t border-[#26584E] dark:border-[#183932] flex items-center gap-2 shrink-0 transition-colors"
           >
             <input
               type="text"
               placeholder={t('aiPlaceholder', 'Ask anything about Fixiva...')}
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              className="flex-1 bg-[#FAFAF8] dark:bg-slate-950 border border-[#E7E9E6] dark:border-slate-800 rounded-xl px-3.5 py-2 text-xs text-[#171918] dark:text-white placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-[#2F6B5F] font-medium"
+              className="flex-1 bg-white dark:bg-slate-900/90 border border-white/20 dark:border-white/10 rounded-xl px-3.5 py-2 text-xs text-[#171918] dark:text-white placeholder-slate-400 dark:placeholder-slate-400 outline-none focus:ring-2 focus:ring-white/40 font-medium shadow-inner"
             />
             <button
               type="button"
@@ -484,7 +484,7 @@ export default function AIChatBotWidget() {
               className={`p-2 rounded-xl transition-all shrink-0 ${
                 isListening
                   ? 'bg-[#C85C5C] text-white animate-pulse shadow-xs'
-                  : 'bg-[#FAFAF8] dark:bg-slate-800 hover:bg-[#F3F4F1] dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-[#E7E9E6] dark:border-slate-700'
+                  : 'bg-white dark:bg-slate-900/90 hover:bg-white/95 dark:hover:bg-slate-800 text-[#2F6B5F] dark:text-emerald-400 border border-white/20 dark:border-white/10 shadow-xs cursor-pointer'
               }`}
               title={isListening ? 'Stop Listening' : 'Speak to AI'}
             >
@@ -493,9 +493,14 @@ export default function AIChatBotWidget() {
             <button
               type="submit"
               disabled={!input.trim() || isTyping}
-              className="p-2 rounded-xl bg-[#2F6B5F] hover:bg-[#285C52] text-white font-bold transition-colors disabled:opacity-40 shrink-0"
+              className={`p-2 rounded-xl font-bold transition-all shrink-0 ${
+                !input.trim() || isTyping
+                  ? 'bg-white/80 dark:bg-slate-900/90 border border-white/20 dark:border-white/10 text-slate-400 dark:text-slate-500 opacity-60 cursor-not-allowed'
+                  : 'bg-white dark:bg-slate-900/90 border border-amber-400/50 dark:border-amber-400/40 text-amber-500 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 hover:border-amber-500 shadow-sm cursor-pointer hover:scale-105 active:scale-95'
+              }`}
+              title={input.trim() ? 'Send Message' : undefined}
             >
-              <Send size={15} />
+              <Send size={15} className={input.trim() && !isTyping ? 'text-amber-500 dark:text-amber-400' : 'text-slate-400 dark:text-slate-500'} />
             </button>
           </form>
         </div>

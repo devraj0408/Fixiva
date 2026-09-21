@@ -19,7 +19,8 @@ import {
   Sparkles,
   Send,
   Headphones,
-  Camera
+  Camera,
+  LocateFixed
 } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
 import ProfileCard from '../../components/ProfileCard';
@@ -131,12 +132,14 @@ const WorkerLiveTrackingCard = ({ booking }) => {
             src={`https://www.openstreetmap.org/export/embed.html?bbox=${workerLng - 0.015}%2C${workerLat - 0.015}%2C${workerLng + 0.015}%2C${workerLat + 0.015}&layer=mapnik&marker=${workerLat}%2C${workerLng}`}
           />
           <div className="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur-sm text-[10px] text-white font-bold px-2.5 py-1 rounded-lg border border-slate-700 flex items-center gap-1.5 shadow-sm">
-            📍 Live GPS Location Tracking Active
+            <LocateFixed size={12} className="text-red-500 shrink-0 animate-pulse" />
+            <span>Live GPS Location Tracking Active</span>
           </div>
         </div>
       ) : (
-        <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-center text-xs text-slate-400 font-semibold">
-          📍 Real-time GPS signal active — awaiting device coordinates...
+        <div className="p-3.5 rounded-2xl bg-slate-800/80 border border-slate-700 text-center text-xs text-slate-400 font-semibold flex items-center justify-center gap-1.5">
+          <LocateFixed size={13} className="text-red-500 shrink-0 animate-pulse" />
+          <span>Real-time GPS signal active — awaiting device coordinates...</span>
         </div>
       )}
     </div>
@@ -1122,7 +1125,10 @@ const CustomerDashboard = () => {
 
                       <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
                         <div className="flex justify-between items-center text-slate-600 font-medium">
-                          <span>📍 Location</span>
+                          <span className="flex items-center gap-1.5">
+                            <LocateFixed size={13} className="text-red-500 shrink-0" />
+                            <span>Location</span>
+                          </span>
                           <span className="font-bold text-slate-900">{b.locality || profileLocality}, {b.district || profileDistrict}</span>
                         </div>
                         <div className="flex justify-between items-center text-slate-600 font-medium">

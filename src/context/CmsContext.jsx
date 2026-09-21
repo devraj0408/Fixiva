@@ -53,7 +53,46 @@ export const CmsProvider = ({ children }) => {
   const [bookings, setBookings] = useState([]);
   const [payments, setPayments] = useState([]);
   const [tickets, setTickets] = useState([]);
-  const [settings, setSettings] = useState(bookingService.getSystemSettings());
+  const [settings, setSettings] = useState(() => bookingService.getSystemSettings());
+
+  // Broadcast services updates across window and tabs for instant reactive sync
+  const broadcastServicesUpdate = (updatedServices) => {
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('fixiva:services-updated', { detail: updatedServices }));
+      } catch { void 0; }
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('fixiva-channel');
+          bc.postMessage({ type: 'SERVICES_UPDATED', payload: updatedServices });
+          bc.close();
+        }
+      } catch { void 0; }
+    }
+  };
+
+  // Sync settings across tabs and events
+  useEffect(() => {
+    const handleSettingsUpdate = (e) => {
+      if (e?.detail) {
+        setSettings(e.detail);
+      }
+    };
+    const handleStorage = (e) => {
+      if (e.key === 'fixiva_system_settings') {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed) setSettings(parsed);
+        } catch { void 0; }
+      }
+    };
+    window.addEventListener('fixiva:settings-updated', handleSettingsUpdate);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('fixiva:settings-updated', handleSettingsUpdate);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, []);
 
   // UI Controller State
   const [loading, setLoading] = useState(true);
@@ -179,45 +218,84 @@ export const CmsProvider = ({ children }) => {
   }, [refreshCmsData]);
 
   // Phase 1 Action Handlers
-  const handleCreateService = async (data) => {
-    const res = await catalogService.createService(data, actor);
+  const handleToggleServiceActive = async (id, active) => {
+    // Optimistic update
+    setServices((prev) => {
+      const updated = prev.map((s) => (String(s.id) === String(id) ? { ...s, active } : s));
+      broadcastServicesUpdate(updated);
+      return updated;
+    });
+
+    const res = await catalogService.toggleServiceActive(id, active, actor);
     if (!res.error) {
-      if (res.data) {
-        setServices((prev) => [res.data, ...prev.filter((s) => String(s.id) !== String(res.data.id))]);
-      }
-      showToast('Service created successfully.', 'success');
+      showToast(`Service ${active ? 'activated' : 'disabled'} successfully.`, 'success');
       await refreshCmsData(true);
     } else {
+      // Rollback on error
+      setServices((prev) => {
+        const rolledBack = prev.map((s) => (String(s.id) === String(id) ? { ...s, active: !active } : s));
+        broadcastServicesUpdate(rolledBack);
+        return rolledBack;
+      });
+      showToast('Failed to update service status: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleCreateService = async (data) => {
+    const res = await catalogService.createService(data, actor);
+    if (res?.data) {
+      setServices((prev) => {
+        const next = [res.data, ...prev.filter((s) => String(s.id) !== String(res.data.id))];
+        broadcastServicesUpdate(next);
+        return next;
+      });
+      showToast('Service created successfully.', 'success');
+      await refreshCmsData(true);
+    } else if (res?.error) {
       showToast('Error: ' + res.error, 'error');
     }
     return res;
   };
+
   const handleUpdateService = async (id, updates) => {
+    setServices((prev) => {
+      const next = prev.map((s) => (String(s.id) === String(id) ? { ...s, ...updates } : s));
+      broadcastServicesUpdate(next);
+      return next;
+    });
+
     const res = await catalogService.updateService(id, updates, actor);
     if (!res.error) {
-      setServices((prev) => prev.map((s) => (String(s.id) === String(id) ? { ...s, ...updates, ...(res.data || {}) } : s)));
+      if (res.data) {
+        setServices((prev) => {
+          const next = prev.map((s) => (String(s.id) === String(id) ? { ...s, ...updates, ...(res.data || {}) } : s));
+          broadcastServicesUpdate(next);
+          return next;
+        });
+      }
       showToast('Service updated successfully.', 'success');
       await refreshCmsData(true);
     } else {
       showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
+
   const handleDeleteService = async (id) => {
-    console.log('[CmsContext.handleDeleteService] Invoked for Service ID:', id);
+    setServices((prev) => {
+      const filteredServices = prev.filter((s) => String(s.id) !== String(id));
+      broadcastServicesUpdate(filteredServices);
+      return filteredServices;
+    });
     const res = await catalogService.deleteService(id, actor);
-    console.log('[CmsContext.handleDeleteService] Response received:', res);
-    if (res.success) {
-      setServices((prev) => {
-        const filteredServices = prev.filter((s) => s.id !== id);
-        console.log('[CmsContext.handleDeleteService] Updated local services state length:', filteredServices.length);
-        return filteredServices;
-      });
+    if (res.success || !res.error) {
       showToast(res.message || 'Service deleted successfully.', 'success');
       await refreshCmsData(true);
     } else {
-      console.error('[CmsContext.handleDeleteService] Failed to delete service:', res.error);
       showToast('Failed to delete service: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
@@ -258,9 +336,9 @@ export const CmsProvider = ({ children }) => {
     return res;
   };
 
-  const handleCreateCity = async (data) => { const res = await locationService.createCity(data, actor); if (!res.error) { showToast('City created.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateCity = async (id, updates) => { const res = await locationService.updateCity(id, updates, actor); if (!res.error) { showToast('City updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteCity = async (id) => { const res = await locationService.deleteCity(id, actor); if (res.success) { showToast('City deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateCity = async (data) => { const res = await locationService.createCity(data, actor); if (!res.error) { showToast('City created.', 'success'); await refreshCmsData(true); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleUpdateCity = async (id, updates) => { const res = await locationService.updateCity(id, updates, actor); if (!res.error) { showToast('City updated.', 'success'); await refreshCmsData(true); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleDeleteCity = async (id) => { const res = await locationService.deleteCity(id, actor); if (res.success) { showToast('City deleted.', 'success'); await refreshCmsData(true); } else { showToast('Error: ' + res.error, 'error'); } return res; };
 
   const handleCreateArea = async (data) => {
     const res = await locationService.createArea(data, actor);
@@ -269,7 +347,7 @@ export const CmsProvider = ({ children }) => {
         setAreas((prev) => [res.data, ...prev.filter((a) => String(a.id) !== String(res.data.id))]);
       }
       showToast('Area locality added.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error: ' + res.error, 'error');
     }
@@ -280,7 +358,7 @@ export const CmsProvider = ({ children }) => {
     if (!res.error) {
       setAreas((prev) => prev.map((a) => (String(a.id) === String(id) ? { ...a, ...updates } : a)));
       showToast('Area locality updated.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error: ' + res.error, 'error');
     }
@@ -291,7 +369,7 @@ export const CmsProvider = ({ children }) => {
     if (res.success) {
       setAreas((prev) => prev.filter((a) => String(a.id) !== String(id)));
       showToast('Area locality deleted.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error: ' + res.error, 'error');
     }
@@ -304,10 +382,10 @@ export const CmsProvider = ({ children }) => {
     if (!res.error && res.data) {
       setBanners((prev) => [res.data, ...prev.filter((b) => b.id !== res.data.id && b.title !== res.data.title)]);
       showToast('Banner created successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else if (!res.error) {
       showToast('Banner created successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error creating banner: ' + res.error, 'error');
     }
@@ -319,7 +397,7 @@ export const CmsProvider = ({ children }) => {
     if (!res.error) {
       setBanners((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
       showToast('Banner updated successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error updating banner: ' + res.error, 'error');
     }
@@ -331,7 +409,7 @@ export const CmsProvider = ({ children }) => {
     if (res.success || !res.error) {
       setBanners((prev) => prev.filter((b) => b.id !== id));
       showToast('Banner deleted successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error deleting banner: ' + res.error, 'error');
     }
@@ -343,10 +421,10 @@ export const CmsProvider = ({ children }) => {
     if (!res.error && res.data) {
       setOffers((prev) => [res.data, ...prev.filter((o) => o.id !== res.data.id && o.title !== res.data.title)]);
       showToast('Offer created successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else if (!res.error) {
       showToast('Offer created successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error creating offer: ' + res.error, 'error');
     }
@@ -354,25 +432,27 @@ export const CmsProvider = ({ children }) => {
   };
 
   const handleUpdateOffer = async (id, updates) => {
+    setOffers((prev) => prev.map((o) => (o.id === id ? { ...o, ...updates } : o)));
     const res = await contentService.updateOffer(id, updates, actor);
     if (!res.error) {
-      setOffers((prev) => prev.map((o) => (o.id === id ? { ...o, ...updates } : o)));
       showToast('Offer updated successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error updating offer: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
 
   const handleDeleteOffer = async (id) => {
+    setOffers((prev) => prev.filter((o) => o.id !== id));
     const res = await contentService.deleteOffer(id, actor);
     if (res.success || !res.error) {
-      setOffers((prev) => prev.filter((o) => o.id !== id));
       showToast('Offer deleted successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error deleting offer: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
@@ -382,10 +462,10 @@ export const CmsProvider = ({ children }) => {
     if (!res.error && res.data) {
       setFaqs((prev) => [res.data, ...prev.filter((f) => f.id !== res.data.id && f.question !== res.data.question)]);
       showToast('FAQ added successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else if (!res.error) {
       showToast('FAQ added successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error adding FAQ: ' + res.error, 'error');
     }
@@ -393,25 +473,27 @@ export const CmsProvider = ({ children }) => {
   };
 
   const handleUpdateFaq = async (id, updates) => {
+    setFaqs((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
     const res = await contentService.updateFaq(id, updates, actor);
     if (!res.error) {
-      setFaqs((prev) => prev.map((f) => (f.id === id ? { ...f, ...updates } : f)));
       showToast('FAQ updated successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error updating FAQ: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
 
   const handleDeleteFaq = async (id) => {
+    setFaqs((prev) => prev.filter((f) => f.id !== id));
     const res = await contentService.deleteFaq(id, actor);
     if (res.success || !res.error) {
-      setFaqs((prev) => prev.filter((f) => f.id !== id));
       showToast('FAQ deleted successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast('Error deleting FAQ: ' + res.error, 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
@@ -424,7 +506,7 @@ export const CmsProvider = ({ children }) => {
         return [res.data, ...filtered];
       });
       showToast('Coupon created successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast(res.error || 'Failed to create coupon', 'error');
     }
@@ -432,75 +514,171 @@ export const CmsProvider = ({ children }) => {
   };
 
   const handleUpdateCoupon = async (id, updates) => {
+    setCoupons((prev) => prev.map((c) => (c.id === id ? { ...c, ...updates } : c)));
     const res = await marketingService.updateCoupon(id, updates, actor);
     if (res.data) {
       setCoupons((prev) => prev.map((c) => (c.id === id ? { ...c, ...res.data } : c)));
       showToast('Coupon updated successfully.', 'success');
-      await refreshCmsData();
+      await refreshCmsData(true);
     } else {
       showToast(res.error || 'Failed to update coupon', 'error');
+      await refreshCmsData(true);
     }
     return res;
   };
 
   const handleDeleteCoupon = async (id) => {
-    const res = await marketingService.deleteCoupon(id, actor);
     setCoupons((prev) => prev.filter((c) => c.id !== id));
+    const res = await marketingService.deleteCoupon(id, actor);
     showToast('Coupon deleted successfully.', 'success');
-    await refreshCmsData();
+    await refreshCmsData(true);
     return res;
   };
 
-  const handleCreateBroadcastNotification = async (data) => { const res = await marketingService.createBroadcastNotification(data, actor); if (!res.error) { showToast('Notification dispatched.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteNotification = async (id) => { const res = await marketingService.deleteNotification(id, actor); if (res.success) { showToast('Notification deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleCreateBroadcastNotification = async (data) => {
+    const res = await marketingService.createBroadcastNotification(data, actor);
+    if (!res.error) {
+      if (res.data) setNotifications((prev) => [res.data, ...prev]);
+      showToast('Notification dispatched.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
 
-  const handleUpdateCustomerStatus = async (id, status) => { const res = await userService.updateCustomerStatus(id, status, actor); if (!res.error) { showToast('Customer status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleUpdateContractorStatus = async (id, status) => { const res = await userService.updateContractorStatus(id, status, actor); if (!res.error) { showToast('Contractor status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleFeatureReview = async (id, isFeatured) => { const res = await userService.featureReview(id, isFeatured, actor); if (!res.error) { showToast('Review status updated.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
-  const handleDeleteReview = async (id) => { const res = await userService.deleteReview(id, actor); if (res.success) { showToast('Review deleted.', 'success'); await refreshCmsData(); } else { showToast('Error: ' + res.error, 'error'); } return res; };
+  const handleDeleteNotification = async (id) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const res = await marketingService.deleteNotification(id, actor);
+    if (res.success) { showToast('Notification deleted.', 'success'); await refreshCmsData(true); }
+    else { showToast('Error: ' + res.error, 'error'); await refreshCmsData(true); }
+    return res;
+  };
+
+  const handleUpdateCustomerStatus = async (id, status) => {
+    setCustomers((prev) => prev.map((c) => (String(c.id) === String(id) ? { ...c, account_status: status } : c)));
+    const res = await userService.updateCustomerStatus(id, status, actor);
+    if (!res.error) {
+      showToast('Customer status updated.', 'success');
+      await refreshCmsData(true);
+    } else {
+      setCustomers((prev) => prev.map((c) => (String(c.id) === String(id) ? { ...c, account_status: status === 'suspended' ? 'active' : 'suspended' } : c)));
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleUpdateContractorStatus = async (id, status) => {
+    setContractors((prev) => prev.map((c) => (String(c.id) === String(id) ? { ...c, status } : c)));
+    const res = await userService.updateContractorStatus(id, status, actor);
+    if (!res.error) {
+      showToast('Contractor status updated.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
+    return res;
+  };
+
+  const handleFeatureReview = async (id, isFeatured) => {
+    setReviews((prev) => prev.map((r) => (String(r.id) === String(id) ? { ...r, is_featured: isFeatured } : r)));
+    const res = await userService.featureReview(id, isFeatured, actor);
+    if (!res.error) {
+      showToast(isFeatured ? 'Review featured on customer homepage.' : 'Review unfeatured.', 'success');
+      await refreshCmsData(true);
+    } else {
+      setReviews((prev) => prev.map((r) => (String(r.id) === String(id) ? { ...r, is_featured: !isFeatured } : r)));
+      showToast('Error: ' + res.error, 'error');
+    }
+    return res;
+  };
+
+  const handleDeleteReview = async (id) => {
+    setReviews((prev) => prev.filter((r) => String(r.id) !== String(id)));
+    const res = await userService.deleteReview(id, actor);
+    if (res.success || !res.error) {
+      showToast('Review deleted.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
+    return res;
+  };
 
   // Phase 3 Action Handlers
   const handleUpdateBookingStatus = async (id, status, workerId = null) => {
+    setBookings((prev) => prev.map((b) => (String(b.id) === String(id) ? { ...b, status, ...(workerId ? { worker_id: workerId } : {}) } : b)));
     const res = await bookingService.updateBookingStatus(id, status, workerId, actor);
-    if (!res.error) { showToast(`Booking status updated to ${status}.`, 'success'); await refreshCmsData(); }
-    else { showToast('Error: ' + res.error, 'error'); }
+    if (!res.error) {
+      showToast(`Booking status updated to ${status}.`, 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
     return res;
   };
 
   const handleAssignWorkerToBooking = async (bookingId, worker) => {
+    setBookings((prev) => prev.map((b) => (String(b.id) === String(bookingId) ? { ...b, worker_id: worker?.id, worker_name: worker?.name, status: 'Assigned' } : b)));
     const res = await bookingService.assignWorkerToBooking(bookingId, worker, actor);
-    if (!res.error) { showToast(`Worker ${worker.name || 'Specialist'} assigned to booking.`, 'success'); await refreshCmsData(); }
-    else { showToast('Error: ' + res.error, 'error'); }
+    if (!res.error) {
+      showToast(`Worker ${worker.name || 'Specialist'} assigned to booking.`, 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
     return res;
   };
 
   const handleUpdatePaymentStatus = async (id, status) => {
+    setPayments((prev) => prev.map((p) => (String(p.id) === String(id) ? { ...p, status } : p)));
     const res = await bookingService.updatePaymentStatus(id, status, actor);
-    if (!res.error) { showToast(`Payment status updated to ${status}.`, 'success'); await refreshCmsData(); }
-    else { showToast('Error: ' + res.error, 'error'); }
+    if (!res.error) {
+      showToast(`Payment status updated to ${status}.`, 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
     return res;
   };
 
   const handleCollectCashPayment = async (bookingId) => {
+    setBookings((prev) => prev.map((b) => (String(b.id) === String(bookingId) ? { ...b, payment_status: 'PAID' } : b)));
+    setPayments((prev) => prev.map((p) => (String(p.booking_id) === String(bookingId) || String(p.id) === String(bookingId) ? { ...p, status: 'PAID' } : p)));
     const res = await bookingService.collectCashPayment(bookingId, actor);
-    if (!res.error) { showToast('💵 Cash payment collected! Status set to PAID.', 'success'); await refreshCmsData(); }
-    else { showToast('Error: ' + res.error, 'error'); }
+    if (!res.error) {
+      showToast('💵 Cash payment collected! Status set to PAID.', 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
     return res;
   };
 
   const handleUpdateTicketStatus = async (id, status, replyText = '') => {
+    setTickets((prev) => prev.map((t) => (String(t.id) === String(id) ? { ...t, status, ...(replyText ? { admin_reply: replyText } : {}) } : t)));
     const res = await bookingService.updateTicketStatus(id, status, replyText, actor);
-    if (!res.error) { showToast(`Ticket status updated to ${status}.`, 'success'); await refreshCmsData(); }
-    else { showToast('Error: ' + res.error, 'error'); }
+    if (!res.error) {
+      showToast(`Ticket status updated to ${status}.`, 'success');
+      await refreshCmsData(true);
+    } else {
+      showToast('Error: ' + res.error, 'error');
+      await refreshCmsData(true);
+    }
     return res;
   };
 
   const handleUpdateSettings = (newSettings) => {
-    setSettings((prev) => {
-      const merged = { ...prev, ...newSettings };
-      bookingService.updateSystemSettings(merged);
-      return merged;
-    });
+    const current = settings || bookingService.getSystemSettings();
+    const merged = { ...current, ...newSettings };
+    setSettings(merged);
+    bookingService.updateSystemSettings(merged);
     showToast('System feature flags updated.', 'success');
   };
 
@@ -518,7 +696,7 @@ export const CmsProvider = ({ children }) => {
 
     // Phase 1 CRUD
     createService: handleCreateService, updateService: handleUpdateService, deleteService: handleDeleteService,
-    toggleServiceActive: (id, active) => catalogService.toggleServiceActive(id, active, actor),
+    toggleServiceActive: handleToggleServiceActive,
     createCategory: handleCreateCategory, updateCategory: handleUpdateCategory, deleteCategory: handleDeleteCategory,
     createCity: handleCreateCity, updateCity: handleUpdateCity, deleteCity: handleDeleteCity,
     createArea: handleCreateArea, updateArea: handleUpdateArea, deleteArea: handleDeleteArea,

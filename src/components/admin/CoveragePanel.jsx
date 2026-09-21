@@ -25,8 +25,8 @@ const CoveragePanel = () => {
   const [newStateName, setNewStateName] = useState('Jharkhand');
   const [adding, setAdding] = useState(false);
 
-  const fetchCoverage = useCallback(async () => {
-    setLoading(true);
+  const fetchCoverage = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const res = await getDistrictCoverageList({
       customers,
       workers,
@@ -39,7 +39,7 @@ const CoveragePanel = () => {
     } else {
       showToast('Failed to load district coverage', 'error');
     }
-    setLoading(false);
+    if (!isSilent) setLoading(false);
   }, [customers, workers, contractors, bookings, coverageRequests, showToast]);
 
   useEffect(() => {
@@ -66,11 +66,13 @@ const CoveragePanel = () => {
 
   // Quick Toggle Status
   const handleToggleStatus = async (district, newStatus) => {
+    setDistricts(prev => prev.map(d => d.id === district.id ? { ...d, status: newStatus } : d));
     const res = await updateDistrictStatus(district.id, newStatus, district.coverage_radius_km);
     if (res.data || !res.error) {
       showToast(`District ${district.name} set to ${newStatus}`, 'success');
-      fetchCoverage();
+      fetchCoverage(true);
     } else {
+      setDistricts(prev => prev.map(d => d.id === district.id ? { ...d, status: district.status } : d));
       showToast(res.error || 'Failed to update status', 'error');
     }
   };
@@ -79,11 +81,12 @@ const CoveragePanel = () => {
   const handleSaveEdit = async () => {
     if (!editingDistrict) return;
     setUpdating(true);
+    setDistricts(prev => prev.map(d => d.id === editingDistrict.id ? { ...d, status: editStatus, coverage_radius_km: editRadius } : d));
     const res = await updateDistrictStatus(editingDistrict.id, editStatus, editRadius);
     if (res.data || !res.error) {
       showToast(`Updated coverage for ${editingDistrict.name}`, 'success');
       setEditingDistrict(null);
-      fetchCoverage();
+      fetchCoverage(true);
     } else {
       showToast(res.error || 'Failed to update radius', 'error');
     }
@@ -108,7 +111,7 @@ const CoveragePanel = () => {
       showToast(`District ${newDistrictName} added successfully!`, 'success');
       setNewDistrictName('');
       setIsAddModalOpen(false);
-      fetchCoverage();
+      fetchCoverage(true);
     } else {
       showToast(res.error || 'Failed to add district', 'error');
     }

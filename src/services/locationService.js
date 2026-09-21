@@ -310,7 +310,15 @@ export const calculateDistanceInKm = (lat1, lon1, lat2, lon2) => {
   return Math.round(d * 10) / 10;
 };
 
+let cachedDetectedLocation = null;
+let cachedDetectedTime = 0;
+
 export const detectCurrentLocation = async () => {
+  // If location was successfully detected recently (last 45s), return it immediately
+  if (cachedDetectedLocation && (Date.now() - cachedDetectedTime < 45000)) {
+    return cachedDetectedLocation;
+  }
+
   const getCoords = () => {
     return new Promise((resolve) => {
       if (!navigator.geolocation) {
@@ -320,17 +328,19 @@ export const detectCurrentLocation = async () => {
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve(pos.coords),
         () => resolve(null),
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+        { enableHighAccuracy: false, timeout: 3500, maximumAge: 120000 }
       );
     });
   };
 
   try {
-    // 1. Try Browser GPS coordinates (gives user time to click Allow)
+    // 1. Try Browser GPS coordinates (fast network/cached geolocation)
     const coords = await getCoords();
     if (coords?.latitude && coords?.longitude) {
       const res = await reverseGeocodeCoords(coords.latitude, coords.longitude);
       if (res) {
+        cachedDetectedLocation = res;
+        cachedDetectedTime = Date.now();
         try {
           if (res.state) localStorage.setItem('fixiva:last-state', res.state);
           if (res.district) localStorage.setItem('fixiva:last-district', res.district);
@@ -470,9 +480,13 @@ export const reverseGeocodeCoords = async (latitude, longitude) => {
   if (isNaN(lat) || isNaN(lng)) return null;
 
   try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
     const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&addressdetails=1`, {
-      headers: { 'Accept-Language': 'en' }
+      headers: { 'Accept-Language': 'en' },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     const data = await res.json();
     if (data && data.address) {
       const addr = data.address;

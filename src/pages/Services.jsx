@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon, Search, ShieldCheck,
-  ArrowRight, Star, Filter, RotateCcw, X, MapPin, Mail
+  ArrowRight, Star, Filter, RotateCcw, X, MapPin, Mail, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -74,7 +74,7 @@ const Services = () => {
       } catch { void 0; }
 
       setDetectingLocationState('success');
-      showToast(`📍 Location detected: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
+      showToast(`Location detected: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
     } catch {
       setDetectingLocationState('error');
       showToast('Could not detect current location. Try again.', 'error');
@@ -266,18 +266,18 @@ const Services = () => {
   };
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-24">
+    <div className="bg-slate-50 dark:bg-slate-950 min-h-screen pb-24 text-slate-900 dark:text-slate-100">
       {/* Header Banner */}
-      <section className="bg-white border-b border-slate-200/80 py-16 relative overflow-hidden">
-        <div className="absolute inset-0 bg-radial from-[#2F6B5F]/5 via-transparent to-transparent pointer-events-none" />
+      <section className="bg-white dark:bg-slate-900/80 border-b border-slate-200/80 dark:border-slate-800 py-16 relative overflow-hidden">
+        <div className="absolute inset-0 bg-radial from-[#2F6B5F]/5 dark:from-emerald-500/5 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 relative z-10">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#E8F0ED] text-[#2F6B5F] rounded-full text-xs font-extrabold uppercase tracking-wider border border-[#2F6B5F]/20 shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-[#E8F0ED] dark:bg-emerald-950/60 text-[#2F6B5F] dark:text-emerald-400 rounded-full text-xs font-extrabold uppercase tracking-wider border border-[#2F6B5F]/20 dark:border-emerald-800/40 shadow-2xs">
             <ShieldCheck size={14} /> {t('satisfactionProtect', '100% Satisfaction Protect Policy')}
           </div>
-          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+          <h1 className="text-3xl sm:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">
             {t('everyHomeSolution', 'Every Home Solution, On Demand')}
           </h1>
-          <p className="text-slate-600 font-medium text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
+          <p className="text-slate-600 dark:text-slate-300 font-medium text-sm sm:text-base max-w-xl mx-auto leading-relaxed">
             {t('everyHomeSolutionSub', 'Book top-rated home service professionals on demand. Standardized base tariffs. Pay only on-site after job completion.')}
           </p>
         </div>
@@ -289,15 +289,15 @@ const Services = () => {
           
           {/* Left Sidebar Filters */}
           <div className="lg:col-span-1 space-y-6">
-            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-5">
-              <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-                <span className="font-bold text-slate-800 text-xs sm:text-sm flex items-center gap-1.5 uppercase tracking-wider">
-                  <Filter size={16} className="text-slate-400" /> {t('filterOptions', 'FILTER OPTIONS')}
+            <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-5">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-100 dark:border-slate-800">
+                <span className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm flex items-center gap-1.5 uppercase tracking-wider">
+                  <Filter size={16} className="text-slate-400 dark:text-slate-500" /> {t('filterOptions', 'FILTER OPTIONS')}
                 </span>
                 <button 
                   type="button"
                   onClick={resetFilters}
-                  className="text-[10px] font-extrabold text-slate-400 hover:text-primary transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+                  className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 hover:text-primary dark:hover:text-emerald-400 transition-colors uppercase tracking-wider flex items-center gap-1 cursor-pointer"
                 >
                   <RotateCcw size={10} /> {t('reset', 'RESET')}
                 </button>
@@ -305,13 +305,13 @@ const Services = () => {
 
               {/* Text Search Input */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">{t('searchKeyword', 'SEARCH KEYWORD')}</label>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block">{t('searchKeyword', 'SEARCH KEYWORD')}</label>
                 <div className="relative">
-                  <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400" />
+                  <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400 dark:text-slate-500" />
                   <input 
                     type="text" 
                     placeholder={t('searchPlaceholder', 'Search services...')}
-                    className="w-full h-11 pl-10 pr-4 bg-slate-50 border border-slate-200 focus:border-primary focus:bg-white rounded-xl text-xs font-semibold placeholder-slate-400 outline-none transition-all"
+                    className="w-full h-11 pl-10 pr-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-primary dark:focus:border-emerald-500 focus:bg-white dark:focus:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -320,7 +320,7 @@ const Services = () => {
 
               {/* Target Location */}
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">{t('targetLocation', 'TARGET LOCATION')}</label>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block">{t('targetLocation', 'TARGET LOCATION')}</label>
                 <HierarchicalLocationSelector
                   selectedState={selectedState}
                   selectedDistrict={selectedCity}
@@ -342,9 +342,9 @@ const Services = () => {
                   type="button"
                   onClick={handleDetectLocation}
                   disabled={detectingLocationState === 'loading'}
-                  className="w-full text-xs font-extrabold py-2.5 px-3 rounded-xl border border-slate-200 hover:border-primary text-slate-700 hover:text-primary flex items-center justify-center gap-2 transition-all bg-slate-50 hover:bg-primary/5 active:scale-95 disabled:opacity-50 mt-3 cursor-pointer"
+                  className="w-full text-xs font-extrabold py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-red-500/50 text-slate-700 dark:text-slate-200 hover:text-red-500 dark:hover:text-red-400 flex items-center justify-center gap-2 transition-all bg-slate-50 dark:bg-slate-800 hover:bg-red-50/50 dark:hover:bg-slate-700 active:scale-95 disabled:opacity-50 mt-3 cursor-pointer shadow-2xs group"
                 >
-                  <span className="text-primary text-sm">📍</span>
+                  <LocateFixed size={16} className={`text-red-500 shrink-0 ${detectingLocationState === 'loading' ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
                   {detectingLocationState === 'loading'
                     ? t('detectingLocation', 'Detecting location...')
                     : detectingLocationState === 'success'
@@ -415,10 +415,10 @@ const Services = () => {
                         {available ? (
                           <div 
                             onClick={() => openBookingModal({ serviceId: service.id, city: selectedCity, state: selectedState })} 
-                            className="group relative overflow-hidden bg-white rounded-2xl border border-[#E7E9E6] flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-[#2F6B5F] hover:shadow-lg transition-all duration-300 cursor-pointer"
+                            className="group relative overflow-hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 flex flex-col justify-between h-full w-full hover:-translate-y-1 hover:border-primary dark:hover:border-emerald-500 hover:shadow-xl dark:hover:shadow-2xl transition-all duration-300 cursor-pointer"
                           >
                             {/* Top Image / Media Area (~55% card height) */}
-                            <div className="relative h-44 w-full bg-slate-100 overflow-hidden shrink-0">
+                            <div className="relative h-44 w-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0">
                               {serviceImg ? (
                                 <img 
                                   src={serviceImg} 
@@ -426,8 +426,8 @@ const Services = () => {
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
                                 />
                               ) : (
-                                <div className="w-full h-full bg-[#E8F0ED] flex items-center justify-center">
-                                  <div className="h-14 w-14 rounded-2xl bg-white text-[#2F6B5F] flex items-center justify-center shadow-xs border border-[#E7E9E6] group-hover:scale-110 transition-transform">
+                                <div className="w-full h-full bg-[#E8F0ED] dark:bg-slate-800 flex items-center justify-center">
+                                  <div className="h-14 w-14 rounded-2xl bg-white dark:bg-slate-900 text-[#2F6B5F] dark:text-emerald-400 flex items-center justify-center shadow-xs border border-[#E7E9E6] dark:border-slate-700 group-hover:scale-110 transition-transform">
                                     <Icon size={28} />
                                   </div>
                                 </div>
@@ -456,26 +456,26 @@ const Services = () => {
                             <div className="p-5 flex flex-col justify-between flex-1 space-y-4">
                               <div className="space-y-1.5">
                                 <div className="flex items-center justify-between">
-                                  <h3 className="font-bold text-[#171918] text-base leading-snug group-hover:text-[#2F6B5F] transition-colors">
+                                  <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug group-hover:text-primary dark:group-hover:text-emerald-400 transition-colors">
                                     {service.name}
                                   </h3>
                                 </div>
                                 {service.description ? (
-                                  <p className="text-[#6B716E] text-xs leading-relaxed font-normal line-clamp-2">
+                                  <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-normal line-clamp-2">
                                     {service.description}
                                   </p>
                                 ) : null}
                               </div>
 
-                              <div className="pt-3 border-t border-[#E7E9E6] flex items-center justify-between">
+                              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
                                 <div className="flex items-center gap-1 text-[11px] font-semibold">
                                   {hasReviews ? (
                                     <>
                                       <Star size={13} fill="currentColor" className="text-amber-500" />
-                                      <span className="text-amber-600">{calcRating} ({calcReviewCount})</span>
+                                      <span className="text-amber-600 dark:text-amber-400">{calcRating} ({calcReviewCount})</span>
                                     </>
                                   ) : (
-                                    <span className="text-slate-400 font-medium">{t('fixivaVerified', 'Fixiva Verified')}</span>
+                                    <span className="text-slate-400 dark:text-slate-500 font-medium">{t('fixivaVerified', 'Fixiva Verified')}</span>
                                   )}
                                 </div>
                                 <button
@@ -489,9 +489,9 @@ const Services = () => {
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-white rounded-2xl border border-[#E7E9E6] overflow-hidden flex flex-col justify-between h-full w-full">
+                          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 overflow-hidden flex flex-col justify-between h-full w-full">
                             {/* Top Media Area */}
-                            <div className="relative h-44 w-full bg-slate-100 overflow-hidden shrink-0 opacity-75">
+                            <div className="relative h-44 w-full bg-slate-100 dark:bg-slate-800 overflow-hidden shrink-0 opacity-75">
                               {serviceImg ? (
                                 <img 
                                   src={serviceImg} 
@@ -499,8 +499,8 @@ const Services = () => {
                                   className="w-full h-full object-cover grayscale" 
                                 />
                               ) : (
-                                <div className="w-full h-full bg-slate-100 flex items-center justify-center">
-                                  <Icon size={28} className="text-slate-400" />
+                                <div className="w-full h-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                  <Icon size={28} className="text-slate-400 dark:text-slate-500" />
                                 </div>
                               )}
                               <span className="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-slate-700 text-white text-[10px] font-bold uppercase tracking-wider">
@@ -511,10 +511,10 @@ const Services = () => {
                             {/* Body Area */}
                             <div className="p-5 flex flex-col justify-between flex-1 space-y-4">
                               <div className="space-y-1.5">
-                                <h3 className="font-bold text-[#171918] text-base leading-snug">
+                                <h3 className="font-bold text-slate-900 dark:text-white text-base leading-snug">
                                   {service.name}
                                 </h3>
-                                <p className="text-[#6B716E] text-xs leading-relaxed font-normal line-clamp-2">
+                                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-normal line-clamp-2">
                                   {t('currentlyExpanding', 'Currently expanding coverage to your area. Request coverage to get notified first.')}
                                 </p>
                               </div>

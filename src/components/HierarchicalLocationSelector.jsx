@@ -139,9 +139,9 @@ const HierarchicalLocationSelector = ({
     } else {
       const localityObjs = getLocalitiesForDistrict(safeSelectedDistrict, safeSelectedState);
       const rawLocs = Array.isArray(localityObjs) 
-        ? localityObjs.map(l => typeof l === 'object' ? l.name : String(l)).filter(l => l !== OTHER_LOCATION_OPTION)
+        ? localityObjs.map(l => typeof l === 'object' && l !== null ? (l.name || '') : String(l || '')).filter(l => Boolean(l) && l !== OTHER_LOCATION_OPTION)
         : [];
-      if (safeSelectedLocality && safeSelectedLocality !== OTHER_LOCATION_OPTION && !rawLocs.some(l => l.toLowerCase() === safeSelectedLocality.toLowerCase())) {
+      if (safeSelectedLocality && safeSelectedLocality !== OTHER_LOCATION_OPTION && !rawLocs.some(l => String(l).toLowerCase() === safeSelectedLocality.toLowerCase())) {
         rawLocs.unshift(safeSelectedLocality);
       }
       localityOptions = [...Array.from(new Set(rawLocs)), OTHER_LOCATION_OPTION];
@@ -149,13 +149,13 @@ const HierarchicalLocationSelector = ({
   }
 
   const isOtherSelected = 
-    selectedState === OTHER_LOCATION_OPTION || 
-    selectedDistrict === OTHER_LOCATION_OPTION || 
-    selectedLocality === OTHER_LOCATION_OPTION ||
-    (selectedLocality && (selectedLocality.startsWith('Custom: ') || !localityOptions.includes(selectedLocality)));
+    safeSelectedState === OTHER_LOCATION_OPTION || 
+    safeSelectedDistrict === OTHER_LOCATION_OPTION || 
+    safeSelectedLocality === OTHER_LOCATION_OPTION ||
+    (Boolean(safeSelectedLocality) && (safeSelectedLocality.startsWith('Custom: ') || !localityOptions.includes(safeSelectedLocality)));
 
-  const customValue = isOtherSelected && selectedLocality && selectedLocality !== OTHER_LOCATION_OPTION
-    ? selectedLocality.replace(/^Custom:\s*/, '')
+  const customValue = isOtherSelected && safeSelectedLocality && safeSelectedLocality !== OTHER_LOCATION_OPTION
+    ? safeSelectedLocality.replace(/^Custom:\s*/, '')
     : '';
 
   const handleCustomTextChange = (text) => {

@@ -23,7 +23,8 @@ import {
   ShieldCheck,
   Send,
   Loader2,
-  Navigation
+  Navigation,
+  LocateFixed
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
@@ -689,8 +690,9 @@ const WorkerDashboard = () => {
                       <div className="p-4 bg-slate-50 rounded-2xl text-xs space-y-2 font-semibold text-slate-700">
                         <div className="flex items-center justify-between">
                           <span className="text-slate-900 font-extrabold">Customer: {job.customer_name || 'Client'}</span>
-                          <span className="text-[10px] font-black text-[#2F6B5F] bg-[#E8F0ED] px-2 py-0.5 rounded-full">
-                            📍 {job.locality || job.district || 'Assigned Coverage Area'}
+                          <span className="text-[10px] font-black text-red-600 bg-red-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <LocateFixed size={11} className="text-red-500 shrink-0" />
+                            <span>{job.locality || job.district || 'Assigned Coverage Area'}</span>
                           </span>
                         </div>
                         <p className="flex items-start gap-1 text-slate-600">
@@ -1381,7 +1383,7 @@ const WorkerDashboard = () => {
                   disabled={updatingGps}
                   className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
-                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <LocateFixed size={14} className="text-white" />}
                   <span>{updatingGps ? 'Detecting Location...' : 'Set Current Location'}</span>
                 </button>
               </div>
@@ -1390,10 +1392,10 @@ const WorkerDashboard = () => {
             {/* Live Location Toggle Banner */}
             <div className="p-4 sm:p-5 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center justify-between gap-4 flex-wrap">
               <div className="flex items-center gap-3.5">
-                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-sm ${
-                  liveLocationEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-400'
+                <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                  liveLocationEnabled ? 'bg-red-50 text-red-500' : 'bg-slate-100 text-slate-400'
                 }`}>
-                  📍
+                  <LocateFixed size={22} className={liveLocationEnabled ? 'text-red-500 animate-pulse' : 'text-slate-400'} />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">

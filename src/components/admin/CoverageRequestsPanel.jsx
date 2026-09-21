@@ -12,15 +12,15 @@ const CoverageRequestsPanel = () => {
 
   const [selectedDetailRequest, setSelectedDetailRequest] = useState(null);
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const fetchRequests = useCallback(async (isSilent = false) => {
+    if (!isSilent) setLoading(true);
     const res = await getCoverageRequests();
     if (res.data) {
       setRequests(res.data);
     } else {
       showToast('Failed to load coverage requests', 'error');
     }
-    setLoading(false);
+    if (!isSilent) setLoading(false);
   }, [showToast]);
 
   useEffect(() => {
@@ -42,12 +42,14 @@ const CoverageRequestsPanel = () => {
   }, [requests, search, statusFilter]);
 
   const handleAction = async (id, status) => {
+    setRequests(prev => prev.map(r => r.id === id ? { ...r, status } : r));
     const res = await updateCoverageRequestStatus(id, status);
     if (res.data || !res.error) {
       showToast(`Request set to ${status}. District coverage updated!`, 'success');
-      fetchRequests();
+      fetchRequests(true);
     } else {
       showToast(res.error || 'Failed to update request status', 'error');
+      fetchRequests(true);
     }
   };
 

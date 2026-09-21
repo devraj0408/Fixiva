@@ -10,6 +10,7 @@ import { getDistricts } from '../services/locationService';
 import { generateAIResponse } from '../services/aiChatService';
 import { calculateWorkerTrustScore, syncWorkerTrustScoreToDb, enrichWorkersWithTrustScores } from '../services/trustScoreService';
 import { isAdminRole } from '../lib/adminAccess';
+import { getSystemSettings, updateSystemSettings } from '../services/bookingService';
 
 const AppContext = createContext();
 
@@ -133,6 +134,7 @@ export const AuthProvider = ({ children }) => {
   // Refs to prevent race conditions and double loading
   const isVerifyingOtpRef = useRef(false);
   const isInitializingRef = useRef(false);
+  const isInitialAuthDoneRef = useRef(false);
   const userRef = useRef(user);
   const pendingRegistrationRef = useRef(null);
   const pendingOtpsRef = useRef({});
@@ -156,7 +158,57 @@ export const AuthProvider = ({ children }) => {
   const [coverageRequests, setCoverageRequests] = useState([]);
   const [cityControl, setCityControl] = useState({});
   const [serviceSupportsCategory, setServiceSupportsCategory] = useState(true);
+  const [settings, setSettings] = useState(() => getSystemSettings());
   const { showToast } = useToast();
+
+  // Listen for settings and services updates across contexts, tabs, and CMS
+  useEffect(() => {
+    const handleSettingsUpdate = (e) => {
+      if (e?.detail) {
+        setSettings(e.detail);
+      }
+    };
+    const handleServicesUpdate = (e) => {
+      if (Array.isArray(e?.detail)) {
+        setServices(e.detail);
+      }
+    };
+    const handleStorage = (e) => {
+      if (e.key === 'fixiva_system_settings') {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed) setSettings(parsed);
+        } catch { void 0; }
+      }
+    };
+
+    window.addEventListener('fixiva:settings-updated', handleSettingsUpdate);
+    window.addEventListener('fixiva:services-updated', handleServicesUpdate);
+    window.addEventListener('storage', handleStorage);
+
+    let bc = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        bc = new BroadcastChannel('fixiva-channel');
+        bc.onmessage = (event) => {
+          if (event.data?.type === 'SETTINGS_UPDATED' && event.data.payload) {
+            setSettings(event.data.payload);
+          } else if (event.data?.type === 'SERVICES_UPDATED' && Array.isArray(event.data.payload)) {
+            setServices(event.data.payload);
+          }
+        };
+      }
+    } catch { void 0; }
+
+    return () => {
+      window.removeEventListener('fixiva:settings-updated', handleSettingsUpdate);
+      window.removeEventListener('fixiva:services-updated', handleServicesUpdate);
+      window.removeEventListener('storage', handleStorage);
+      if (bc) {
+        try { bc.close(); } catch { void 0; }
+      }
+    };
+  }, []);
 
   // Centralized Booking Modal State
   const [bookingModalState, setBookingModalState] = useState({ isOpen: false, initialData: {} });
@@ -214,27 +266,43 @@ export const AuthProvider = ({ children }) => {
     };
 
     const fetchServices = async () => {
-      if (!supabase) {
-        return [];
+      let dbData = [];
+      if (supabase) {
+        const { data, error } = await supabase.from('services').select('*');
+        if (!error && Array.isArray(data)) {
+          dbData = data;
+        }
       }
 
-      const { data, error } = await supabase.from('services').select('*');
-      if (!error) {
-        return (data || []).map((item) => {
-          const sId = String(item.id || '').toLowerCase().trim();
-          const sName = String(item.name || '').toLowerCase().trim();
-          const defaultImg = DEFAULT_SERVICE_IMAGES[sId] || DEFAULT_SERVICE_IMAGES[sName];
-          const img = item.image_url || item.image || (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:')) ? item.icon : null) || defaultImg;
-
-          return { 
-            ...item, 
-            category: item.category || '',
-            image_url: img,
-            image: img
-          };
-        });
+      let localList = [];
+      try {
+        const rawLocal = typeof localStorage !== 'undefined' ? localStorage.getItem('fixiva_local_services') : null;
+        if (rawLocal) localList = JSON.parse(rawLocal);
+      } catch (e) {
+        void e;
       }
-      return [];
+
+      const mergedMap = new Map();
+      dbData.forEach((s) => mergedMap.set(String(s.id), s));
+      localList.forEach((s) => {
+        const existing = mergedMap.get(String(s.id)) || {};
+        mergedMap.set(String(s.id), { ...existing, ...s });
+      });
+
+      return Array.from(mergedMap.values()).map((item) => {
+        const sId = String(item.id || '').toLowerCase().trim();
+        const sName = String(item.name || '').toLowerCase().trim();
+        const defaultImg = DEFAULT_SERVICE_IMAGES[sId] || DEFAULT_SERVICE_IMAGES[sName];
+        const img = item.image_url || item.image || (item.icon && (item.icon.startsWith('http') || item.icon.startsWith('data:')) ? item.icon : null) || defaultImg;
+
+        return { 
+          ...item, 
+          category: item.category || 'General',
+          image_url: img,
+          image: img,
+          icon: img || item.icon || 'wrench',
+        };
+      });
     };
 
     const [{ data: distList }, bk, wk, ct, pr, rv, tk, sv, cs, st] = await Promise.all([
@@ -510,12 +578,15 @@ export const AuthProvider = ({ children }) => {
     };
 
     const init = async () => {
-      setLoading(true);
+      if (!isInitialAuthDoneRef.current) {
+        setLoading(true);
+      }
       isInitializingRef.current = true;
       if (!supabase) {
         setInitError(new Error('Missing Supabase configuration.'));
         setLoading(false);
         isInitializingRef.current = false;
+        isInitialAuthDoneRef.current = true;
         return;
       }
 
@@ -556,6 +627,7 @@ export const AuthProvider = ({ children }) => {
       await fetchMarketplaceData();
       setLoading(false);
       isInitializingRef.current = false;
+      isInitialAuthDoneRef.current = true;
     };
 
     init();
@@ -572,7 +644,9 @@ export const AuthProvider = ({ children }) => {
 
       if (session?.user) {
         if (userRef.current && userRef.current.id === session.user.id) return;
-        setLoading(true);
+        if (!userRef.current) {
+          setLoading(true);
+        }
         try {
           await fetchUserProfile(session.user.id, session.user.email, pendingRegistrationRef.current);
           await fetchMarketplaceData();
@@ -604,7 +678,7 @@ export const AuthProvider = ({ children }) => {
       if (subscription) subscription.unsubscribe();
       if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
-  }, [fetchUserProfile, fetchMarketplaceData]);
+  }, []);
 
   const requestOtp = async (identifier, purpose = 'sign-in', metadata = null) => {
     if (!supabase) {
@@ -1785,40 +1859,40 @@ export const AuthProvider = ({ children }) => {
     openBookingModal,
     closeBookingModal,
     refreshData: fetchMarketplaceData,
-    refreshMarketplaceData: fetchMarketplaceData
+    refreshMarketplaceData: fetchMarketplaceData,
+    settings,
+    updateSettings: (newSettings) => updateSystemSettings(newSettings)
   };
 
   return (
     <AppContext.Provider value={value}>
       <Confirm open={!!confirmState} title={confirmState?.title} message={confirmState?.message} onClose={resolveConfirm} />
-      {!loading && (
-        initError ? (
-          <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-            <div className="max-w-xl w-full bg-white p-8 rounded-3xl shadow-xl border border-slate-200 text-slate-700">
-              {initError.message?.includes('Missing Supabase configuration') ? (
-                <>
-                  <h1 className="text-xl font-black text-slate-900 mb-4">Configuration required</h1>
-                  <p className="text-sm text-slate-600 mb-3">Fixiva needs Supabase credentials to run.</p>
-                  <pre className="bg-slate-100 p-4 rounded-xl text-xs text-slate-800 overflow-x-auto">
+      {initError ? (
+        <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
+          <div className="max-w-xl w-full bg-white p-8 rounded-3xl shadow-xl border border-slate-200 text-slate-700">
+            {initError.message?.includes('Missing Supabase configuration') ? (
+              <>
+                <h1 className="text-xl font-black text-slate-900 mb-4">Configuration required</h1>
+                <p className="text-sm text-slate-600 mb-3">Fixiva needs Supabase credentials to run.</p>
+                <pre className="bg-slate-100 p-4 rounded-xl text-xs text-slate-800 overflow-x-auto">
 {`VITE_SUPABASE_URL=https://your-project-id.supabase.co\nVITE_SUPABASE_ANON_KEY=your-anon-key`}
-                  </pre>
-                  <p className="text-sm text-slate-500 mt-3">Create a <code className="bg-slate-100 px-1 rounded">.env</code> file in the project root and restart the dev server.</p>
-                </>
-              ) : (
-                <>
-                  <h1 className="text-xl font-black text-slate-900 mb-4">Database schema mismatch</h1>
-                  <p className="text-sm text-slate-600 mb-3">Fixiva connected to Supabase, but the expected tables or columns are missing.</p>
-                  <div className="bg-slate-100 p-4 rounded-xl text-sm text-slate-800 overflow-x-auto">
-                    <p className="font-semibold">Error:</p>
-                    <p>{initError.message}</p>
-                  </div>
-                  <p className="text-sm text-slate-500 mt-3">Verify your Supabase schema and restart the dev server.</p>
-                </>
-              )}
-            </div>
+                </pre>
+                <p className="text-sm text-slate-500 mt-3">Create a <code className="bg-slate-100 px-1 rounded">.env</code> file in the project root and restart the dev server.</p>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-black text-slate-900 mb-4">Database schema mismatch</h1>
+                <p className="text-sm text-slate-600 mb-3">Fixiva connected to Supabase, but the expected tables or columns are missing.</p>
+                <div className="bg-slate-100 p-4 rounded-xl text-sm text-slate-800 overflow-x-auto">
+                  <p className="font-semibold">Error:</p>
+                  <p>{initError.message}</p>
+                </div>
+                <p className="text-sm text-slate-500 mt-3">Verify your Supabase schema and restart the dev server.</p>
+              </>
+            )}
           </div>
-        ) : children
-      )}
+        </div>
+      ) : children}
     </AppContext.Provider>
   );
 };

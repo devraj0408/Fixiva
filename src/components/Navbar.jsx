@@ -212,9 +212,10 @@ const Navbar = () => {
           </div>
 
           {/* Mobile Menu Button */}
+          {/* Mobile Menu Button */}
           <div className="flex items-center md:hidden">
             <button 
-              className="p-1.5 px-2 rounded-xl text-slate-600 hover:text-primary hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-0.5 select-none" 
+              className="p-1.5 px-2 rounded-xl text-slate-600 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all flex flex-col items-center justify-center gap-0.5 select-none cursor-pointer" 
               onClick={() => setIsOpen(!isOpen)} 
               aria-label="Toggle Menu"
             >
@@ -233,7 +234,7 @@ const Navbar = () => {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
-            className="md:hidden border-t border-slate-100 bg-white/95 backdrop-blur-xl overflow-hidden"
+            className="md:hidden border-t border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden"
           >
             <div className="px-4 pt-2 pb-6 space-y-2">
               {!isAuthenticated ? (
@@ -241,28 +242,28 @@ const Navbar = () => {
                   <Link 
                     to="/" 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('home', 'Home')}
                   </Link>
                   <Link 
                     to="/services" 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('services', 'Services')}
                   </Link>
                   <Link 
                     to="/help" 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('helpCenter', 'Help Center')}
                   </Link>
                   <Link 
                     to="/help?tab=about" 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('about', 'About')}
                   </Link>
@@ -274,7 +275,7 @@ const Navbar = () => {
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
                     title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                     aria-label="Toggle Theme"
                   >
@@ -291,7 +292,7 @@ const Navbar = () => {
                   <Link 
                     to="/login" 
                     onClick={() => setIsOpen(false)}
-                    className="block text-center px-4 py-2.5 rounded-xl text-base font-bold text-slate-700 hover:bg-slate-50 transition-all"
+                    className="block text-center px-4 py-2.5 rounded-xl text-base font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('login', 'Login')}
                   </Link>
@@ -305,12 +306,12 @@ const Navbar = () => {
                 </>
               ) : (
                 <>
-                  <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl mb-4">
+                  <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/80 rounded-2xl mb-4 border border-slate-100 dark:border-slate-700/60">
                     {normalizedUser.profile_photo_url ? (
                       <img
                         src={normalizedUser.profile_photo_url}
                         alt={normalizedUser.name}
-                        className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 ring-slate-200"
+                        className="h-10 w-10 rounded-full object-cover shadow-sm ring-2 ring-slate-200 dark:ring-slate-700"
                       />
                     ) : (
                       <div className="h-10 w-10 rounded-full bg-[#2F6B5F] text-white font-bold text-sm flex items-center justify-center uppercase tracking-wider">
@@ -318,21 +319,21 @@ const Navbar = () => {
                       </div>
                     )}
                     <div>
-                      <h4 className="text-sm font-bold text-slate-800 leading-tight">{normalizedUser.name || 'User'}</h4>
-                      <p className="text-[10px] text-slate-400 capitalize font-medium">{normalizedUser.role || 'guest'}</p>
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight">{normalizedUser.name || 'User'}</h4>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-400 capitalize font-medium">{normalizedUser.role || 'guest'}</p>
                     </div>
                   </div>
                   <Link 
                     to={dashboardPath} 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('dashboard', 'Dashboard')}
                   </Link>
                   <Link 
                     to={`${dashboardPath}?tab=bookings`} 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('bookings', 'Bookings')}
                   </Link>
@@ -340,7 +341,7 @@ const Navbar = () => {
                     <Link 
                       to={`${dashboardPath}?tab=support`} 
                       onClick={() => setIsOpen(false)}
-                      className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                      className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                     >
                       {t('support', 'Support')}
                     </Link>
@@ -348,7 +349,7 @@ const Navbar = () => {
                   <Link 
                     to={normalizedUser.role === 'admin' ? dashboardPath : `${dashboardPath}?tab=profile`} 
                     onClick={() => setIsOpen(false)}
-                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 transition-all"
+                    className="block px-3 py-2 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                   >
                     {t('profile', 'Profile')}
                   </Link>
@@ -360,7 +361,7 @@ const Navbar = () => {
                   <button
                     type="button"
                     onClick={toggleTheme}
-                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 hover:text-primary hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
+                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-base font-semibold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all cursor-pointer select-none"
                     title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
                     aria-label="Toggle Theme"
                   >
@@ -376,7 +377,7 @@ const Navbar = () => {
                   <div className="h-px bg-slate-100 dark:bg-slate-800 my-2"></div>
                   <button 
                     onClick={handleLogout} 
-                    className="w-full text-center px-4 py-2.5 rounded-xl text-base font-bold text-danger hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                    className="w-full text-center px-4 py-2.5 rounded-xl text-base font-bold text-danger hover:bg-red-50 dark:hover:bg-red-950/40 transition-all flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <LogOut size={18} /> {t('logout', 'Logout')}
                   </button>

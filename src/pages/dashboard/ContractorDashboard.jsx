@@ -27,7 +27,8 @@ import {
   Camera,
   MapPin,
   Loader2,
-  Navigation
+  Navigation,
+  LocateFixed
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
 import { uploadImage } from '../../services/storageService';
@@ -1297,7 +1298,7 @@ const ContractorDashboard = () => {
                   disabled={updatingGps}
                   className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
-                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
+                  {updatingGps ? <Loader2 size={14} className="animate-spin" /> : <LocateFixed size={14} className="text-white" />}
                   <span>{updatingGps ? 'Detecting Location...' : 'Set Current Location'}</span>
                 </button>
               </div>

@@ -39,6 +39,7 @@ const ServicesPanel = () => {
     active: true,
   });
   const [uploading, setUploading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Coverage Modal State for existing services table
   const [coverageService, setCoverageService] = useState(null);
@@ -216,70 +217,90 @@ const ServicesPanel = () => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name.trim()) {
-      showToast('Service name is required.', 'error');
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+    }
+    if (submitting) return;
+
+    const trimmedName = String(form.name || '').trim();
+    if (!trimmedName) {
+      showToast('Please enter a service name.', 'error');
       return;
     }
 
-    const selectedCategoryObj = categories.find((cat) => String(cat.id) === String(form.category_id));
-    const imgUrl = form.image_url || form.image || (form.icon && (form.icon.startsWith('http') || form.icon.startsWith('data:')) ? form.icon : '');
+    setSubmitting(true);
+    try {
+      const selectedCategoryObj = categories.find(
+        (cat) => String(cat.id) === String(form.category_id) || String(cat.name).toLowerCase() === String(form.category || '').toLowerCase()
+      );
+      const imgUrl = form.image_url || form.image || (form.icon && (form.icon.startsWith('http') || form.icon.startsWith('data:')) ? form.icon : '');
 
-    const payload = {
-      ...form,
-      icon: imgUrl || form.icon || 'wrench',
-      image_url: imgUrl || null,
-      image: imgUrl || null,
-      category: selectedCategoryObj?.name || form.category || 'General',
-      category_id: selectedCategoryObj?.id || form.category_id || null,
-      base_price: Number(form.base_price) || 0,
-      platform_fee: Number(form.platform_fee) || 0,
-      inspection_fee: Number(form.inspection_fee) || 0,
-    };
+      const payload = {
+        ...form,
+        name: trimmedName,
+        icon: imgUrl || form.icon || 'wrench',
+        image_url: imgUrl || null,
+        image: imgUrl || null,
+        category: selectedCategoryObj?.name || form.category || 'General',
+        category_id: selectedCategoryObj?.id || form.category_id || null,
+        base_price: Number(form.base_price) || 0,
+        platform_fee: Number(form.platform_fee) || 0,
+        inspection_fee: Number(form.inspection_fee) || 0,
+      };
 
-    let savedServiceId = editingService?.id;
+      let savedServiceId = editingService?.id;
 
-    if (editingService) {
-      const updateRes = await updateService(editingService.id, payload);
-      if (updateRes?.error) {
-        showToast(`Failed to update service: ${updateRes.error}`, 'error');
-        return;
+      if (editingService) {
+        const updateRes = await updateService(editingService.id, payload);
+        if (updateRes?.error) {
+          showToast(`Failed to update service: ${updateRes.error}`, 'error');
+          return;
+        }
+        setEditingService(null);
+      } else {
+        const res = await createService(payload);
+        if (res?.error) {
+          console.error('[ServicesPanel] createService error:', res.error);
+          showToast(`Failed to create service: ${res.error}`, 'error');
+          return;
+        }
+        if (!res?.data?.id) {
+          showToast('Service created but no valid service ID returned.', 'error');
+          return;
+        }
+        savedServiceId = res.data.id;
       }
-      setEditingService(null);
-    } else {
-      const res = await createService(payload);
-      if (res?.error) {
-        console.error('[ServicesPanel] createService error:', res.error);
-        showToast(`Failed to create service: ${res.error}`, 'error');
-        return;
+
+      // Persist city availability checklist for this service (only for selected cities)
+      if (savedServiceId && selectedCityIds.length > 0 && typeof toggleServiceInCity === 'function') {
+        try {
+          const promises = selectedCityIds.map((cityId) => toggleServiceInCity(cityId, savedServiceId, true));
+          await Promise.all(promises);
+        } catch (cityErr) {
+          console.warn('[ServicesPanel] City coverage checklist notice:', cityErr);
+        }
       }
-      if (!res?.data?.id) {
-        showToast('Service created but no valid service ID returned.', 'error');
-        return;
-      }
-      savedServiceId = res.data.id;
+
+      setForm({
+        name: '',
+        category: '',
+        category_id: '',
+        description: '',
+        base_price: '',
+        platform_fee: '',
+        inspection_fee: '',
+        icon: 'wrench',
+        image_url: '',
+        image: '',
+        active: true,
+      });
+      setSelectedCityIds([]);
+    } catch (err) {
+      console.error('[ServicesPanel] Form submit exception:', err);
+      showToast('An unexpected error occurred while saving the service.', 'error');
+    } finally {
+      setSubmitting(false);
     }
-
-    // Persist city availability checklist for this service (only for selected cities)
-    if (savedServiceId && selectedCityIds.length > 0) {
-      const promises = selectedCityIds.map((cityId) => toggleServiceInCity(cityId, savedServiceId, true));
-      await Promise.all(promises);
-    }
-
-    setForm({
-      name: '',
-      category: '',
-      category_id: '',
-      description: '',
-      base_price: '',
-      platform_fee: '',
-      inspection_fee: '',
-      icon: 'wrench',
-      image_url: '',
-      image: '',
-      active: true,
-    });
-    setSelectedCityIds([]);
   };
 
   const handleEdit = (service) => {
@@ -491,7 +512,6 @@ const ServicesPanel = () => {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. AC Installation"
               className="mt-1 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm font-semibold"
-              required
             />
           </div>
 
@@ -785,9 +805,18 @@ const ServicesPanel = () => {
 
             <button
               type="submit"
-              className="w-full py-3.5 px-4 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer"
+              onClick={handleSubmit}
+              disabled={submitting || uploading}
+              className="w-full py-3.5 px-4 rounded-xl bg-primary text-white text-xs font-black uppercase tracking-wider shadow-md hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {editingService ? '⚡ Update Service' : '✨ Create Service'}
+              {submitting ? (
+                <>
+                  <span className="animate-spin inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />
+                  <span>{editingService ? 'Updating Service...' : 'Creating Service...'}</span>
+                </>
+              ) : (
+                <span>{editingService ? '⚡ Update Service' : '✨ Create Service'}</span>
+              )}
             </button>
           </div>
         </form>

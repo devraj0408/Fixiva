@@ -228,6 +228,11 @@ export const getBookings = async () => {
 };
 
 export const createBooking = async (bookingData, actor = {}) => {
+  const currentSettings = getSystemSettings();
+  if (currentSettings?.maintenanceMode) {
+    return { data: null, error: 'Platform is currently in Maintenance Mode. New customer bookings are temporarily paused.' };
+  }
+
   if (!supabase) return { data: null, error: 'Supabase client not initialized' };
 
   try {
@@ -407,6 +412,20 @@ export const updateSystemSettings = (updates) => {
     const current = getSystemSettings();
     const updated = { ...current, ...updates };
     localStorage.setItem(SETTINGS_KEY, JSON.stringify(updated));
+
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('fixiva:settings-updated', { detail: updated }));
+      } catch { void 0; }
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('fixiva-channel');
+          bc.postMessage({ type: 'SETTINGS_UPDATED', payload: updated });
+          bc.close();
+        }
+      } catch { void 0; }
+    }
+
     return { data: updated, error: null };
   } catch (err) {
     return { data: null, error: String(err) };

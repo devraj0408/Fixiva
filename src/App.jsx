@@ -60,7 +60,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   const isAdmin = isAdminRole(userRole, userEmail);
   const normalizedAllowed = (allowedRoles || []).map(r => String(r).trim().toLowerCase());
 
-  if (loading || (isAuthenticated && !user)) {
+  if ((loading && !user) || (isAuthenticated && !user)) {
     return <LoadingSkeleton />;
   }
 

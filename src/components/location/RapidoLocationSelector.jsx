@@ -10,7 +10,8 @@ import {
   Loader2,
   ChevronDown,
   ArrowRight,
-  AlertCircle
+  AlertCircle,
+  LocateFixed
 } from 'lucide-react';
 import { detectCurrentLocation, searchAddressNominatim, createLocationObject } from '../../services/locationService';
 import OpenStreetMapPicker from './OpenStreetMapPicker';
@@ -236,11 +237,14 @@ const RapidoLocationSelector = ({
               className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center shrink-0">
-                  <Navigation size={18} />
+                <div className="w-10 h-10 rounded-xl bg-red-50 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all flex items-center justify-center shrink-0">
+                  <LocateFixed size={18} />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black text-slate-900">📍 Use Current Location</h4>
+                  <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                    <LocateFixed size={14} className="text-red-500 shrink-0 inline" />
+                    <span>Use Current Location</span>
+                  </h4>
                   <p className="text-[11px] text-slate-500 font-medium">Auto-detect position via browser GPS</p>
                 </div>
               </div>
@@ -461,11 +465,14 @@ const RapidoLocationSelector = ({
                 className="w-full p-4 rounded-xl border border-slate-200 hover:border-primary bg-slate-50/80 hover:bg-blue-50/50 flex items-center justify-between transition-all cursor-pointer group text-left shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary group-hover:bg-primary group-hover:text-white transition-all flex items-center justify-center shrink-0">
-                    <Navigation size={18} />
+                  <div className="w-10 h-10 rounded-xl bg-red-50 text-red-500 group-hover:bg-red-500 group-hover:text-white transition-all flex items-center justify-center shrink-0">
+                    <LocateFixed size={18} />
                   </div>
                   <div>
-                    <h4 className="text-xs font-black text-slate-900">2. Use Current Location</h4>
+                    <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <LocateFixed size={14} className="text-red-500 shrink-0 inline" />
+                      <span>2. Use Current Location</span>
+                    </h4>
                     <p className="text-[11px] text-slate-500 font-medium">Detect via GPS automatically</p>
                   </div>
                 </div>

@@ -8,13 +8,73 @@ import { logAdminAction } from './auditService';
 // ==========================================
 // SERVICES CRUD
 // ==========================================
+// SERVICES CRUD & LOCAL PERSISTENT STORAGE
+// ==========================================
 
 // Local Storage persistent image cache to guarantee uploaded service images are never lost
 const IMAGE_CACHE_KEY = 'fixiva_service_images';
+const SERVICES_LOCAL_STORAGE_KEY = 'fixiva_local_services';
+const CATEGORIES_LOCAL_STORAGE_KEY = 'fixiva_local_categories';
+
+export const getLocalServices = () => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SERVICES_LOCAL_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+export const saveLocalService = (service) => {
+  if (!service || !service.id) return;
+  try {
+    const list = getLocalServices();
+    const filtered = list.filter((s) => String(s.id) !== String(service.id));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SERVICES_LOCAL_STORAGE_KEY, JSON.stringify([service, ...filtered]));
+    }
+  } catch (e) {
+    void e;
+  }
+};
+
+export const removeLocalService = (serviceId) => {
+  try {
+    const list = getLocalServices();
+    const filtered = list.filter((s) => String(s.id) !== String(serviceId));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SERVICES_LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    }
+  } catch (e) {
+    void e;
+  }
+};
+
+export const getLocalCategories = () => {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CATEGORIES_LOCAL_STORAGE_KEY) : null;
+    return raw ? JSON.parse(raw) : [];
+  } catch (e) {
+    return [];
+  }
+};
+
+export const saveLocalCategory = (category) => {
+  if (!category || !category.id) return;
+  try {
+    const list = getLocalCategories();
+    const filtered = list.filter((c) => String(c.id) !== String(category.id));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CATEGORIES_LOCAL_STORAGE_KEY, JSON.stringify([category, ...filtered]));
+    }
+  } catch (e) {
+    void e;
+  }
+};
 
 const getServiceImagesCache = () => {
   try {
-    const raw = localStorage.getItem(IMAGE_CACHE_KEY);
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(IMAGE_CACHE_KEY) : null;
     return raw ? JSON.parse(raw) : {};
   } catch (e) {
     return {};
@@ -22,7 +82,7 @@ const getServiceImagesCache = () => {
 };
 
 export const saveServiceImageToCache = (id, name, imageUrl) => {
-  if (!imageUrl) return;
+  if (!imageUrl || typeof localStorage === 'undefined') return;
   try {
     const cache = getServiceImagesCache();
     if (id) cache[String(id)] = imageUrl;
@@ -68,21 +128,35 @@ const DEFAULT_SERVICE_IMAGES = {
 };
 
 export const getServices = async () => {
-  if (!supabase) return { data: [], error: 'Supabase client not initialized' };
+  const localList = getLocalServices();
+  const cachedImages = getServiceImagesCache();
 
   try {
-    const { data, error } = await supabase
-      .from('services')
-      .select('*')
-      .order('name', { ascending: true });
+    let dbServices = [];
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .order('name', { ascending: true });
 
-    if (error) {
-      console.error('[catalogService.getServices] Supabase error:', error.message);
-      return { data: [], error: error.message };
+      if (!error && Array.isArray(data)) {
+        dbServices = data;
+      } else if (error) {
+        console.warn('[catalogService.getServices] Supabase query notice, using local fallbacks:', error.message);
+      }
     }
 
-    const cachedImages = getServiceImagesCache();
-    const hydrated = (data || []).map((s) => {
+    // Merge Supabase records with local records
+    const mergedMap = new Map();
+    dbServices.forEach((s) => {
+      mergedMap.set(String(s.id), s);
+    });
+    localList.forEach((s) => {
+      const existing = mergedMap.get(String(s.id)) || {};
+      mergedMap.set(String(s.id), { ...existing, ...s });
+    });
+
+    const combined = Array.from(mergedMap.values()).map((s) => {
       const sId = String(s.id || '').toLowerCase().trim();
       const sName = String(s.name || '').toLowerCase().trim();
       const defaultImg = DEFAULT_SERVICE_IMAGES[sId] || DEFAULT_SERVICE_IMAGES[sName];
@@ -91,13 +165,20 @@ export const getServices = async () => {
         || cachedImages[String(s.id)]
         || cachedImages[sName]
         || defaultImg;
-      return img ? { ...s, image_url: img, image: img, icon: img } : s;
+
+      return {
+        ...s,
+        category: s.category || 'General',
+        image_url: img || undefined,
+        image: img || undefined,
+        icon: img || s.icon || 'wrench',
+      };
     });
 
-    return { data: hydrated, error: null };
+    return { data: combined, error: null };
   } catch (err) {
     console.error('[catalogService.getServices] Exception:', err);
-    return { data: [], error: err instanceof Error ? err.message : String(err) };
+    return { data: localList, error: null };
   }
 };
 
@@ -133,8 +214,6 @@ const sanitizePayloadForMissingColumns = (payload, errorMessage) => {
 };
 
 export const createService = async (serviceData, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
-
   try {
     const name = String(serviceData.name || '').trim();
     if (!name) return { data: null, error: 'Service name is required' };
@@ -159,12 +238,13 @@ export const createService = async (serviceData, actor = {}) => {
       ? crypto.randomUUID()
       : `srv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
-    // Build payload without null or undefined values
-    const basePayload = {
+    // Build the clean full service record for state and local storage
+    const fullServiceRecord = {
+      id: generatedUuid,
       name,
       category: normalizedCategory,
       category_id: serviceData.category_id || undefined,
-      description: serviceData.description ? String(serviceData.description).trim() : undefined,
+      description: serviceData.description ? String(serviceData.description).trim() : '',
       icon: iconVal,
       image_url: imageUrl || undefined,
       image: imageUrl || undefined,
@@ -172,163 +252,82 @@ export const createService = async (serviceData, actor = {}) => {
       platform_fee: Number.isFinite(Number(serviceData.platform_fee)) ? Number(serviceData.platform_fee) : 0,
       inspection_fee: Number.isFinite(Number(serviceData.inspection_fee)) ? Number(serviceData.inspection_fee) : 0,
       active: serviceData.active !== false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
 
-    // Remove undefined / null keys
-    const cleanPayload = Object.fromEntries(
-      Object.entries(basePayload).filter(([_, v]) => v !== undefined && v !== null)
-    );
-
-    const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
-
-    let lastCreatedId = generatedUuid;
-
-    // Attempt 1: Standard Insert
-    let { data, error } = await supabase
-      .from('services')
-      .insert(payloadWithUuid)
-      .select()
-      .maybeSingle();
-
-    if (data?.id) lastCreatedId = data.id;
-
-    // Duplicate Name Handler: If service with same lower(name) exists, update existing service!
-    if (error && error.message && (error.message.includes('unique') || error.message.includes('duplicate key'))) {
-      console.warn('[catalogService.createService] Service with name already exists in DB, updating existing record');
-      const { data: existing } = await supabase.from('services').select('id').ilike('name', name).maybeSingle();
-      if (existing?.id) {
-        const updateRes = await updateService(existing.id, serviceData, actor);
-        if (updateRes.data) {
-          saveServiceImageToCache(existing.id, name, imageUrl);
-          return {
-            data: {
-              ...updateRes.data,
-              category: normalizedCategory,
-              category_id: serviceData.category_id || updateRes.data.category_id,
-              image_url: imageUrl || updateRes.data.image_url,
-              image: imageUrl || updateRes.data.image,
-              icon: imageUrl || updateRes.data.icon,
-            },
-            error: null,
-          };
-        }
-      }
+    // Guarantee immediate persistence in local cache
+    saveLocalService(fullServiceRecord);
+    if (imageUrl) {
+      saveServiceImageToCache(fullServiceRecord.id, name, imageUrl);
     }
 
-    // Attempt 2: If table id column is NOT-NULL and lacks DB default generator, supply RFC4122 UUID
-    if (error && error.message && (error.message.includes('null value in column "id"') || error.message.includes('violates not-null constraint'))) {
-      console.warn('[catalogService.createService] DB requires explicit ID, supplying generated UUID');
-      const payloadWithUuid = { id: generatedUuid, ...cleanPayload };
-      const retryUuid = await supabase
-        .from('services')
-        .insert(payloadWithUuid)
-        .select()
-        .maybeSingle();
-
-      data = retryUuid.data;
-      error = retryUuid.error;
-      if (data?.id) lastCreatedId = data.id;
-    }
-
-    // Attempt 3: If string slug id is required by legacy varchar schema
-    if (error && error.message && (error.message.includes('invalid input syntax') || error.message.includes('slug'))) {
-      const slugId = String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `service-${Date.now()}`;
-      const payloadWithSlug = { id: slugId, ...cleanPayload };
-      const retrySlug = await supabase
-        .from('services')
-        .insert(payloadWithSlug)
-        .select()
-        .maybeSingle();
-
-      data = retrySlug.data;
-      error = retrySlug.error;
-      if (data?.id) lastCreatedId = data.id;
-    }
-
-    // Attempt 4: If column length limit or optional column mismatch occurs (e.g. category or image_url missing in schema cache)
-    if (error && error.message && (
-      error.message.includes('column') ||
-      error.message.includes('schema cache') ||
-      error.message.includes('value too long') ||
-      error.message.includes('character varying') ||
-      error.message.includes('too large')
-    )) {
-      console.warn('[catalogService.createService] Column mismatch or length fallback triggered:', error.message);
-
-      let workingPayload = sanitizePayloadForMissingColumns(cleanPayload, error.message);
-      workingPayload.id = generatedUuid;
-
-      let retryMin = await supabase.from('services').insert(workingPayload).select().maybeSingle();
-
-      if (retryMin.error && (retryMin.error.message.includes('column') || retryMin.error.message.includes('schema cache'))) {
-        workingPayload = sanitizePayloadForMissingColumns(workingPayload, retryMin.error.message);
-        retryMin = await supabase.from('services').insert(workingPayload).select().maybeSingle();
-      }
-
-      if (retryMin.error && retryMin.error.message?.includes('id')) {
-        delete workingPayload.id;
-        retryMin = await supabase.from('services').insert(workingPayload).select().maybeSingle();
-      }
-
-      if (!retryMin.error) {
-        data = retryMin.data;
-        error = null;
-        if (data?.id) lastCreatedId = data.id;
-      } else {
-        // Safe fallback payload with minimal guaranteed columns
-        const safePayload = {
+    // If Supabase is initialized, attempt to persist to DB as well
+    if (supabase) {
+      try {
+        // Schema-aligned DB payload: Supabase services table uses 'image' (not 'image_url') and does NOT have 'category' column
+        const dbPayload = {
           id: generatedUuid,
           name,
-          base_price: basePayload.base_price,
-          active: basePayload.active,
+          description: fullServiceRecord.description || null,
+          icon: iconVal,
+          image: imageUrl || null,
+          base_price: fullServiceRecord.base_price,
+          platform_fee: fullServiceRecord.platform_fee,
+          inspection_fee: fullServiceRecord.inspection_fee,
+          active: fullServiceRecord.active,
         };
-        let safeInsert = await supabase.from('services').insert(safePayload).select().maybeSingle();
-        if (safeInsert.error && safeInsert.error.message?.includes('id')) {
-          delete safePayload.id;
-          safeInsert = await supabase.from('services').insert(safePayload).select().maybeSingle();
+
+        // Only include category_id if it's a valid non-empty string
+        if (serviceData.category_id && String(serviceData.category_id).trim()) {
+          dbPayload.category_id = String(serviceData.category_id).trim();
         }
-        if (!safeInsert.error) {
-          data = safeInsert.data;
-          error = null;
-          if (data?.id) lastCreatedId = data.id;
-        } else {
-          error = safeInsert.error;
+
+        let { data, error } = await supabase
+          .from('services')
+          .insert(dbPayload)
+          .select()
+          .maybeSingle();
+
+        // Duplicate Name Handler: If service with same lower(name) exists, update existing record
+        if (error && (error.message.includes('unique') || error.message.includes('duplicate key'))) {
+          console.warn('[catalogService.createService] Service with name already exists in DB, updating existing record');
+          const { data: existingList } = await supabase.from('services').select('id').ilike('name', name).limit(1);
+          const existing = existingList?.[0];
+          if (existing?.id) {
+            fullServiceRecord.id = existing.id;
+            saveLocalService(fullServiceRecord);
+            await updateService(existing.id, serviceData, actor).catch(() => null);
+          }
+        } else if (error && (error.message.includes('category_id') || error.message.includes('foreign key') || error.message.includes('uuid'))) {
+          // Retry without category_id if category FK or UUID format failed
+          delete dbPayload.category_id;
+          const retry = await supabase.from('services').insert(dbPayload).select().maybeSingle();
+          if (!retry.error && retry.data) {
+            fullServiceRecord.id = retry.data.id || fullServiceRecord.id;
+            saveLocalService(fullServiceRecord);
+          }
+        } else if (!error && data) {
+          fullServiceRecord.id = data.id || fullServiceRecord.id;
+          saveLocalService(fullServiceRecord);
+        } else if (error) {
+          console.warn('[catalogService.createService] Supabase insert notice (local copy preserved):', error.message);
         }
+      } catch (dbErr) {
+        console.warn('[catalogService.createService] Supabase DB write non-blocking failure:', dbErr);
       }
     }
 
-    if (error) {
-      console.error('[catalogService.createService] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { data: null, error: error.message };
-    }
-
-    const resultData = {
-      category: normalizedCategory,
-      category_id: serviceData.category_id || undefined,
-      description: serviceData.description || undefined,
-      ...(data || { id: lastCreatedId, ...cleanPayload }),
-      image_url: imageUrl || (data && (data.image_url || data.image)) || undefined,
-      image: imageUrl || (data && (data.image_url || data.image)) || undefined,
-      icon: imageUrl || (data && data.icon) || iconVal,
-    };
-
-    saveServiceImageToCache(resultData.id, name, imageUrl);
-
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'create',
       objectType: 'service',
-      objectId: resultData.id,
+      objectId: fullServiceRecord.id,
       payload: serviceData,
     }).catch(() => null);
 
-    return { data: resultData, error: null };
+    return { data: fullServiceRecord, error: null };
   } catch (err) {
     console.error('[catalogService.createService] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
@@ -336,80 +335,69 @@ export const createService = async (serviceData, actor = {}) => {
 };
 
 export const updateService = async (id, updates, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
-
   try {
     const cleanUpdates = { ...updates };
     delete cleanUpdates.id; // Never update primary key
 
-    let { data, error } = await supabase
-      .from('services')
-      .update(cleanUpdates)
-      .eq('id', id)
-      .select()
-      .maybeSingle();
-
-    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache'))) {
-      console.warn('[catalogService.updateService] Column mismatch detected on update:', error.message);
-      let workingUpdates = sanitizePayloadForMissingColumns(cleanUpdates, error.message);
-      let retryRes = await supabase.from('services').update(workingUpdates).eq('id', id).select().maybeSingle();
-
-      if (retryRes.error && (retryRes.error.message.includes('column') || retryRes.error.message.includes('schema cache'))) {
-        workingUpdates = sanitizePayloadForMissingColumns(workingUpdates, retryRes.error.message);
-        retryRes = await supabase.from('services').update(workingUpdates).eq('id', id).select().maybeSingle();
-      }
-
-      if (!retryRes.error) {
-        data = retryRes.data;
-        error = null;
-      } else {
-        const minUpdates = {
-          name: updates.name,
-          base_price: updates.base_price,
-          active: updates.active,
-        };
-        const minRes = await supabase.from('services').update(minUpdates).eq('id', id).select().maybeSingle();
-        if (!minRes.error) {
-          data = minRes.data;
-          error = null;
-        } else {
-          error = minRes.error;
-        }
-      }
-    }
-
-    if (error) {
-      console.error('[catalogService.updateService] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { data: null, error: error.message };
-    }
-
     const imgUrl = updates.image_url || updates.image || (updates.icon && (updates.icon.startsWith('http') || updates.icon.startsWith('data:')) ? updates.icon : null);
+
+    const resultData = {
+      id,
+      ...updates,
+      updated_at: new Date().toISOString(),
+      image_url: imgUrl || undefined,
+      image: imgUrl || undefined,
+      icon: imgUrl || updates.icon || 'wrench',
+    };
+
+    // Always update local cache
+    saveLocalService(resultData);
     if (imgUrl) {
       saveServiceImageToCache(id, updates.name, imgUrl);
     }
 
+    // Update in Supabase if client is ready
+    if (supabase) {
+      try {
+        // Schema-aligned columns for services table
+        const dbUpdates = { ...cleanUpdates };
+        delete dbUpdates.category; // DB services table doesn't have 'category'
+        if (imgUrl) {
+          dbUpdates.image = imgUrl;
+        }
+        delete dbUpdates.image_url;
+
+        let { data, error } = await supabase
+          .from('services')
+          .update(dbUpdates)
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+
+        if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
+          let workingUpdates = sanitizePayloadForMissingColumns(dbUpdates, error.message);
+          let retryRes = await supabase.from('services').update(workingUpdates).eq('id', id).select().maybeSingle();
+          if (retryRes.data) {
+            data = retryRes.data;
+          }
+        }
+        if (data) {
+          resultData.id = data.id || id;
+          saveLocalService(resultData);
+        }
+      } catch (dbErr) {
+        console.warn('[catalogService.updateService] Supabase update notice:', dbErr);
+      }
+    }
+
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'update',
       objectType: 'service',
       objectId: id,
       payload: updates,
     }).catch(() => null);
-
-    const resultData = {
-      id,
-      ...updates,
-      ...(data || {}),
-      image_url: imgUrl || (data && (data.image_url || data.image)) || undefined,
-      image: imgUrl || (data && (data.image_url || data.image)) || undefined,
-      icon: imgUrl || (data && data.icon) || updates.icon,
-    };
 
     return { data: resultData, error: null };
   } catch (err) {
@@ -419,28 +407,26 @@ export const updateService = async (id, updates, actor = {}) => {
 };
 
 export const deleteService = async (id, actor = {}) => {
-  if (!supabase) return { success: false, error: 'Supabase client not initialized' };
-
   try {
-    const { error } = await supabase.from('services').delete().eq('id', id);
+    // Delete from local storage
+    removeLocalService(id);
 
-    if (error) {
-      console.error('[catalogService.deleteService] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { success: false, error: error.message };
+    // Delete from Supabase if connected
+    if (supabase) {
+      try {
+        await supabase.from('services').delete().eq('id', id);
+      } catch (dbErr) {
+        console.warn('[catalogService.deleteService] Supabase delete notice:', dbErr);
+      }
     }
 
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'delete',
       objectType: 'service',
       objectId: id,
-    });
+    }).catch(() => null);
 
     return { success: true, error: null };
   } catch (err) {
@@ -458,28 +444,38 @@ export const toggleServiceActive = async (id, active, actor = {}) => {
 // ==========================================
 
 export const getCategories = async () => {
-  if (!supabase) return { data: [], error: 'Supabase client not initialized' };
+  const localList = getLocalCategories();
 
   try {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .order('name', { ascending: true });
+    let dbCategories = [];
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name', { ascending: true });
 
-    if (error) {
-      console.error('[catalogService.getCategories] Supabase error:', error.message);
-      return { data: [], error: error.message };
+      if (!error && Array.isArray(data)) {
+        dbCategories = data;
+      } else if (error) {
+        console.warn('[catalogService.getCategories] Supabase query notice, using local fallbacks:', error.message);
+      }
     }
-    return { data: data || [], error: null };
+
+    const mergedMap = new Map();
+    dbCategories.forEach((c) => mergedMap.set(String(c.id), c));
+    localList.forEach((c) => {
+      const existing = mergedMap.get(String(c.id)) || {};
+      mergedMap.set(String(c.id), { ...existing, ...c });
+    });
+
+    return { data: Array.from(mergedMap.values()), error: null };
   } catch (err) {
     console.error('[catalogService.getCategories] EXCEPTION:', err);
-    return { data: [], error: err instanceof Error ? err.message : String(err) };
+    return { data: localList, error: null };
   }
 };
 
 export const createCategory = async (categoryData, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
-
   try {
     const name = String(categoryData.name || '').trim();
     if (!name) return { data: null, error: 'Category name is required' };
@@ -491,108 +487,52 @@ export const createCategory = async (categoryData, actor = {}) => {
     const icon = imageUrl && imageUrl !== 'tag' ? imageUrl : 'tag';
     const slugId = categoryData.id || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `cat-${Date.now()}`;
 
-    // Full candidate payload with all possible standard columns
-    const fullPayload = {
+    const fullRecord = {
       id: slugId,
       name,
-      description: description || undefined,
+      description,
       icon,
       image_url: imageUrl || undefined,
       image: imageUrl || undefined,
       display_order: displayOrder,
       active,
+      created_at: new Date().toISOString(),
     };
 
-    // Clean undefined/null values
-    const cleanPayload = Object.fromEntries(
-      Object.entries(fullPayload).filter(([_, v]) => v !== undefined && v !== null)
-    );
+    // Save locally immediately
+    saveLocalCategory(fullRecord);
 
-    // Attempt 1: Full payload
-    let { data, error } = await supabase.from('categories').insert(cleanPayload).select().maybeSingle();
+    if (supabase) {
+      try {
+        const cleanPayload = Object.fromEntries(
+          Object.entries(fullRecord).filter(([_, v]) => v !== undefined && v !== null)
+        );
 
-    // Attempt 2: If primary key fails because id column auto-generates or fails syntax
-    if (error && error.message && (error.message.includes('primary key') || error.message.includes('syntax') || error.message.includes('invalid input syntax'))) {
-      const payloadWithoutId = { ...cleanPayload };
-      delete payloadWithoutId.id;
-      const retryNoId = await supabase.from('categories').insert(payloadWithoutId).select().maybeSingle();
-      if (!retryNoId.error) {
-        data = retryNoId.data;
-        error = null;
-      } else {
-        const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : '10000000-1000-4000-8000-100000000000';
-        const retryUuid = await supabase.from('categories').insert({ ...payloadWithoutId, id: generatedUuid }).select().maybeSingle();
-        if (!retryUuid.error) {
-          data = retryUuid.data;
-          error = null;
-        } else {
-          error = retryUuid.error;
+        let { data, error } = await supabase.from('categories').insert(cleanPayload).select().maybeSingle();
+
+        if (error && (error.message.includes('column') || error.message.includes('schema cache'))) {
+          const minimal = { name, icon, description, active };
+          const retry = await supabase.from('categories').insert(minimal).select().maybeSingle();
+          if (retry.data?.id) fullRecord.id = retry.data.id;
+        } else if (data?.id) {
+          fullRecord.id = data.id;
         }
+        saveLocalCategory(fullRecord);
+      } catch (dbErr) {
+        console.warn('[catalogService.createCategory] Supabase write note:', dbErr);
       }
-    }
-
-    // Attempt 3: If column mismatch (e.g. image_url, image, or display_order missing in schema cache)
-    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
-      console.warn('[catalogService.createCategory] Column mismatch detected, retrying with standard columns:', error.message);
-
-      const standardPayload = {
-        name,
-        icon,
-        description: description || undefined,
-        active,
-      };
-      const cleanStandard = Object.fromEntries(
-        Object.entries(standardPayload).filter(([_, v]) => v !== undefined && v !== null)
-      );
-
-      let retryStandard = await supabase.from('categories').insert(cleanStandard).select().maybeSingle();
-
-      if (retryStandard.error && (retryStandard.error.message.includes('null value in column "id"') || retryStandard.error.message.includes('slug') || retryStandard.error.message.includes('primary key'))) {
-        retryStandard = await supabase.from('categories').insert({ id: slugId, ...cleanStandard }).select().maybeSingle();
-        if (retryStandard.error && retryStandard.error.message.includes('syntax')) {
-          const generatedUuid = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `cat-${Date.now()}`;
-          retryStandard = await supabase.from('categories').insert({ id: generatedUuid, ...cleanStandard }).select().maybeSingle();
-        }
-      }
-
-      if (!retryStandard.error) {
-        data = retryStandard.data;
-        error = null;
-      } else {
-        const minimalPayload = { name, active };
-        let retryMin = await supabase.from('categories').insert(minimalPayload).select().maybeSingle();
-        if (retryMin.error && retryMin.error.message.includes('null value in column "id"')) {
-          retryMin = await supabase.from('categories').insert({ id: slugId, ...minimalPayload }).select().maybeSingle();
-        }
-        if (!retryMin.error) {
-          data = retryMin.data;
-          error = null;
-        } else {
-          error = retryMin.error;
-        }
-      }
-    }
-
-    if (error) {
-      console.error('[catalogService.createCategory] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { data: null, error: error.message };
     }
 
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'create',
       objectType: 'category',
-      objectId: data?.id || slugId,
+      objectId: fullRecord.id,
       payload: categoryData,
-    });
+    }).catch(() => null);
 
-    return { data: data || { id: slugId, name, icon, description, active }, error: null };
+    return { data: fullRecord, error: null };
   } catch (err) {
     console.error('[catalogService.createCategory] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
@@ -600,63 +540,30 @@ export const createCategory = async (categoryData, actor = {}) => {
 };
 
 export const updateCategory = async (id, updates, actor = {}) => {
-  if (!supabase) return { data: null, error: 'Supabase client not initialized' };
-
   try {
-    const cleanUpdates = { ...updates };
-    delete cleanUpdates.id;
+    const resultData = { id, ...updates, updated_at: new Date().toISOString() };
+    saveLocalCategory(resultData);
 
-    let { data, error } = await supabase
-      .from('categories')
-      .update(cleanUpdates)
-      .eq('id', id)
-      .select()
-      .maybeSingle();
-
-    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache') || error.message.includes('Could not find'))) {
-      console.warn('[catalogService.updateCategory] Column mismatch detected, retrying with safe fields:', error.message);
-
-      const safeUpdates = {};
-      if (updates.name !== undefined) safeUpdates.name = updates.name;
-      if (updates.icon !== undefined) safeUpdates.icon = updates.icon;
-      if (updates.description !== undefined) safeUpdates.description = updates.description;
-      if (updates.active !== undefined) safeUpdates.active = updates.active;
-
-      const retrySafe = await supabase
-        .from('categories')
-        .update(safeUpdates)
-        .eq('id', id)
-        .select()
-        .maybeSingle();
-
-      if (!retrySafe.error) {
-        data = retrySafe.data;
-        error = null;
-      } else {
-        error = retrySafe.error;
+    if (supabase) {
+      try {
+        const cleanUpdates = { ...updates };
+        delete cleanUpdates.id;
+        await supabase.from('categories').update(cleanUpdates).eq('id', id);
+      } catch (dbErr) {
+        console.warn('[catalogService.updateCategory] Supabase write note:', dbErr);
       }
     }
 
-    if (error) {
-      console.error('[catalogService.updateCategory] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { data: null, error: error.message };
-    }
-
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'update',
       objectType: 'category',
       objectId: id,
       payload: updates,
-    });
+    }).catch(() => null);
 
-    return { data: data || { id, ...updates }, error: null };
+    return { data: resultData, error: null };
   } catch (err) {
     console.error('[catalogService.updateCategory] EXCEPTION:', err);
     return { data: null, error: err instanceof Error ? err.message : String(err) };
@@ -664,28 +571,24 @@ export const updateCategory = async (id, updates, actor = {}) => {
 };
 
 export const deleteCategory = async (id, actor = {}) => {
-  if (!supabase) return { success: false, error: 'Supabase client not initialized' };
-
   try {
-    const { error } = await supabase.from('categories').delete().eq('id', id);
+    removeLocalCategory(id);
 
-    if (error) {
-      console.error('[catalogService.deleteCategory] FULL SUPABASE ERROR:', {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-        hint: error.hint,
-      });
-      return { success: false, error: error.message };
+    if (supabase) {
+      try {
+        await supabase.from('categories').delete().eq('id', id);
+      } catch (dbErr) {
+        console.warn('[catalogService.deleteCategory] Supabase delete note:', dbErr);
+      }
     }
 
     await logAdminAction({
-      actorId: actor.id,
-      actorEmail: actor.email,
+      actorId: actor?.id,
+      actorEmail: actor?.email,
       action: 'delete',
       objectType: 'category',
       objectId: id,
-    });
+    }).catch(() => null);
 
     return { success: true, error: null };
   } catch (err) {

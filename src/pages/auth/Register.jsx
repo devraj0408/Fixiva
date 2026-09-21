@@ -441,7 +441,7 @@ const Register = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div className="space-y-1 min-w-0">
                         <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                          <LocateFixed size={14} className="text-primary dark:text-emerald-400 shrink-0" /> Current location
+                          <LocateFixed size={14} className="text-red-500 shrink-0" /> Current location
                         </span>
                         {formData.locationLatitude && formData.locationLongitude ? (
                           <p className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono tracking-tight pl-5">
@@ -460,8 +460,8 @@ const Register = () => {
                         disabled={geoLoading}
                         className="w-full sm:w-auto h-10 px-4 rounded-xl border border-sky-200 dark:border-sky-800 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white text-xs font-black shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
                       >
-                        {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
-                        <span>{geoLoading ? 'Detecting...' : '📍 Use Current Location'}</span>
+                        {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} className="text-red-400" />}
+                        <span>{geoLoading ? 'Detecting...' : 'Use Current Location'}</span>
                       </button>
                     </div>
 

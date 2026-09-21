@@ -250,6 +250,17 @@
   transform: translateY(0.5px) scale(0.98) !important;
 }
 
+.dark .btn-secondary {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+.dark .btn-secondary:hover:not(:disabled) {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  box-shadow: 0 4px 14px -2px rgba(0, 0, 0, 0.3) !important;
+}
+
 .btn-danger {
   background-color: #C85C5C !important;
   color: #FFFFFF !important;
@@ -296,6 +307,16 @@ a.disabled,
   cursor: not-allowed !important;
   pointer-events: none !important;
   box-shadow: none !important;
+}
+
+.dark .btn-disabled,
+.dark button:disabled,
+.dark a.disabled,
+.dark .disabled {
+  background-color: #1e293b !important;
+  color: #64748b !important;
+  border-color: #334155 !important;
+  opacity: 0.6 !important;
 }
 
 /* Subtle shadow utilities (kept clean without forcing gradients) */
@@ -528,4 +549,23 @@ a.disabled,
 .dark .leaflet-popup-tip {
   background-color: #1e293b !important;
   color: #f8fafc !important;
+}
+
+/* Fixiva AI Assistant Custom Tiles Background Effect */
+.fixiva-ai-tiles-bg {
+  background-color: #FAFAF8;
+  background-image: 
+    linear-gradient(to right, rgba(47, 107, 95, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(47, 107, 95, 0.09) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.dark .fixiva-ai-tiles-bg,
+[data-theme='dark'] .fixiva-ai-tiles-bg,
+:where(.dark, .dark *) .fixiva-ai-tiles-bg {
+  background-color: #030712 !important;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.075) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.075) 1px, transparent 1px) !important;
+  background-size: 20px 20px !important;
 }

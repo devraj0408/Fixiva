@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Loader2, Check, Search, Navigation } from 'lucide-react';
+import { MapPin, Loader2, Check, Search, Navigation, LocateFixed } from 'lucide-react';
 import { reverseGeocodeCoords, searchAddressNominatim, createLocationObject } from '../../services/locationService';
 
 const OpenStreetMapPicker = ({
@@ -111,25 +111,31 @@ const OpenStreetMapPicker = ({
       className: 'custom-map-pin',
       html: `
         <div style="
-          width: 36px;
-          height: 36px;
-          background: #2F6B5F;
+          width: 38px;
+          height: 38px;
+          background: #EF4444;
           border: 3px solid #ffffff;
           border-radius: 50%;
-          box-shadow: 0 4px 12px rgba(47,107,95,0.3);
+          box-shadow: 0 4px 14px rgba(239,68,68,0.45);
           display: flex;
           align-items: center;
           justify-content: center;
           color: white;
-          font-size: 18px;
           cursor: move;
-          transform: translate(-2px, -2px);
+          transform: translate(-3px, -3px);
         ">
-          📍
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="2" x2="5" y1="12" y2="12"></line>
+            <line x1="19" x2="22" y1="12" y2="12"></line>
+            <line x1="12" x2="12" y1="2" y2="5"></line>
+            <line x1="12" x2="12" y1="19" y2="22"></line>
+            <circle cx="12" cy="12" r="7"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+          </svg>
         </div>
       `,
-      iconSize: [36, 36],
-      iconAnchor: [18, 18]
+      iconSize: [38, 38],
+      iconAnchor: [19, 19]
     });
 
     const marker = L.marker([centerLat, centerLng], {
@@ -289,9 +295,9 @@ const OpenStreetMapPicker = ({
           type="button"
           onClick={handleJumpToGPS}
           title="Jump to my location"
-          className="absolute bottom-4 right-4 z-[400] p-3 bg-white hover:bg-slate-50 text-primary rounded-xl shadow-lg border border-slate-200 transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold"
+          className="absolute bottom-4 right-4 z-[400] p-2.5 sm:p-3 bg-white hover:bg-red-50 text-red-500 rounded-xl shadow-lg border border-slate-200 hover:border-red-200 transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold cursor-pointer group"
         >
-          <Navigation size={15} />
+          <LocateFixed size={16} className={`text-red-500 shrink-0 ${geocoding ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
           <span>My GPS</span>
         </button>
       </div>

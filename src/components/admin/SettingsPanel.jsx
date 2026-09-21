@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useCms } from '../../context/CmsContext';
 
 const DEFAULT_SETTINGS = {
@@ -14,15 +14,18 @@ const DEFAULT_SETTINGS = {
 
 const SettingsPanel = () => {
   const { settings, updateSettings } = useCms();
+  const [localSettings, setLocalSettings] = useState(null);
 
   const currentSettings = useMemo(() => ({
     ...DEFAULT_SETTINGS,
     ...(settings || {}),
-  }), [settings]);
+    ...(localSettings || {}),
+  }), [settings, localSettings]);
 
   const handleToggle = (key) => {
     const currentValue = currentSettings[key] !== false;
     const updated = { ...currentSettings, [key]: !currentValue };
+    setLocalSettings(updated);
     updateSettings(updated);
   };
 
@@ -62,8 +65,8 @@ const SettingsPanel = () => {
                 <button
                   type="button"
                   onClick={() => handleToggle(key)}
-                  className={`rounded-full px-3 py-1 text-xs font-black uppercase transition-all cursor-pointer ${
-                    isEnabled ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-black uppercase transition-all duration-200 cursor-pointer select-none active:scale-95 ${
+                    isEnabled ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 shadow-xs' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
                   }`}
                 >
                   {isEnabled ? 'ENABLED' : 'DISABLED'}

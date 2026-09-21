@@ -7,7 +7,8 @@ import {
   ArrowRight,
   Sparkles,
   ArrowLeft,
-  Check
+  Check,
+  LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
@@ -25,7 +26,8 @@ const BookingFlow = () => {
   const {
     services = [],
     user,
-    showToast
+    showToast,
+    settings = {}
   } = useApp();
 
   // Parse URL query parameters
@@ -179,7 +181,7 @@ const BookingFlow = () => {
       setDetectedLocality(lc);
       setDetectedLat(user?.location_latitude || null);
       setDetectedLng(user?.location_longitude || null);
-      if (dt) showToast(`📍 Location set to: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'info');
+      if (dt) showToast(`Location set to: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'info');
     } finally {
       setDetectingGps(false);
     }
@@ -222,6 +224,11 @@ const BookingFlow = () => {
 
   // Submit Final Booking
   const handleConfirmBooking = async () => {
+    if (settings?.maintenanceMode) {
+      showToast('Fixiva is currently in Maintenance Mode. Booking creation is temporarily paused.', 'error');
+      return;
+    }
+
     if (!customerName.trim() || !customerPhone.trim()) {
       showToast('Please fill in your name and phone number.', 'error');
       return;
@@ -265,6 +272,12 @@ const BookingFlow = () => {
     <div className="bg-slate-50 min-h-screen py-10">
       <div className="max-w-5xl mx-auto px-4 sm:px-6">
         
+        {settings?.maintenanceMode && (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-600 text-white text-xs sm:text-sm font-bold shadow-sm flex items-center justify-center gap-2 text-center">
+            <span>🔧 Maintenance Mode Active: New customer booking submissions are temporarily paused.</span>
+          </div>
+        )}
+
         {/* Top Header & Progress Stepper */}
         <div className="mb-8 bg-white rounded-3xl p-6 shadow-sm border border-slate-100">
           <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
@@ -576,8 +589,9 @@ const BookingFlow = () => {
                         <div className="flex items-center gap-3">
                           {pro.distance_km !== null && pro.distance_km !== undefined ? (
                             <>
-                              <span className="font-bold text-slate-700 flex items-center gap-1">
-                                📍 {pro.distance_km} km away
+                              <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                                <LocateFixed size={13} className="text-red-500 shrink-0 inline" />
+                                <span>{pro.distance_km} km away</span>
                               </span>
                               <span>•</span>
                               <span className="font-semibold text-slate-500 flex items-center gap-1">

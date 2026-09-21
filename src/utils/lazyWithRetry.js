@@ -22,7 +22,7 @@ export const lazyWithRetry = (componentImport) =>
         errorMessage.includes('Failed to fetch dynamically imported module') ||
         errorMessage.includes('Loading chunk') ||
         errorMessage.includes('Importing a module script failed') ||
-        error?.name === 'TypeError';
+        (error?.name === 'TypeError' && (errorMessage.includes('fetch') || errorMessage.includes('dynamically imported') || errorMessage.includes('module script')));
 
       if (isChunkError && !pageHasBeenReloaded) {
         sessionStorage.setItem('fixiva_chunk_reload_attempted', 'true');
