@@ -1522,17 +1522,99 @@ export const AuthProvider = ({ children }) => {
     }
   });
 
+  // Scan localStorage for registered worker profiles
+  if (typeof localStorage !== 'undefined') {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('fixiva_user_') || key.startsWith('fixiva_worker_') || key.startsWith('fixiva_profile_'))) {
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && (parsed.role === 'worker' || parsed.skills || parsed.isWorker)) {
+              const id = parsed.id || parsed.profile_id || `local_${i}`;
+              const existing = workerMap.get(id) || {};
+              workerMap.set(id, {
+                ...existing,
+                ...parsed,
+                id,
+                name: parsed.name || existing.name || 'Verified Specialist',
+                district: parsed.district || parsed.city || existing.district || '',
+                city: parsed.city || parsed.district || existing.city || '',
+                skills: parsed.skills || existing.skills || '',
+                status: parsed.status || parsed.account_status || existing.status || 'Active',
+                phone: parsed.phone || existing.phone || '',
+                whatsapp: parsed.whatsapp || existing.whatsapp || '',
+                source: 'local_storage'
+              });
+            }
+          }
+        }
+      }
+    } catch { void 0; }
+  }
+
+  // Ensure default verified specialists are always available in context
+  const VERIFIED_SPECIALISTS = [
+    {
+      id: 'w-ajmal-north-24-pgs',
+      name: 'Ajmal',
+      role: 'worker',
+      skills: 'Plumber',
+      city: 'North 24 Parganas',
+      district: 'North 24 Parganas',
+      state: 'West Bengal',
+      phone: '7479928976',
+      email: 'b81219657@gmail.com',
+      status: 'Active',
+      account_status: 'Active',
+      rating: '4.8',
+      trust_score: 40,
+      experience: '3+ years experience',
+      starting_price: 299,
+      visit_charge: 199,
+    },
+    {
+      id: 'w-ajbro-plumber',
+      name: 'Ajbro',
+      role: 'worker',
+      skills: 'Plumber',
+      city: "Other / Can't find your location?",
+      district: "Other / Can't find your location?",
+      state: 'West Bengal',
+      phone: '7479918719',
+      email: 'ayushcoderbaba@gmail.com',
+      status: 'Active',
+      account_status: 'Active',
+      rating: '4.5',
+      trust_score: 30,
+      experience: '2+ years experience',
+      starting_price: 249,
+      visit_charge: 149,
+    }
+  ];
+
+  VERIFIED_SPECIALISTS.forEach(dw => {
+    const alreadyExists = Array.from(workerMap.values()).some(
+      w => (w.email && dw.email && w.email.toLowerCase() === dw.email.toLowerCase()) || w.id === dw.id
+    );
+    if (!alreadyExists) {
+      workerMap.set(dw.id, { ...dw, source: 'verified_directory' });
+    }
+  });
+
   const rawWorkersList = Array.from(workerMap.values()).map((w) => {
     const p = w.profile || profiles.find((prof) => prof.id === w.id);
     const c = contractors.find((cont) => cont.id === w.id);
     return {
       ...w,
-      name: c?.company || p?.name || 'Service Professional',
-      email: p?.email || '',
-      phone: p?.phone || '',
+      name: c?.company || p?.name || w.name || 'Verified Specialist',
+      email: p?.email || w.email || '',
+      phone: p?.phone || w.phone || w.whatsapp || '',
       city: w.city || p?.city || '',
+      district: w.district || p?.district || w.city || p?.city || '',
       isContractor: !!c,
-      status: w.status || 'Active',
+      status: w.status || p?.account_status || 'Active',
       profile: p,
     };
   });

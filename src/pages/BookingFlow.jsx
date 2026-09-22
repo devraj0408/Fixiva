@@ -567,7 +567,7 @@ const BookingFlow = () => {
                     >
                       <div className="flex items-start gap-4">
                         <img
-                          src={pro.profile_photo_url}
+                          src={pro.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(pro.name || 'Pro')}&background=0D8ABC&color=fff`}
                           alt={pro.name}
                           className="w-14 h-14 rounded-2xl object-cover border border-slate-100 shrink-0"
                         />

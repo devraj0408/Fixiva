@@ -239,7 +239,11 @@ const UnifiedBookingModal = () => {
                           }`}
                         >
                           <div className="flex items-center gap-3">
-                            <img src={pro.profile_photo_url} alt={pro.name} className="w-9 h-9 rounded-xl object-cover" />
+                            <img
+                              src={pro.profile_photo_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(pro.name || 'Pro')}&background=0D8ABC&color=fff`}
+                              alt={pro.name}
+                              className="w-9 h-9 rounded-xl object-cover"
+                            />
                             <div>
                               <h4 className="font-bold text-slate-900 dark:text-white">{pro.name}</h4>
                               <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">
