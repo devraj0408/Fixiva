@@ -3,8 +3,9 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed, Navigation } from 'lucide-react';
+import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed, Navigation, MapPin } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
+import { detectCurrentLocation, saveUserGpsLocation } from '../../services/locationService';
 
 const Register = () => {
   const navigate = useNavigate();
@@ -45,24 +46,37 @@ const Register = () => {
   const resendDisabled = countdown > 0;
   const [attempts, setAttempts] = useState(0);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    email: initialEmail,
-    phone: '',
-    city: '',
-    state: '',
-    locationText: '',
-    locationLatitude: null,
-    locationLongitude: null,
-    locationSource: '',
-    skills: '',
-    experience: '',
-    whatsapp: '',
-    id_proof_number: '',
-    company: '',
-    owner_name: '',
-    gst: '',
-    services_offered: ''
+  const [formData, setFormData] = useState(() => {
+    let savedState = '';
+    let savedDistrict = '';
+    let savedLocality = '';
+    try {
+      savedState = localStorage.getItem('fixiva:last-state') || '';
+      savedDistrict = localStorage.getItem('fixiva:last-district') || '';
+      savedLocality = localStorage.getItem('fixiva:last-locality') || '';
+    } catch { void 0; }
+
+    return {
+      name: '',
+      email: initialEmail,
+      phone: '',
+      city: savedDistrict,
+      state: savedState,
+      locality: savedLocality,
+      pincode: '',
+      locationText: '',
+      locationLatitude: null,
+      locationLongitude: null,
+      locationSource: '',
+      skills: '',
+      experience: '',
+      whatsapp: '',
+      id_proof_number: '',
+      company: '',
+      owner_name: '',
+      gst: '',
+      services_offered: ''
+    };
   });
 
   const [errors, setErrors] = useState({});
@@ -79,32 +93,83 @@ const Register = () => {
     return () => clearInterval(timer);
   }, [otpSent, countdown]);
 
-  const handleUseCurrentLocation = () => {
-    if (!navigator.geolocation) {
-      setGeoMessage('Geolocation is not supported in this browser.');
-      return;
-    }
+  const handleUseCurrentLocation = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (geoLoading) return;
 
     setGeoLoading(true);
     setGeoMessage('');
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setFormData((prev) => ({
-          ...prev,
-          locationText: `Auto-detected (${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)})`,
-          locationLatitude: position.coords.latitude,
-          locationLongitude: position.coords.longitude,
-          locationSource: 'device'
-        }));
-        setGeoLoading(false);
-        setGeoMessage('Current location detected successfully.');
-      },
-      () => {
-        setGeoLoading(false);
-        setGeoMessage('Location access was denied. You can still enter a location manually.');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
+    try {
+      const loc = await detectCurrentLocation();
+      const st = loc.state || '';
+      const dist = loc.district || loc.city || '';
+      const locName = loc.locality || '';
+      const pin = loc.pincode || '';
+      const lat = loc.latitude !== null && loc.latitude !== undefined && !isNaN(Number(loc.latitude)) ? Number(loc.latitude) : null;
+      const lng = loc.longitude !== null && loc.longitude !== undefined && !isNaN(Number(loc.longitude)) ? Number(loc.longitude) : null;
+      const formatted = loc.formattedAddress || [locName, dist, st].filter(Boolean).join(', ');
+
+      if (!st && !dist && !lat && !lng) {
+        setGeoMessage('Location permission is unavailable.');
+        showToast('Could not access current location. You can select your location manually.', 'error');
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        state: st,
+        city: dist,
+        locality: locName,
+        pincode: pin,
+        locationLatitude: lat,
+        locationLongitude: lng,
+        locationText: prev.locationText && prev.locationSource === 'manual' ? prev.locationText : (formatted || [locName, dist].filter(Boolean).join(', ')),
+        locationSource: 'gps'
+      }));
+
+      try {
+        if (st) localStorage.setItem('fixiva:last-state', st);
+        if (dist) localStorage.setItem('fixiva:last-district', dist);
+        if (locName) localStorage.setItem('fixiva:last-locality', locName);
+      } catch { void 0; }
+
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next.city;
+        return next;
+      });
+
+      const displayLabel = [locName, dist, st].filter(Boolean).join(', ');
+      setGeoMessage('Current location detected successfully.');
+      showToast(`Location detected: ${displayLabel || 'Success'}`, 'success');
+    } catch (err) {
+      console.warn('GPS detection failed:', err);
+      setGeoMessage('Could not detect current location. You can select your location manually.');
+      showToast('Could not detect current location. Select manually.', 'error');
+    } finally {
+      setGeoLoading(false);
+    }
+  };
+
+  const handleResetLocation = () => {
+    setFormData((prev) => ({
+      ...prev,
+      state: '',
+      city: '',
+      locality: '',
+      pincode: '',
+      locationLatitude: null,
+      locationLongitude: null,
+      locationText: '',
+      locationSource: ''
+    }));
+    try {
+      localStorage.removeItem('fixiva:last-state');
+      localStorage.removeItem('fixiva:last-district');
+      localStorage.removeItem('fixiva:last-locality');
+    } catch { void 0; }
+    setGeoMessage('');
   };
 
   const validate = () => {
@@ -138,6 +203,8 @@ const Register = () => {
       role,
       city: formData.city,
       state: formData.state,
+      locality: formData.locality,
+      pincode: formData.pincode,
       locationText: formData.locationText,
       locationLatitude: formData.locationLatitude,
       locationLongitude: formData.locationLongitude,
@@ -183,6 +250,8 @@ const Register = () => {
       role,
       city: formData.city,
       state: formData.state,
+      locality: formData.locality,
+      pincode: formData.pincode,
       locationText: formData.locationText,
       locationLatitude: formData.locationLatitude,
       locationLongitude: formData.locationLongitude,
@@ -232,6 +301,8 @@ const Register = () => {
       role,
       city: formData.city,
       state: formData.state,
+      locality: formData.locality,
+      pincode: formData.pincode,
       locationText: formData.locationText,
       locationLatitude: formData.locationLatitude,
       locationLongitude: formData.locationLongitude,
@@ -268,6 +339,19 @@ const Register = () => {
     showToast('Registration Successful', 'success');
 
     const activeRole = String(profile?.role || role || '').trim().toLowerCase();
+
+    // Persist GPS location if coordinates are available
+    if (profile?.id && formData.locationLatitude && formData.locationLongitude) {
+      saveUserGpsLocation({
+        userId: profile.id,
+        role: activeRole,
+        latitude: formData.locationLatitude,
+        longitude: formData.locationLongitude,
+        address: formData.locationText || [formData.locality, formData.city, formData.state].filter(Boolean).join(', '),
+        locationSource: formData.locationSource || 'gps'
+      }).catch(() => null);
+    }
+
     if (activeRole === 'admin') {
       navigate('/dashboard/admin');
     } else if (activeRole === 'worker') {
@@ -409,82 +493,95 @@ const Register = () => {
                   {errors.email && <p className="text-danger text-[10px] font-bold text-red-500">{errors.email}</p>}
                 </div>
 
-                {/* Location Section - Full Width Responsive Layout */}
+                {/* Location Section - Unified Location Card matching Home Page */}
                 <div className="space-y-4 pt-3 border-t border-slate-100 dark:border-slate-800">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">
-                      {t('cityLabel', 'Operating Location (State, District, Locality)')}
-                    </label>
-                    <div className="w-full">
-                      <HierarchicalLocationSelector
-                        selectedState={typeof formData.state === 'string' ? formData.state : (formData.state?.state || '')}
-                        selectedDistrict={typeof formData.city === 'string' ? formData.city : (formData.city?.district || '')}
-                        selectedLocality={typeof formData.locality === 'string' ? formData.locality : (formData.locality?.locality || '')}
-                        onChange={({ state, district, locality }) => setFormData((prev) => ({
-                          ...prev,
-                          state: String(state || ''),
-                          city: String(district || ''),
-                          locality: String(locality || '')
-                        }))}
-                        statePlaceholder="Select State"
-                        districtPlaceholder="Select District"
-                        localityPlaceholder="Select Locality"
-                        layout="row"
-                        className="w-full"
-                      />
-                    </div>
-                    {errors.city && <p className="text-danger text-[10px] font-bold text-red-500 mt-1">{errors.city}</p>}
-                  </div>
-
-                  {/* Clean Current Location GPS Card & Trigger Button */}
-                  <div className="p-4 bg-slate-50/90 dark:bg-slate-950/80 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="space-y-1 min-w-0">
-                        <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
-                          <LocateFixed size={14} className="text-red-500 shrink-0" /> Current location
-                        </span>
-                        {formData.locationLatitude && formData.locationLongitude ? (
-                          <p className="text-xs font-black text-slate-800 dark:text-slate-200 font-mono tracking-tight pl-5">
-                            {Number(formData.locationLatitude).toFixed(4)}, {Number(formData.locationLongitude).toFixed(4)}
-                          </p>
-                        ) : (
-                          <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 pl-5">
-                            Not detected
-                          </p>
-                        )}
-                      </div>
-
+                  <div className="p-5 bg-slate-50/90 dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-primary dark:text-emerald-400" /> {t('selectYourLocation', 'Select Your Location')}
+                      </span>
                       <button
                         type="button"
                         onClick={handleUseCurrentLocation}
                         disabled={geoLoading}
-                        className="w-full sm:w-auto h-10 px-5 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#2F6B5F] dark:text-emerald-400 text-xs font-extrabold shadow-xs hover:shadow-sm flex items-center justify-center gap-2 transition-all disabled:opacity-60 cursor-pointer shrink-0"
+                        className="text-xs font-black text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs hover:border-red-300 dark:hover:border-red-800 transition-all cursor-pointer disabled:opacity-50"
                       >
-                        {geoLoading ? (
-                          <Loader2 size={15} className="animate-spin text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
-                        ) : (
-                          <Navigation size={15} className="text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
-                        )}
-                        <span>{geoLoading ? 'Detecting...' : 'Use Current Location'}</span>
+                        <LocateFixed size={13} className={`text-red-500 shrink-0 ${geoLoading ? 'animate-spin' : ''}`} />
+                        <span>{geoLoading ? t('locating', 'Detecting...') : t('useCurrentLocation', 'Use Current Location')}</span>
                       </button>
                     </div>
 
-                    {/* Address Landmark Field */}
+                    <HierarchicalLocationSelector
+                      selectedState={formData.state}
+                      selectedDistrict={formData.city}
+                      selectedLocality={formData.locality}
+                      onChange={({ state, district, locality }) => {
+                        setFormData((prev) => ({
+                          ...prev,
+                          state: String(state || ''),
+                          city: String(district || ''),
+                          locality: String(locality || '')
+                        }));
+                        if (district) {
+                          setErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.city;
+                            return next;
+                          });
+                        }
+                      }}
+                      statePlaceholder="Select State"
+                      districtPlaceholder="Select District"
+                      localityPlaceholder="Select Locality"
+                      layout="row"
+                      className="w-full"
+                    />
+
+                    {/* Selected Location Summary Preview */}
+                    {(formData.city || formData.state) && (
+                      <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-primary/20 dark:border-slate-800 text-xs flex items-center justify-between gap-2 shadow-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <MapPin size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                              <LocateFixed size={13} className="text-red-500 shrink-0 inline" />
+                              <span>{[formData.locality, formData.city].filter(Boolean).join(', ')}</span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
+                              {[formData.city, formData.state].filter(Boolean).join(', ')} {formData.pincode ? `• ${formData.pincode}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleResetLocation}
+                          className="text-[11px] font-black text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 shrink-0 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Precise Locality / Landmark Address */}
                     <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800">
                       <label className="text-[10px] font-black text-slate-400 dark:text-slate-400 uppercase tracking-wider block mb-1">
                         Precise Locality / Landmark Address
                       </label>
                       <input
                         type="text"
-                        className="w-full h-11 px-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-slate-100 shadow-xs"
+                        className="w-full h-11 px-4 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-primary rounded-xl text-xs font-semibold placeholder-slate-400 dark:placeholder-slate-500 outline-none transition-all text-slate-800 dark:text-slate-100 shadow-xs"
                         value={formData.locationText || ''}
                         onChange={(e) => setFormData({ ...formData, locationText: e.target.value, locationSource: e.target.value ? 'manual' : '' })}
-                        placeholder="Precise locality, street, or landmark"
+                        placeholder="House / Flat No., Street, Landmark (e.g. Near Metro Station)"
                       />
                     </div>
                   </div>
 
-                  {/* Success / Warning Status Message */}
+                  {errors.city && <p className="text-danger text-[10px] font-bold text-red-500 mt-1">{errors.city}</p>}
+
+                  {/* Status Message Banner */}
                   {geoMessage && (
                     <div className={`p-3 rounded-xl text-xs font-bold flex items-center gap-2 ${
                       geoMessage.includes('successfully')

@@ -884,6 +884,10 @@ export const AuthProvider = ({ children }) => {
             trust_score: calcInitTrust.score,
             skills: regExtra.skills || regData?.skills || '',
             city: profileRow.city || regData?.city || '',
+            location_text: regData?.locationText || '',
+            location_latitude: regData?.locationLatitude ?? null,
+            location_longitude: regData?.locationLongitude ?? null,
+            location_source: regData?.locationSource || '',
             whatsapp: regExtra.whatsapp || regData?.whatsapp || '',
             experience: regExtra.experience || regData?.experience || '',
           };
