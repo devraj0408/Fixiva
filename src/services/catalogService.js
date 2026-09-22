@@ -72,6 +72,19 @@ export const saveLocalCategory = (category) => {
   }
 };
 
+export const removeLocalCategory = (id) => {
+  if (!id) return;
+  try {
+    const list = getLocalCategories();
+    const filtered = list.filter((c) => String(c.id) !== String(id));
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CATEGORIES_LOCAL_STORAGE_KEY, JSON.stringify(filtered));
+    }
+  } catch (e) {
+    void e;
+  }
+};
+
 const getServiceImagesCache = () => {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(IMAGE_CACHE_KEY) : null;

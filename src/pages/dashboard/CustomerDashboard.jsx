@@ -180,6 +180,8 @@ const CustomerDashboard = () => {
     refreshData
   } = useApp();
 
+  const { t } = useLanguage();
+
   const activeServices = useMemo(() => {
     return (services || []).filter(
       (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
