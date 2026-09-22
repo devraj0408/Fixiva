@@ -838,7 +838,16 @@ const CustomerDashboard = () => {
                     </div>
                   </div>
 
-                  <button onClick={() => navigate(`/book?district=${encodeURIComponent(w.district || w.city || '')}`)} className="btn-primary text-xs px-4 py-2 rounded-xl font-bold shadow-sm">
+                  <button 
+                    onClick={() => {
+                      const query = new URLSearchParams();
+                      if (w.district || w.city) query.set('district', w.district || w.city);
+                      if (w.skills) query.set('service', w.skills.split(',')[0].trim());
+                      if (w.id) query.set('workerId', w.id);
+                      navigate(`/book?${query.toString()}`);
+                    }} 
+                    className="btn-primary text-xs px-4 py-2 rounded-xl font-bold shadow-sm"
+                  >
                     Hire Now
                   </button>
                 </div>

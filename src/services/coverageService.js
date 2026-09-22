@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabaseClient';
 import { logAdminAction } from './auditService';
 import { getDistricts, isMissingTableError, saveDistrictUpdateToStorage } from './locationService';
+import { getAllStaticDistricts } from '../data/locationData';
 
 /**
  * Single Coverage Service - District Coverage Management & Coverage Requests Workflow
@@ -179,13 +180,13 @@ export const getDistrictCoverageList = async (customData = null) => {
 export const isDistrictActive = async (stateName, districtName, serviceId = null) => {
   if (!districtName) return false;
 
-  const cleanName = districtName.trim().toLowerCase();
+  const cleanName = String(districtName).replace(/\s+district$/i, '').trim().toLowerCase();
 
   // Check stored service city control from localStorage
   if (serviceId) {
     try {
       const cityControl = JSON.parse(localStorage.getItem('fixiva_city_control') || '{}');
-      const cKeys = [cleanName, `dist-${cleanName}`, districtName];
+      const cKeys = [cleanName, `dist-${cleanName}`, districtName, String(districtName).toLowerCase()];
       const sKeys = [serviceId, String(serviceId).toLowerCase()];
 
       for (const cKey of cKeys) {
@@ -222,63 +223,123 @@ export const isDistrictActive = async (stateName, districtName, serviceId = null
 
   if (!supabase) return true;
 
+  // 1. If any verified active workers or contractors are registered for this location, it is active
+  try {
+    const [{ data: wActive }, { data: pActive }, { data: cActive }] = await Promise.all([
+      supabase.from('workers').select('id').eq('status', 'Active').or(`district.ilike.%${cleanName}%,city.ilike.%${cleanName}%`).limit(1),
+      supabase.from('profiles').select('id').in('role', ['worker', 'contractor']).or(`district.ilike.%${cleanName}%,city.ilike.%${cleanName}%`).limit(1),
+      supabase.from('contractors').select('id').eq('status', 'Active').or(`district.ilike.%${cleanName}%,city.ilike.%${cleanName}%`).limit(1)
+    ]);
+    if ((wActive && wActive.length > 0) || (pActive && pActive.length > 0) || (cActive && cActive.length > 0)) {
+      return true;
+    }
+  } catch (e) {
+    void e;
+  }
+
+  // 2. Check Supabase districts table
   try {
     const { data, error } = await supabase
       .from('districts')
       .select('status')
-      .ilike('name', districtName.trim())
+      .ilike('name', cleanName)
       .maybeSingle();
 
     if (!error && data) {
-      return data.status === 'Active';
+      if (data.status === 'Disabled') return false;
+      if (data.status === 'Active') return true;
+      if (data.status === 'Coming Soon') return false;
     }
 
     // Check legacy cities fallback
     const { data: cityData } = await supabase
       .from('cities')
       .select('status')
-      .ilike('name', districtName.trim())
+      .ilike('name', cleanName)
       .maybeSingle();
 
     if (cityData) {
       return cityData.status !== 'Disabled' && cityData.status !== 'Coming Soon';
     }
-
-    // Default: if in primary operating list
-    const activeDefaults = [
-      'ranchi', 'jamshedpur', 'dhanbad', 'bokaro', 'deoghar', 'dumka',
-      'patna', 'lucknow', 'kolkata', 'new delhi', 'noida', 'gurugram', 'bhubaneswar'
-    ];
-    return activeDefaults.includes(cleanName);
-  } catch {
-    return true;
+  } catch (e) {
+    void e;
   }
+
+  // 3. Fallback: check against standard Indian districts in static repository
+  try {
+    const normalizeLoc = (str) => {
+      if (!str) return '';
+      return String(str)
+        .toLowerCase()
+        .replace(/\s+district$/i, '')
+        .replace(/[\-_\.]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+
+    const isNorth24 = (s) => s.includes('24') && (s.includes('north') || s.includes('pgs') || s.includes('pargana'));
+    const isSouth24 = (s) => s.includes('24') && (s.includes('south') || s.includes('pgs') || s.includes('pargana'));
+
+    const staticDists = getAllStaticDistricts();
+    const cNorm = normalizeLoc(cleanName);
+
+    const isKnownStatic = staticDists.some(d => {
+      const sName = normalizeLoc(d.name);
+      if (sName === cNorm || cNorm.includes(sName) || sName.includes(cNorm)) return true;
+      if (isNorth24(cNorm) && isNorth24(sName)) return true;
+      if (isSouth24(cNorm) && isSouth24(sName)) return true;
+      return false;
+    });
+
+    if (isKnownStatic) {
+      return true;
+    }
+  } catch (e) {
+    void e;
+  }
+
+  // Primary operating list fallback
+  const activeDefaults = [
+    'ranchi', 'jamshedpur', 'dhanbad', 'bokaro', 'deoghar', 'dumka',
+    'patna', 'lucknow', 'kolkata', 'new delhi', 'noida', 'gurugram', 'bhubaneswar'
+  ];
+  return activeDefaults.some(d => cleanName.includes(d) || d.includes(cleanName));
 };
 
-export const updateDistrictStatus = async (districtId, status, coverage_radius_km = 15, actor = {}) => {
+export const updateDistrictStatus = async (districtId, status, coverage_radius_km = 15, actor = {}, districtName = null) => {
   const payload = { status, coverage_radius_km: Number(coverage_radius_km) };
 
   // Always save update to LocalStorage fallback so district status updates stick immediately
   saveDistrictUpdateToStorage(districtId, payload);
+  if (districtName) {
+    saveDistrictUpdateToStorage(districtName, payload);
+  }
 
   if (supabase) {
     try {
-      let { data, error } = await supabase
-        .from('districts')
-        .update(payload)
-        .eq('id', districtId)
-        .select()
-        .maybeSingle();
+      // If districtId is a number or valid ID, attempt update by id
+      if (typeof districtId === 'number' || (typeof districtId === 'string' && !districtId.startsWith('dist-'))) {
+        let { data } = await supabase
+          .from('districts')
+          .update(payload)
+          .eq('id', districtId)
+          .select()
+          .maybeSingle();
 
-      if (error && isMissingTableError(error)) {
-        await supabase
-          .from('cities')
-          .update({ status: status === 'Active' ? 'Live' : status })
-          .eq('id', districtId);
+        if (data) return { data, error: null };
       }
 
-      if (data) {
-        return { data, error: null };
+      // If updating by ID didn't match, attempt update by name
+      const targetName = districtName || (typeof districtId === 'string' && !districtId.startsWith('dist-') ? districtId : null);
+      if (targetName) {
+        let { data } = await supabase
+          .from('districts')
+          .update(payload)
+          .ilike('name', targetName.trim())
+          .select()
+          .maybeSingle();
+
+        if (data) return { data, error: null };
       }
     } catch (e) {
       void e;

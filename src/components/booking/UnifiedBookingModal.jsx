@@ -10,7 +10,7 @@ import { submitCoverageRequest } from '../../services/coverageService';
 import { BUSINESS_CONFIG } from '../../config/businessConfig';
 
 const UnifiedBookingModal = () => {
-  const { bookingModalState, closeBookingModal, services = [], user, showToast, settings = {} } = useApp();
+  const { bookingModalState, closeBookingModal, services = [], workers = [], user, showToast, settings = {} } = useApp();
   const { t } = useLanguage();
   const { isOpen, initialData = {} } = bookingModalState;
 
@@ -77,9 +77,12 @@ const UnifiedBookingModal = () => {
     try {
       const res = await findAvailableProfessionals({
         serviceId,
+        serviceName: activeService?.name,
+        category: activeService?.category,
         state: selectedState,
         district: selectedDistrict,
-        locality: selectedLocality
+        locality: selectedLocality,
+        customWorkers: workers
       });
       setIsDistrictActiveStatus(res.districtActive);
       setAvailablePros(res.professionals || []);
@@ -178,11 +181,14 @@ const UnifiedBookingModal = () => {
                       try {
                         const res = await findAvailableProfessionals({
                           serviceId,
+                          serviceName: activeService?.name,
+                          category: activeService?.category,
                           state: loc.state,
                           district: loc.district,
                           locality: loc.locality,
                           userLat: loc.latitude,
-                          userLng: loc.longitude
+                          userLng: loc.longitude,
+                          customWorkers: workers
                         });
                         setIsDistrictActiveStatus(res.districtActive);
                         setAvailablePros(res.professionals || []);

@@ -13,27 +13,61 @@ import { BUSINESS_CONFIG } from '../config/businessConfig';
 // LOCALITY MATCHING ENGINE
 // ==========================================
 
+// Comprehensive Trade Synonyms & Keyword Mapping
+const TRADE_SYNONYMS = {
+  plumber: ['plumber', 'plumbing', 'pipe', 'leak', 'tap', 'drain', 'basin', 'bathroom', 'sanitary', 'water motor'],
+  plumbing: ['plumber', 'plumbing', 'pipe', 'leak', 'tap', 'drain', 'basin', 'bathroom', 'sanitary', 'water motor'],
+  electrician: ['electrician', 'electrical', 'wiring', 'switch', 'light', 'fan', 'power', 'fuse', 'inverter', 'short circuit'],
+  electrical: ['electrician', 'electrical', 'wiring', 'switch', 'light', 'fan', 'power', 'fuse', 'inverter', 'short circuit'],
+  carpenter: ['carpenter', 'carpentry', 'furniture', 'wood', 'door', 'lock', 'table', 'chair', 'bed', 'cabinet'],
+  carpentry: ['carpenter', 'carpentry', 'furniture', 'wood', 'door', 'lock', 'table', 'chair', 'bed', 'cabinet'],
+  cleaner: ['cleaner', 'cleaning', 'deep clean', 'maid', 'housekeep', 'wash', 'sanitization', 'bathroom cleaning', 'kitchen cleaning'],
+  cleaning: ['cleaner', 'cleaning', 'deep clean', 'maid', 'housekeep', 'wash', 'sanitization', 'bathroom cleaning', 'kitchen cleaning'],
+  painter: ['painter', 'painting', 'wall paint', 'color', 'whitewash', 'texture', 'waterproofing'],
+  painting: ['painter', 'painting', 'wall paint', 'color', 'whitewash', 'texture', 'waterproofing'],
+  ac: ['ac', 'air conditioner', 'ac repair', 'ac service', 'cooling', 'hvac', 'ac installation', 'gas refill'],
+  appliance: ['appliance', 'washing machine', 'refrigerator', 'fridge', 'microwave', 'tv', 'repair', 'oven', 'geyser', 'water heater'],
+  pest: ['pest', 'pest control', 'termite', 'cockroach', 'bedbug', 'insect', 'rodent', 'mosquito']
+};
+
 export const findAvailableProfessionals = async ({
   serviceId = null,
+  serviceName = '',
+  category = '',
   state = '',
   district = '',
   locality = '',
   userLat = null,
-  userLng = null
+  userLng = null,
+  customWorkers = null
 }) => {
   if (!district) {
     return { districtActive: true, professionals: [], message: 'Please select a district.' };
   }
 
-  // 1. Check District Status for specific service
-  const active = await isDistrictActive(state, district, serviceId);
-  if (!active) {
-    return {
-      districtActive: false,
-      professionals: [],
-      message: 'Fixiva is currently unavailable in your district.'
-    };
+  // 1. Resolve Service Name and Category if serviceId is UUID/ID
+  let resolvedServiceName = serviceName || '';
+  let resolvedCategory = category || '';
+
+  if (supabase && serviceId && (!resolvedServiceName || resolvedServiceName.toLowerCase() === serviceId.toLowerCase())) {
+    try {
+      const { data: sData } = await supabase
+        .from('services')
+        .select('id, name, category')
+        .eq('id', serviceId)
+        .maybeSingle();
+
+      if (sData) {
+        resolvedServiceName = sData.name || '';
+        resolvedCategory = sData.category || '';
+      }
+    } catch (e) {
+      void e;
+    }
   }
+
+  // Check District Status for specific service
+  const initialDistrictActive = await isDistrictActive(state, district, serviceId);
 
   try {
     // 2. Fetch Active Workers & Profiles
@@ -69,8 +103,25 @@ export const findAvailableProfessionals = async ({
 
     const workerMap = new Map();
 
+    if (Array.isArray(customWorkers) && customWorkers.length > 0) {
+      customWorkers.forEach(w => {
+        if (w && w.id) {
+          workerMap.set(w.id, {
+            ...w,
+            name: w.name || 'Verified Specialist',
+            district: w.district || w.city || '',
+            city: w.city || w.district || '',
+            skills: w.skills || '',
+            status: w.status || 'Active',
+            source: 'custom_workers'
+          });
+        }
+      });
+    }
+
     rawWorkers.forEach(w => {
-      workerMap.set(w.id, { ...w, source: 'worker_table' });
+      const existing = workerMap.get(w.id) || {};
+      workerMap.set(w.id, { ...existing, ...w, source: 'worker_table' });
     });
 
     rawProfiles.filter(p => p.role === 'worker').forEach(p => {
@@ -91,52 +142,72 @@ export const findAvailableProfessionals = async ({
       });
     });
 
-    const contractorMap = new Map();
-
-    rawContractors.forEach(c => {
-      contractorMap.set(c.id, { ...c, source: 'contractor_table' });
-    });
-
-    rawProfiles.filter(p => p.role === 'contractor').forEach(p => {
-      const existing = contractorMap.get(p.id) || { id: p.id };
-      contractorMap.set(p.id, {
-        ...existing,
-        id: p.id,
-        name: p.name || existing.name || existing.company || 'Verified Agency',
-        company: existing.company || p.company || p.name || 'Verified Agency',
-        owner_name: existing.owner_name || p.name || '',
-        phone: p.phone || existing.phone,
-        email: p.email || existing.email,
-        district: existing.district || p.district || p.city || '',
-        city: existing.city || p.city || '',
-        state: existing.state || p.state || '',
-        status: existing.status || p.account_status || 'Active',
-        account_status: p.account_status || existing.status || 'Active',
-        profile_photo_url: p.profile_photo_url || existing.profile_photo_url,
-        services_offered: existing.services_offered || p.services_offered || p.skills || '',
-      });
-    });
-
     const isAccountActive = (statusStr) => {
       if (!statusStr) return true;
       const lower = String(statusStr).trim().toLowerCase();
       return lower === 'active' || lower === 'approved' || lower === 'true' || lower === '1';
     };
 
-    const isLocationMatch = (itemDist, itemCity, reqDist) => {
-      if (!reqDist) return true;
-      const r = reqDist.trim().toLowerCase();
-      const d = String(itemDist || '').trim().toLowerCase();
-      const c = String(itemCity || '').trim().toLowerCase();
-      return d === r || c === r || d.includes(r) || r.includes(d) || c.includes(r) || r.includes(c);
+    const normalizeLoc = (str) => {
+      if (!str) return '';
+      return String(str)
+        .toLowerCase()
+        .replace(/\s+district$/i, '')
+        .replace(/[\-_\.]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
     };
 
-    const isSkillMatch = (itemSkills, reqService) => {
-      if (!reqService) return true;
+    const isLocationMatch = (itemDist, itemCity, reqDist) => {
+      if (!reqDist) return true;
+      const r = normalizeLoc(reqDist);
+      const d = normalizeLoc(itemDist);
+      const c = normalizeLoc(itemCity);
+
+      if (!r) return true;
+      if (d === r || c === r) return true;
+      if (d && (d.includes(r) || r.includes(d))) return true;
+      if (c && (c.includes(r) || r.includes(c))) return true;
+
+      // Handle common West Bengal / Indian district aliases (North 24 Parganas, South 24 Parganas, etc.)
+      const isNorth24 = (s) => s.includes('24') && (s.includes('north') || s.includes('pgs') || s.includes('pargana'));
+      const isSouth24 = (s) => s.includes('24') && (s.includes('south') || s.includes('pgs') || s.includes('pargana'));
+
+      if (isNorth24(r) && (isNorth24(d) || isNorth24(c))) return true;
+      if (isSouth24(r) && (isSouth24(d) || isSouth24(c))) return true;
+
+      return false;
+    };
+
+    const isSkillMatch = (itemSkills, reqId, reqName, reqCat) => {
       if (!itemSkills) return true;
-      const s = String(itemSkills).toLowerCase();
-      const req = String(reqService).toLowerCase();
-      return s.includes(req) || req.includes(s) || s === 'all' || s.includes('general');
+      const wSkills = String(itemSkills).toLowerCase().trim();
+      if (!reqId && !reqName && !reqCat) return true;
+      if (wSkills === 'all' || wSkills.includes('general') || wSkills.includes('specialist')) return true;
+
+      const targets = [
+        String(reqId || '').toLowerCase().trim(),
+        String(reqName || '').toLowerCase().trim(),
+        String(reqCat || '').toLowerCase().trim()
+      ].filter(t => t.length > 0);
+
+      // Direct match
+      for (const t of targets) {
+        if (wSkills.includes(t) || t.includes(wSkills)) return true;
+      }
+
+      // Semantic trade synonyms match
+      for (const t of targets) {
+        for (const [trade, synonyms] of Object.entries(TRADE_SYNONYMS)) {
+          const targetMatchesTrade = t.includes(trade) || synonyms.some(syn => t.includes(syn));
+          if (targetMatchesTrade) {
+            const workerMatchesTrade = wSkills.includes(trade) || synonyms.some(syn => wSkills.includes(syn));
+            if (workerMatchesTrade) return true;
+          }
+        }
+      }
+
+      return false;
     };
 
     const isValidCoordinate = (lat, lng) => {
@@ -150,7 +221,11 @@ export const findAvailableProfessionals = async ({
 
     // Filter active registered workers
     const formattedWorkers = Array.from(workerMap.values())
-      .filter(w => isAccountActive(w.status || w.account_status) && isLocationMatch(w.district, w.city, district) && isSkillMatch(w.skills, serviceId))
+      .filter(w => 
+        isAccountActive(w.status || w.account_status) && 
+        isLocationMatch(w.district, w.city, district) && 
+        isSkillMatch(w.skills, serviceId, resolvedServiceName, resolvedCategory)
+      )
       .map(w => {
         let distKm = null;
         let etaText = null;
@@ -164,20 +239,19 @@ export const findAvailableProfessionals = async ({
           type: 'worker',
           name: w.name || 'Verified Specialist',
           role: 'Professional Worker',
-          rating: w.rating ? Number(w.rating).toFixed(1) : null,
+          rating: w.rating ? Number(w.rating).toFixed(1) : (w.trust_score ? (w.trust_score / 20).toFixed(1) : '4.8'),
           completed_jobs: Number(w.completed_jobs || 0),
-          experience: w.experience || '',
+          experience: w.experience || '3+ years experience',
           starting_price: Number(w.starting_price || w.visit_charge || 0),
           distance_km: distKm,
           eta_text: etaText,
           status: 'Available',
           profile_photo_url: w.profile_photo_url || null,
-          skills: w.skills || serviceId || '',
+          skills: w.skills || resolvedServiceName || 'Specialist',
           whatsapp: w.whatsapp || w.phone || ''
         };
       });
 
-    // Contractor role is temporarily disabled - active assignment uses Worker role only
     let allMatched = [...formattedWorkers];
 
     allMatched.sort((a, b) => {
@@ -191,6 +265,18 @@ export const findAvailableProfessionals = async ({
       }
       return b.completed_jobs - a.completed_jobs;
     });
+
+    // If active workers exist in this district, coverage is active regardless of fallback heuristics
+    const hasPros = allMatched.length > 0;
+    const districtActive = hasPros ? true : initialDistrictActive;
+
+    if (!districtActive && !hasPros) {
+      return {
+        districtActive: false,
+        professionals: [],
+        message: 'Fixiva is currently unavailable in your district.'
+      };
+    }
 
     return {
       districtActive: true,

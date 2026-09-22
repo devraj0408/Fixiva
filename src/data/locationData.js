@@ -501,15 +501,228 @@ export const LOCATION_DATA = [
   {
     state: "West Bengal",
     districts: [
-      { name: "Kolkata", localities: [{ name: "Park Street" }, { name: "Salt Lake Sector 5" }, { name: "New Town" }, { name: "Ballygunge" }, { name: "Behala" }, { name: "Tollygunge" }, { name: "Alipore" }] },
-      { name: "Howrah", localities: [{ name: "Shibpur" }, { name: "Bally" }, { name: "Howrah Station Area" }] },
-      { name: "Durgapur", localities: [{ name: "City Centre" }, { name: "Benachity" }] },
-      { name: "Asansol", localities: [{ name: "GT Road" }, { name: "Kalyanpur" }] },
-      { name: "Siliguri", localities: [{ name: "Sevoke Road" }, { name: "Hill Cart Road" }] },
-      { name: "Kharagpur", localities: [{ name: "IIT Area" }] },
-      { name: "Bardhaman", localities: [{ name: "Curzon Gate" }] },
-      { name: "Malda", localities: [{ name: "English Bazaar" }] },
-      { name: "Jalpaiguri", localities: [{ name: "Main Town" }] }
+      { 
+        name: "North 24 Parganas", 
+        localities: [
+          { name: "Bidhannagar (Salt Lake)" },
+          { name: "New Town" },
+          { name: "Barasat" },
+          { name: "Barrackpore" },
+          { name: "Rajarhat" },
+          { name: "Dum Dum" },
+          { name: "Madhyamgram" },
+          { name: "Naihati" },
+          { name: "Habra" },
+          { name: "Basirhat" },
+          { name: "Bhatpara" },
+          { name: "Sodepur" },
+          { name: "Belgharia" },
+          { name: "Titagarh" },
+          { name: "Kanchrapara" },
+          { name: "Halisahar" },
+          { name: "Panihati" },
+          { name: "Kamarhati" },
+          { name: "Baranagar" },
+          { name: "Bangaon" }
+        ] 
+      },
+      { 
+        name: "Kolkata", 
+        localities: [
+          { name: "Park Street" },
+          { name: "Salt Lake Sector 5" },
+          { name: "New Town" },
+          { name: "Ballygunge" },
+          { name: "Behala" },
+          { name: "Tollygunge" },
+          { name: "Alipore" },
+          { name: "Gariahat" },
+          { name: "Shyambazar" },
+          { name: "Howrah Bridge Area" }
+        ] 
+      },
+      { 
+        name: "South 24 Parganas", 
+        localities: [
+          { name: "Baruipur" },
+          { name: "Sonarpur" },
+          { name: "Garia" },
+          { name: "Jadavpur" },
+          { name: "Diamond Harbour" },
+          { name: "Canning" },
+          { name: "Budge Budge" },
+          { name: "Maheshtala" }
+        ] 
+      },
+      { 
+        name: "Howrah", 
+        localities: [
+          { name: "Shibpur" },
+          { name: "Bally" },
+          { name: "Howrah Station Area" },
+          { name: "Uluberia" },
+          { name: "Liluah" }
+        ] 
+      },
+      { 
+        name: "Hooghly", 
+        localities: [
+          { name: "Chinsurah" },
+          { name: "Chandannagar" },
+          { name: "Serampore" },
+          { name: "Uttarpara" },
+          { name: "Rishra" },
+          { name: "Bandel" }
+        ] 
+      },
+      { 
+        name: "Nadia", 
+        localities: [
+          { name: "Kalyani" },
+          { name: "Krishnanagar" },
+          { name: "Ranaghat" },
+          { name: "Nabadwip" },
+          { name: "Santipur" }
+        ] 
+      },
+      { 
+        name: "Paschim Bardhaman", 
+        localities: [
+          { name: "Asansol" },
+          { name: "Durgapur" },
+          { name: "City Centre" },
+          { name: "Benachity" },
+          { name: "Raniganj" }
+        ] 
+      },
+      { 
+        name: "Purba Bardhaman", 
+        localities: [
+          { name: "Bardhaman Town" },
+          { name: "Curzon Gate" },
+          { name: "Kalna" },
+          { name: "Katwa" }
+        ] 
+      },
+      { 
+        name: "Durgapur", 
+        localities: [
+          { name: "City Centre" },
+          { name: "Benachity" },
+          { name: "Bidhannagar (Durgapur)" }
+        ] 
+      },
+      { 
+        name: "Asansol", 
+        localities: [
+          { name: "GT Road" },
+          { name: "Kalyanpur" }
+        ] 
+      },
+      { 
+        name: "Siliguri", 
+        localities: [
+          { name: "Sevoke Road" },
+          { name: "Hill Cart Road" },
+          { name: "Pradhan Nagar" }
+        ] 
+      },
+      { 
+        name: "Darjeeling", 
+        localities: [
+          { name: "Mall Road" },
+          { name: "Kurseong" },
+          { name: "Mirik" }
+        ] 
+      },
+      { 
+        name: "Paschim Medinipur", 
+        localities: [
+          { name: "Midnapore" },
+          { name: "Kharagpur" },
+          { name: "IIT Area" }
+        ] 
+      },
+      { 
+        name: "Purba Medinipur", 
+        localities: [
+          { name: "Tamluk" },
+          { name: "Haldia" },
+          { name: "Contai" },
+          { name: "Digha" }
+        ] 
+      },
+      { 
+        name: "Kharagpur", 
+        localities: [
+          { name: "IIT Area" },
+          { name: "Golbazar" }
+        ] 
+      },
+      { 
+        name: "Bardhaman", 
+        localities: [
+          { name: "Curzon Gate" },
+          { name: "Golapbag" }
+        ] 
+      },
+      { 
+        name: "Malda", 
+        localities: [
+          { name: "English Bazaar" },
+          { name: "Old Malda" }
+        ] 
+      },
+      { 
+        name: "Murshidabad", 
+        localities: [
+          { name: "Berhampore" },
+          { name: "Lalbagh" }
+        ] 
+      },
+      { 
+        name: "Jalpaiguri", 
+        localities: [
+          { name: "Main Town" },
+          { name: "Malbazar" }
+        ] 
+      },
+      { 
+        name: "Birbhum", 
+        localities: [
+          { name: "Suri" },
+          { name: "Bolpur (Santiniketan)" },
+          { name: "Rampurhat" }
+        ] 
+      },
+      { 
+        name: "Bankura", 
+        localities: [
+          { name: "Bankura Town" },
+          { name: "Bishnupur" }
+        ] 
+      },
+      { 
+        name: "Purulia", 
+        localities: [
+          { name: "Purulia Town" },
+          { name: "Raghunathpur" }
+        ] 
+      },
+      { 
+        name: "Cooch Behar", 
+        localities: [
+          { name: "Cooch Behar Town" },
+          { name: "Dinhata" }
+        ] 
+      },
+      { 
+        name: "Alipurduar", 
+        localities: [
+          { name: "Alipurduar Town" },
+          { name: "Jaigaon" }
+        ] 
+      }
     ]
   }
 ];

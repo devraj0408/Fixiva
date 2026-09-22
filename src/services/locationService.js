@@ -122,33 +122,44 @@ export const getDistricts = async (stateName = null) => {
     }
   }
 
-  // Fallback to static districts if DB returned no data
-  if (baseDistricts.length === 0) {
-    if (stateName) {
-      const names = getDistrictsForState(stateName);
-      baseDistricts = names.map((d, idx) => ({
+  // Fetch all static districts as foundational baseline
+  const staticList = stateName 
+    ? getDistrictsForState(stateName).filter(d => typeof d === 'string' && !d.includes('Other')).map((d, idx) => ({
         id: idx + 100,
         name: d,
         state_name: stateName,
         status: 'Active',
         coverage_radius_km: 15
-      }));
-    } else {
-      baseDistricts = getAllStaticDistricts();
-    }
-  }
+      }))
+    : getAllStaticDistricts();
 
-  // Merge custom created districts from localStorage
-  const customList = getStoredCustomDistricts();
   const districtMap = new Map();
 
-  [...baseDistricts, ...customList].forEach(d => {
+  // 1. First populate static districts baseline
+  staticList.forEach(d => {
     if (stateName && (d.state_name || '').toLowerCase() !== stateName.toLowerCase()) return;
-    const key = (d.name || '').toLowerCase();
+    const key = (d.name || '').toLowerCase().trim();
     districtMap.set(key, d);
   });
 
-  // Apply stored status/radius updates
+  // 2. Overlay database districts
+  baseDistricts.forEach(d => {
+    if (stateName && (d.state_name || '').toLowerCase() !== stateName.toLowerCase()) return;
+    const key = (d.name || '').toLowerCase().trim();
+    const existing = districtMap.get(key) || {};
+    districtMap.set(key, { ...existing, ...d });
+  });
+
+  // 3. Merge custom created districts from localStorage
+  const customList = getStoredCustomDistricts();
+  customList.forEach(d => {
+    if (stateName && (d.state_name || '').toLowerCase() !== stateName.toLowerCase()) return;
+    const key = (d.name || '').toLowerCase().trim();
+    const existing = districtMap.get(key) || {};
+    districtMap.set(key, { ...existing, ...d });
+  });
+
+  // 4. Apply stored status/radius updates
   const updatesMap = getStoredDistrictUpdates();
   const merged = Array.from(districtMap.values()).map(d => {
     const update = updatesMap[d.id] || updatesMap[d.name];
@@ -162,12 +173,16 @@ export const getDistricts = async (stateName = null) => {
 };
 
 export const createDistrict = async (districtData, actor = {}) => {
-  const payload = {
-    id: `dist-${Date.now()}`,
+  const dbPayload = {
     state_name: String(districtData.state_name || districtData.state || 'Jharkhand').trim(),
     name: String(districtData.name || districtData.district || '').trim(),
     status: String(districtData.status || 'Active').trim(),
     coverage_radius_km: Number(districtData.coverage_radius_km || 15),
+  };
+
+  const payload = {
+    id: `dist-${Date.now()}`,
+    ...dbPayload
   };
 
   let createdData = null;
@@ -175,7 +190,7 @@ export const createDistrict = async (districtData, actor = {}) => {
 
   if (supabase) {
     try {
-      const { data, error } = await supabase.from('districts').insert(payload).select().maybeSingle();
+      const { data, error } = await supabase.from('districts').insert(dbPayload).select().maybeSingle();
       if (!error && data) {
         createdData = data;
       } else {

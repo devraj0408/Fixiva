@@ -25,6 +25,7 @@ const BookingFlow = () => {
 
   const {
     services = [],
+    workers = [],
     user,
     showToast,
     settings = {}
@@ -34,6 +35,7 @@ const BookingFlow = () => {
   const queryParams = new URLSearchParams(location.search);
   const explicitServiceId = paramServiceId || queryParams.get('service');
   const initialServiceId = explicitServiceId || '';
+  const initialParamWorkerId = queryParams.get('workerId') || '';
   const initialParamState = queryParams.get('state') || localStorage.getItem('fixiva:last-state') || '';
   const initialParamDistrict = queryParams.get('district') || localStorage.getItem('fixiva:last-district') || '';
   const initialParamLocality = queryParams.get('locality') || localStorage.getItem('fixiva:last-locality') || '';
@@ -109,8 +111,8 @@ const BookingFlow = () => {
 
   // Active Service object
   const activeService = selectedServiceId ? (
-    activeServices.find(s => s.id === selectedServiceId) || 
-    services.find(s => s.id === selectedServiceId) || 
+    activeServices.find(s => s.id === selectedServiceId || s.name?.toLowerCase() === selectedServiceId.toLowerCase()) || 
+    services.find(s => s.id === selectedServiceId || s.name?.toLowerCase() === selectedServiceId.toLowerCase()) || 
     {
       id: selectedServiceId,
       name: selectedServiceId.charAt(0).toUpperCase() + selectedServiceId.slice(1),
@@ -127,24 +129,32 @@ const BookingFlow = () => {
     try {
       const res = await findAvailableProfessionals({
         serviceId: selectedServiceId,
+        serviceName: activeService?.name,
+        category: activeService?.category,
         state: selectedState,
         district: selectedDistrict,
         locality: selectedLocality,
         userLat,
-        userLng
+        userLng,
+        customWorkers: workers
       });
 
       setIsDistrictActiveStatus(res.districtActive);
       setAvailablePros(res.professionals || []);
       if (res.professionals && res.professionals.length > 0) {
-        setSelectedPro(res.professionals[0]);
+        if (initialParamWorkerId) {
+          const matchedById = res.professionals.find(p => p.id === initialParamWorkerId);
+          setSelectedPro(matchedById || res.professionals[0]);
+        } else {
+          setSelectedPro(res.professionals[0]);
+        }
       }
     } catch {
       showToast('Error matching nearby professionals', 'error');
     } finally {
       setMatchingLoading(false);
     }
-  }, [selectedServiceId, selectedState, selectedDistrict, selectedLocality, userLat, userLng, showToast]);
+  }, [selectedServiceId, activeService?.name, activeService?.category, selectedState, selectedDistrict, selectedLocality, userLat, userLng, initialParamWorkerId, workers, showToast]);
 
   useEffect(() => {
     if (selectedServiceId && step >= 2) {
