@@ -751,6 +751,11 @@ const CustomerDashboard = () => {
                       </div>
                     </div>
 
+                    {/* Direct Worker Booking Lifecycle Timeline */}
+                    <div className="pt-1 border-t border-slate-100">
+                      <BookingStatusTimeline status={b.status} workerName={b.worker_name} booking={b} />
+                    </div>
+
                     {/* Active Worker Live Tracking Card */}
                     {['Assigned', 'In Progress', 'Accepted', 'On The Way', 'Worker Assigned'].includes(b.status) && b.worker_id && (
                       <WorkerLiveTrackingCard booking={b} />
@@ -1128,11 +1133,13 @@ const CustomerDashboard = () => {
 
                       <div>
                         <h4 className="font-extrabold text-slate-900 text-sm">{b.service_name || 'Home Service'}</h4>
-                        <p className="text-xs text-slate-500 font-medium">Assigned Partner: {b.worker_name || 'Specialist Dispatching'}</p>
+                        <p className="text-xs text-slate-500 font-medium">
+                          Direct Specialist: <strong className="text-slate-800">{b.worker_name || 'Matching Nearby Specialist'}</strong>
+                        </p>
                       </div>
 
                       {/* Reusable Booking Lifecycle Status Timeline */}
-                      <BookingStatusTimeline status={b.status} />
+                      <BookingStatusTimeline status={b.status} workerName={b.worker_name} booking={b} />
 
                       <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
                         <div className="flex justify-between items-center text-slate-600 font-medium">
