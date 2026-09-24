@@ -1,0 +1,137 @@
+import { supabase } from '../lib/supabaseClient';
+
+/**
+ * Helper to compress image and convert to lightweight JPEG Data URL (max 800x800, quality 0.75)
+ */
+export const compressImageToDataUrl = (file, maxWidth = 800, maxHeight = 800, quality = 0.75) => {
+  return new Promise((resolve) => {
+    if (!file || typeof file === 'string') {
+      resolve(typeof file === 'string' ? file : '');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth || height > maxHeight) {
+          if (width / height > maxWidth / maxHeight) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressedDataUrl);
+      };
+      img.onerror = () => resolve(e.target.result || '');
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Helper to convert file to Base64 Data URL so image persists reliably in state/DB/localStorage
+ */
+export const fileToDataUrl = async (file) => {
+  try {
+    const compressed = await compressImageToDataUrl(file);
+    if (compressed) return compressed;
+  } catch (e) {
+    void e;
+  }
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+};
+
+/**
+ * Storage Service for image uploads to Supabase Storage with automatic Base64 Data URL fallback
+ * Guarantees that profile photo & asset updates never fail even if Supabase buckets do not exist.
+ */
+export const uploadImage = async (file, bucket = 'cms-assets', folder = 'catalog') => {
+  if (!file) {
+    return { success: false, url: '', error: 'No file provided' };
+  }
+
+  if (typeof file === 'string') {
+    if (file.startsWith('blob:')) {
+      return { success: false, url: '', error: 'Blob URL not supported for persistence' };
+    }
+    return { success: true, url: file };
+  }
+
+  // Pre-convert to Data URL as resilient fallback
+  let dataUrlFallback = '';
+  try {
+    dataUrlFallback = await fileToDataUrl(file);
+  } catch (e) {
+    void e;
+  }
+
+  if (!supabase) {
+    if (dataUrlFallback) {
+      return { success: true, url: dataUrlFallback, error: null };
+    }
+    return { success: false, url: '', error: 'Supabase storage client not available' };
+  }
+
+  try {
+    const fileExt = file.name ? file.name.split('.').pop() : 'jpg';
+    const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).slice(2, 9)}.${fileExt}`;
+
+    // Try primary bucket upload
+    let { data, error } = await supabase.storage.from(bucket).upload(fileName, file, {
+      cacheControl: '3600',
+      upsert: true,
+    });
+
+    // Try fallback bucket if primary bucket fails with Bucket / Not Found
+    if (error && (error.message.includes('not found') || error.message.includes('Bucket') || error.message.includes('bucket'))) {
+      const retryBucket = bucket === 'cms-assets' ? 'services' : 'cms-assets';
+      const retryFallback = await supabase.storage.from(retryBucket).upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+      if (!retryFallback.error && retryFallback.data) {
+        data = retryFallback.data;
+        error = null;
+        bucket = retryBucket;
+      }
+    }
+
+    // If Supabase storage upload returns error (e.g. Bucket not found, RLS policy, missing permissions)
+    if (error) {
+      const errMsg = `Storage Bucket Error ('${bucket}'): ${error.message}`;
+      console.warn('[storageService]', errMsg);
+      if (dataUrlFallback) {
+        return { success: true, url: dataUrlFallback, error: null, storageNotice: errMsg };
+      }
+      return { success: false, url: '', error: errMsg };
+    }
+
+    const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+    const finalUrl = publicUrlData?.publicUrl || dataUrlFallback;
+    return { success: true, url: finalUrl, error: null };
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.warn('[storageService] Exception during storage upload:', errMsg);
+    if (dataUrlFallback) {
+      return { success: true, url: dataUrlFallback, error: null, storageNotice: `Storage exception: ${errMsg}` };
+    }
+    return { success: false, url: '', error: errMsg };
+  }
+};

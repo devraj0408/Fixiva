@@ -1,12 +1,17 @@
-import React, { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { 
-  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug, 
-  Trash2, Truck, HardHat, Home as HomeIcon, CheckCircle, 
-  Star, MapPin, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
+  Trash2, Truck, HardHat, Home as HomeIcon,
+  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle, MapPin, Navigation, ChevronLeft, ChevronRight, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
+import { useCms } from '../context/CmsContext';
+import { useLanguage } from '../context/LanguageContext';
+import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
+import HeroSlideshow from '../components/HeroSlideshow';
+import { detectCurrentLocation } from '../services/locationService';
 
 const IconMap = {
   zap: Zap,
@@ -29,30 +34,277 @@ const IconMap = {
   "AC Repair": Wind
 };
 
-const DEFAULT_CITIES = [
-  { id: 1, name: 'Ranchi', region: 'Jharkhand' },
-  { id: 2, name: 'Jamshedpur', region: 'Jharkhand' },
-  { id: 3, name: 'Dhanbad', region: 'Jharkhand' },
-  { id: 4, name: 'Bokaro', region: 'Jharkhand' },
-  { id: 5, name: 'Deoghar', region: 'Jharkhand' }
-];
+const HomePromotionalBanner = ({ banners, navigate }) => {
+  const activeBanners = useMemo(() => {
+    return (banners || []).filter((b) => {
+      if (!b || b.active === false || b.active === 'false' || b.active === 0 || b.active === '0') return false;
+      if (!b.image_url) return false;
+      const now = new Date();
+      if (b.start_date && new Date(b.start_date) > now) return false;
+      if (b.end_date && new Date(b.end_date) < now) return false;
+      return true;
+    }).sort((a, b) => (Number(a.display_order) || 0) - (Number(b.display_order) || 0));
+  }, [banners]);
+
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [touchStart, setTouchStart] = useState(null);
+
+  useEffect(() => {
+    if (activeBanners.length <= 1 || isHovered) return;
+    const timer = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [activeBanners.length, isHovered]);
+
+  if (activeBanners.length === 0) return null;
+
+  const safeIndex = currentIndex < activeBanners.length ? currentIndex : 0;
+  const banner = activeBanners[safeIndex];
+
+  const handleTouchStart = (e) => setTouchStart(e.targetTouches[0].clientX);
+  const handleTouchEnd = (e) => {
+    if (!touchStart) return;
+    const touchEnd = e.changedTouches[0].clientX;
+    if (touchStart - touchEnd > 50) {
+      setCurrentIndex((prev) => (prev + 1) % activeBanners.length);
+    } else if (touchEnd - touchStart > 50) {
+      setCurrentIndex((prev) => (prev === 0 ? activeBanners.length - 1 : prev - 1));
+    }
+    setTouchStart(null);
+  };
+
+  const handleCtaClick = () => {
+    const target = banner.link_url || banner.url || '/services';
+    if (target.startsWith('http')) {
+      window.open(target, '_blank');
+    } else {
+      navigate(target);
+    }
+  };
+
+  return (
+    <section className="py-6 bg-slate-50/60 dark:bg-slate-900/60 border-y border-slate-100 dark:border-slate-800">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          className="relative overflow-hidden rounded-[1.8rem] bg-[#171918] text-white shadow-md border border-slate-800"
+        >
+          <div className="flex flex-col md:flex-row items-center justify-between p-6 sm:p-8 gap-6">
+            {banner.image_url ? (
+              <div className="w-full md:w-1/2 h-44 sm:h-56 rounded-2xl overflow-hidden shrink-0 border border-slate-700/60 shadow-lg relative bg-slate-800">
+                <img
+                  src={banner.image_url}
+                  alt={banner.title || 'Promotional Banner'}
+                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                />
+              </div>
+            ) : null}
+
+            <div className="flex-1 space-y-3.5 text-left">
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/20 text-primary text-[10px] font-black uppercase tracking-wider border border-primary/30">
+                <span>✨ Special Promotion</span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-black text-white leading-tight tracking-tight">
+                {banner.title}
+              </h3>
+
+              {(banner.subtitle || banner.description) && (
+                <p className="text-xs sm:text-sm text-slate-300 font-semibold leading-relaxed line-clamp-2">
+                  {banner.subtitle || banner.description}
+                </p>
+              )}
+
+              {(banner.cta_text || banner.link_url) && (
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCtaClick}
+                    className="btn-primary px-6 py-2.5 rounded-xl text-xs font-black shadow-lg inline-flex items-center gap-2 hover:gap-3 transition-all"
+                  >
+                    <span>{banner.cta_text || 'Explore Offer'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {activeBanners.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-slate-900/80 backdrop-blur-md px-3 py-1 rounded-full border border-slate-700/60 shadow-sm">
+              {activeBanners.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentIndex(idx)}
+                  className={`h-2 rounded-full transition-all duration-300 ${
+                    idx === safeIndex ? 'w-6 bg-primary' : 'w-2 bg-slate-500 hover:bg-slate-300'
+                  }`}
+                  aria-label={`Go to banner ${idx + 1}`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+const HeroServiceSlideshow = HeroSlideshow;
 
 const Home = () => {
-  const { services, reviews, cities } = useApp();
-  const displayCities = cities && cities.length > 0 ? cities : DEFAULT_CITIES;
+  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest, settings: authSettings } = useApp();
+  const { reviews: cmsReviews, banners, cities: cmsCities, settings: cmsSettings } = useCms();
+  const settings = cmsSettings || authSettings || {};
+  const { t } = useLanguage();
   const navigate = useNavigate();
+
+  const activeServices = useMemo(() => {
+    return (services || []).filter(
+      (s) => s.active !== false && s.active !== 'false' && s.active !== 0 && s.active !== '0'
+    );
+  }, [services]);
+
+  const reviews = (cmsReviews || []).length > 0 ? cmsReviews : appReviews;
+
   
-  // Search & City selectors inside the Hero
-  const [selectedCity, setSelectedCity] = useState('');
+  // Search & Location selectors inside the Hero initialized from localStorage
+  const [selectedState, setSelectedState] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-state') || ''; } catch { return ''; }
+  });
+  const [selectedDistrict, setSelectedDistrict] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-district') || ''; } catch { return ''; }
+  });
+  const [selectedLocality, setSelectedLocality] = useState(() => {
+    try { return localStorage.getItem('fixiva:last-locality') || ''; } catch { return ''; }
+  });
   const [searchQuery, setSearchQuery] = useState('');
+  const [detectingGps, setDetectingGps] = useState(false);
+
+  // Coverage Request Form States
+  const [reqDistrict, setReqDistrict] = useState('');
+  const [reqLocality, setReqLocality] = useState('');
+  const [reqState, setReqState] = useState('');
+  const [reqPincode, setReqPincode] = useState('');
+  const [reqLat, setReqLat] = useState(null);
+  const [reqLng, setReqLng] = useState(null);
+  const [reqPhone, setReqPhone] = useState('');
+  const [reqEmail, setReqEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [detectingCoverageGps, setDetectingCoverageGps] = useState(false);
+
+  const handleDetectLocation = async (e) => {
+    if (e && typeof e.preventDefault === 'function') e.preventDefault();
+    if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (detectingGps) return;
+
+    setDetectingGps(true);
+    try {
+      const loc = await detectCurrentLocation();
+      const st = loc.state || '';
+      const dist = loc.district || '';
+      const locName = loc.locality || '';
+
+      if (st) setSelectedState(st);
+      if (dist) setSelectedDistrict(dist);
+      if (locName) setSelectedLocality(locName);
+
+      try {
+        if (st) localStorage.setItem('fixiva:last-state', st);
+        if (dist) localStorage.setItem('fixiva:last-district', dist);
+        if (locName) localStorage.setItem('fixiva:last-locality', locName);
+      } catch { void 0; }
+
+      showToast(`Location set: ${[locName, dist, st].filter(Boolean).join(', ')}`, 'success');
+    } catch {
+      showToast('Could not access current location. You can select your location manually.', 'error');
+    } finally {
+      setDetectingGps(false);
+    }
+  };
+
+  const handleDetectCoverageLocation = async () => {
+    setDetectingCoverageGps(true);
+    try {
+      const loc = await detectCurrentLocation();
+      if (loc.state) setReqState(loc.state);
+      if (loc.district) setReqDistrict(loc.district);
+      if (loc.locality) setReqLocality(loc.locality);
+      if (loc.pincode) setReqPincode(loc.pincode);
+      if (loc.latitude) setReqLat(loc.latitude);
+      if (loc.longitude) setReqLng(loc.longitude);
+      showToast(`Location detected: ${[loc.locality, loc.district, loc.state].filter(Boolean).join(', ')}`, 'success');
+    } catch {
+      showToast('Could not detect current location. Select manually.', 'error');
+    } finally {
+      setDetectingCoverageGps(false);
+    }
+  };
+
+  const handleRequestSubmit = async (e) => {
+    e.preventDefault();
+    if (!reqDistrict.trim() || (!reqPhone.trim() && !reqEmail.trim())) {
+      showToast("Please select a city/district and provide your email.", 'error');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const res = await submitCoverageRequest({
+        state: reqState.trim(),
+        district: reqDistrict.trim(),
+        locality: reqLocality.trim(),
+        pincode: reqPincode.trim(),
+        latitude: reqLat,
+        longitude: reqLng,
+        phone: reqPhone.trim() || reqEmail.trim(),
+        email: reqEmail.trim(),
+        service_name: searchQuery.trim() || 'Home Services'
+      });
+
+      if (res.success) {
+        setIsSuccess(true);
+        setReqDistrict('');
+        setReqLocality('');
+        setReqPhone('');
+        setReqEmail('');
+        showToast(res.message || "Coverage request submitted successfully!", 'success');
+      } else {
+        showToast(res.error || "Failed to submit request.", 'error');
+      }
+    } catch {
+      showToast("Failed to submit request.", 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    // Redirect to services with query params
+    const matchedService = services.find(s => 
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      s.id === searchQuery.toLowerCase()
+    );
+
     const params = new URLSearchParams();
-    if (searchQuery) params.append('search', searchQuery);
-    if (selectedCity) params.append('city', selectedCity);
-    navigate(`/services?${params.toString()}`);
+    if (selectedState) params.set('state', selectedState);
+    if (selectedDistrict) params.set('city', selectedDistrict);
+    if (selectedLocality) params.set('locality', selectedLocality);
+    if (searchQuery) params.set('search', searchQuery);
+
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+
+    if (matchedService) {
+      navigate(`/book/${matchedService.id}${queryString}`);
+    } else {
+      navigate(`/services${queryString}`);
+    }
   };
 
   // Animation variants
@@ -70,87 +322,134 @@ const Home = () => {
   };
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100">
+      {settings.maintenanceMode && (
+        <div className="bg-amber-600 text-white px-4 py-2.5 text-center text-xs font-bold shadow-sm flex items-center justify-center gap-2">
+          <span>🔧 System Maintenance Notice: New customer booking creation is currently paused. You can still browse services and check availability.</span>
+        </div>
+      )}
       {/* Hero Section */}
-      <section className="relative py-20 lg:py-28 bg-gradient-to-br from-blue-50 via-indigo-50/30 to-white overflow-hidden border-b border-slate-100">
-        <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/5 rounded-full blur-3xl -z-10"></div>
-        <div className="absolute -bottom-10 left-10 w-[300px] h-[300px] bg-indigo-200/20 rounded-full blur-3xl -z-10"></div>
+      <section className="relative py-12 sm:py-16 lg:py-20 hero-shell overflow-hidden border-b border-slate-200/80 dark:border-slate-800">
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-14 items-center">
           {/* Hero Left Content */}
           <motion.div 
-            className="lg:col-span-7 space-y-8"
+            className="lg:col-span-6 space-y-6"
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-full text-xs font-bold uppercase tracking-wider shadow-sm border border-slate-100/80 text-primary">
-              <ShieldCheck size={14} className="animate-pulse" /> Official Marketplace Launched
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#E8F0ED] dark:bg-emerald-950/60 text-[#2F6B5F] dark:text-emerald-400 text-xs font-extrabold uppercase tracking-wider border border-[#2F6B5F]/20 dark:border-emerald-800/40 shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#2F6B5F] opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#2F6B5F]"></span>
+              </span>
+              <ShieldCheck size={14} /> {t('heroBadge', 'TRUSTED CONSUMER MARKETPLACE')}
             </div>
 
-            <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-slate-900 leading-tight">
-              One App.<br/>
-              <span className="bg-gradient-to-r from-primary to-indigo-600 bg-clip-text text-transparent">
-                Every Solution.
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-[#171918] dark:text-white leading-[1.08]">
+              {t('heroTitle1', 'Trusted home services,')}<br/>
+              <span className="bg-gradient-to-r from-[#2F6B5F] to-[#3D8068] dark:from-[#3D8068] dark:to-[#4FA387] bg-clip-text text-transparent">
+                {t('heroTitle2', 'simply booked.')}
               </span>
             </h1>
 
-            <p className="text-lg text-slate-600 font-medium max-w-xl">
-              Book professional home services instant dispatch. Connect with certified plumbers, electricians, painters and construction contractors in Ranchi, Dhanbad, and beyond.
+            <p className="text-base sm:text-lg text-[#6B716E] dark:text-slate-300 font-semibold max-w-xl leading-relaxed">
+              {t('heroSubtitle', 'Book professional home services with instant dispatch, verified experts, and a clear experience from first click to final service.')}
             </p>
 
-            {/* Premium search & Select City controls combined */}
-            <form onSubmit={handleSearchSubmit} className="bg-white p-2.5 rounded-2xl shadow-xl shadow-slate-100 border border-slate-100 flex flex-col md:flex-row gap-2 max-w-2xl">
-              <div className="flex-1 flex items-center gap-2 px-3 border-b md:border-b-0 md:border-r border-slate-100 pb-2 md:pb-0">
-                <Search size={18} className="text-slate-400 shrink-0" />
+            {/* Premium Search & Location Card Container */}
+            <form onSubmit={handleSearchSubmit} className="p-5 sm:p-6 rounded-2xl flex flex-col gap-4 max-w-2xl w-full border border-[#E7E9E6] dark:border-slate-800 bg-white dark:bg-slate-900 shadow-md hover:shadow-lg transition-all duration-300">
+              {/* Search Input Field */}
+              <div className="flex items-center gap-3 px-4 py-3 bg-[#FAFAF8] dark:bg-slate-950 rounded-xl border border-[#E7E9E6] dark:border-slate-800 focus-within:border-[#2F6B5F] focus-within:bg-white dark:focus-within:bg-slate-900 focus-within:ring-3 focus-within:ring-[#2F6B5F]/15 transition-all">
+                <Search size={18} className="text-[#2F6B5F] dark:text-emerald-400 shrink-0" />
                 <input 
                   type="text" 
-                  placeholder="What service do you need?" 
-                  className="w-full bg-transparent border-0 outline-none text-slate-800 text-sm font-semibold placeholder-slate-400 focus:ring-0"
+                  placeholder={t('searchPlaceholder', 'What service do you need? (e.g. Electrician, Plumber, AC Repair)')} 
+                  className="w-full bg-transparent border-0 outline-none text-[#171918] dark:text-slate-100 text-sm font-bold placeholder-slate-400 dark:placeholder-slate-500"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
 
-              <div className="flex-none md:w-48 flex items-center gap-2 px-3 pb-2 md:pb-0">
-                <MapPin size={18} className="text-slate-400 shrink-0" />
-                <select 
-                  className="w-full bg-transparent border-0 outline-none text-slate-700 text-sm font-bold placeholder-slate-400 cursor-pointer focus:ring-0"
-                  value={selectedCity}
-                  onChange={(e) => setSelectedCity(e.target.value)}
-                >
-                  <option value="">Select City</option>
-                  {displayCities.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                </select>
+              {/* Hierarchical Location Selector */}
+              <div className="w-full">
+                <HierarchicalLocationSelector
+                  selectedState={selectedState}
+                  selectedDistrict={selectedDistrict}
+                  selectedLocality={selectedLocality}
+                  onChange={({ state, district, locality }) => {
+                    setSelectedState(state);
+                    setSelectedDistrict(district);
+                    setSelectedLocality(locality);
+                    try {
+                      if (state) localStorage.setItem('fixiva:last-state', state);
+                      if (district) localStorage.setItem('fixiva:last-district', district);
+                      if (locality) localStorage.setItem('fixiva:last-locality', locality);
+                    } catch { void 0; }
+                  }}
+                  statePlaceholder="State"
+                  districtPlaceholder="District"
+                  localityPlaceholder="Locality"
+                  variant="borderless"
+                  layout="row"
+                  className="w-full"
+                />
               </div>
 
-              <button 
-                type="submit" 
-                className="btn-primary text-sm px-6 py-3.5 rounded-xl shrink-0 flex items-center justify-center gap-1.5"
-              >
-                Book Now
-                <ArrowRight size={16} />
-              </button>
+              {/* Quick Tags shortcut */}
+              {activeServices.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <span className="text-[11px] font-extrabold text-slate-400 dark:text-slate-400 uppercase tracking-wider">
+                    {t('popularLabel', 'Popular:')}
+                  </span>
+                  {activeServices.slice(0, 4).map((service) => (
+                    <button
+                      key={service.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery(service.name);
+                      }}
+                      className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:text-primary dark:hover:text-emerald-400 px-2.5 py-1 rounded-lg bg-slate-100/80 dark:bg-slate-800 hover:bg-primary/10 dark:hover:bg-slate-700/90 border border-slate-200/80 dark:border-slate-700 hover:border-primary/30 dark:hover:border-slate-600 transition-all cursor-pointer inline-flex items-center shadow-2xs"
+                    >
+                      <span className="text-amber-500 dark:text-amber-400 mr-1 text-[11px]">⚡</span>
+                      {service.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Action Bar */}
+              <div className="flex items-center justify-between gap-3 pt-3 border-t border-[#E7E9E6] dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={(e) => handleDetectLocation(e)}
+                  disabled={detectingGps}
+                  className="text-xs font-extrabold px-3.5 py-2.5 rounded-xl border border-[#E7E9E6] dark:border-slate-700 hover:border-red-500/50 text-[#171918] dark:text-slate-200 hover:text-red-500 dark:hover:text-red-400 flex items-center gap-2 transition-all bg-[#FAFAF8] dark:bg-slate-800 hover:bg-red-50/50 dark:hover:bg-slate-700 disabled:opacity-50 cursor-pointer shadow-2xs group"
+                >
+                  <LocateFixed size={16} className={`text-red-500 shrink-0 ${detectingGps ? 'animate-spin' : 'group-hover:scale-110 transition-transform'}`} />
+                  {detectingGps ? 'Locating...' : 'Use Location'}
+                </button>
+
+                <button 
+                  type="submit" 
+                  className="btn-primary text-sm font-extrabold px-7 py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all shrink-0 cursor-pointer"
+                >
+                  {t('bookNowBtn', 'Book Now')}
+                  <ArrowRight size={16} />
+                </button>
+              </div>
             </form>
-
-
           </motion.div>
 
           {/* Hero Right Media */}
           <motion.div 
-            className="lg:col-span-5 relative flex justify-center"
+            className="lg:col-span-6 relative flex justify-center lg:justify-end"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <div className="relative">
-              <div className="absolute -top-4 -left-4 w-72 h-72 bg-gradient-to-tr from-primary to-indigo-500 rounded-3xl opacity-10 blur-xl"></div>
-              <img 
-                src="https://images.unsplash.com/photo-1621905251189-08b45d6a269e?auto=format&fit=crop&q=80&w=800" 
-                alt="Fixiva Home Service Expert" 
-                className="rounded-3xl shadow-premium border-8 border-white max-w-full w-96 relative z-10"
-              />
-            </div>
+            <HeroServiceSlideshow services={services} />
           </motion.div>
         </div>
       </section>
@@ -219,15 +518,15 @@ const Home = () => {
                   key={idx} 
                   variants={itemVariants}
                   whileHover={{ y: -6, transition: { duration: 0.2 } }}
-                  className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-md border border-white/60 dark:border-slate-800/80 p-8 rounded-3xl shadow-sm hover:shadow-premium-lg hover:border-primary/20 dark:hover:border-primary/30 transition-all duration-300 flex flex-col justify-between"
+                  className="p-7 sm:p-8 rounded-[1.65rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-sm hover:shadow-xl hover:border-primary/40 dark:hover:border-emerald-500/40 transition-all duration-300 flex flex-col justify-between"
                 >
                   <div className="space-y-4">
-                    <div className={`h-11 w-11 rounded-xl bg-gradient-to-tr ${item.color} text-white flex items-center justify-center shadow-sm`}>
-                      <IconComp size={20} />
+                    <div className="h-12 w-12 rounded-2xl bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 flex items-center justify-center border border-primary/20 dark:border-emerald-800/40 shadow-2xs">
+                      <IconComp size={22} />
                     </div>
                     <div className="space-y-2">
-                      <h4 className="font-extrabold text-slate-900 dark:text-white text-sm">{item.title}</h4>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-semibold">{item.desc}</p>
+                      <h4 className="font-black text-slate-900 dark:text-white text-base tracking-tight">{item.title}</h4>
+                      <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-semibold">{item.desc}</p>
                     </div>
                   </div>
                 </motion.div>
@@ -237,67 +536,129 @@ const Home = () => {
         </div>
       </section>
 
-      {/* Popular Services Grid */}
-      <section className="py-20 bg-white">
+      {/* Admin Controlled Promotional Banner */}
+      {settings.enableOffers !== false && (
+        <HomePromotionalBanner banners={banners} navigate={navigate} />
+      )}
+
+      {/* Popular Services Horizontal Showcase */}
+      <section className="py-20 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-end mb-12">
+          <div className="flex justify-between items-end mb-10">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Catalog Categories</span>
-              <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">Popular Home Services</h2>
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Catalog Categories</span>
+              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">Popular Home Services</h2>
             </div>
-            <Link to="/services" className="text-sm font-bold text-primary flex items-center gap-1 hover:gap-2 transition-all">
+            <Link to="/services" className="text-sm font-bold text-primary dark:text-emerald-400 flex items-center gap-1 hover:gap-2 transition-all">
               Browse All Services <ArrowRight size={16} />
             </Link>
           </div>
 
-          {services.length === 0 ? (
-            <div className="py-16 text-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl">
-              <Zap size={36} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-slate-500 text-sm font-semibold">No services database records found. Populate via SQL.</p>
+          {activeServices.length === 0 ? (
+            <div className="py-16 text-center border-2 border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl">
+              <Zap size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">No active services available right now.</p>
             </div>
           ) : (
-            <motion.div 
-              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5"
-              variants={containerVariants}
-              initial="hidden"
-              whileInView="visible"
-              viewport={{ once: true }}
-            >
-              {services.slice(0, 12).map(s => {
-                const Icon = IconMap[s.name] || IconMap[s.icon] || Zap;
-                return (
-                  <motion.div key={s.id} variants={itemVariants}>
-                    <Link 
-                      to={`/book/${s.id}`} 
-                      className="group bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:-translate-y-1 hover:border-primary transition-all text-center flex flex-col items-center h-full"
-                    >
-                      <div className="h-12 w-12 rounded-xl bg-slate-50 text-primary flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white transition-all">
-                        <Icon size={22} />
-                      </div>
-                      <h4 className="font-bold text-sm text-slate-800 leading-tight group-hover:text-primary transition-colors">
-                        {s.name}
-                      </h4>
-                      <div className="mt-auto pt-3">
-                        <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider">
-                          Starts ₹{s.base_price || s.inspection_fee || 0}
-                        </p>
-                      </div>
-                    </Link>
-                  </motion.div>
-                );
-              })}
-            </motion.div>
+            <div className="relative">
+              <div className="flex overflow-x-auto no-scrollbar scroll-smooth snap-x snap-mandatory gap-5 pb-4 pt-1 px-1 -mx-1">
+                {/* Show up to 7 active services from Admin Catalog */}
+                {activeServices.slice(0, 7).map(s => {
+                  const Icon = IconMap[s.name] || IconMap[s.icon] || Zap;
+                  const serviceImg = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
+                  return (
+                    <div key={s.id} className="w-[220px] sm:w-[250px] shrink-0 snap-start">
+                      <Link 
+                        to={`/book/${s.id}`} 
+                        className="group relative overflow-hidden section-surface p-6 rounded-[1.35rem] hover:shadow-[0_20px_40px_-20px_rgba(15,23,42,0.24)] hover:-translate-y-1 hover:border-primary dark:hover:border-emerald-500 transition-all text-center flex flex-col items-center justify-between h-full min-h-[220px] border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900"
+                      >
+                        {serviceImg ? (
+                          <>
+                            {/* Service background image auto-adjusted to cover full card */}
+                            <img 
+                              src={serviceImg} 
+                              alt={s.name} 
+                              className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                            />
+                            {/* Dark gradient overlay for text readability */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-900/55 to-slate-900/30 group-hover:from-slate-950/95 transition-colors" />
+
+                            <div className="relative z-10 flex flex-col items-center justify-between h-full w-full">
+                              <div className="h-10 w-10 rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 text-white flex items-center justify-center shrink-0 shadow-sm">
+                                <Icon size={20} />
+                              </div>
+                              <h4 className="font-extrabold text-sm text-white leading-tight drop-shadow-md line-clamp-2 mt-2">
+                                {s.name}
+                              </h4>
+                              <div className="mt-auto pt-3">
+                                {(s.base_price || s.inspection_fee) > 0 ? (
+                                  <span className="inline-block px-3 py-1 rounded-full bg-primary/95 text-white text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur-xs">
+                                    Starts ₹{s.base_price || s.inspection_fee}
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-3 py-1 rounded-full bg-[#171918]/75 text-white text-[10px] font-bold shadow-sm">
+                                    Price on selection
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-col items-center justify-between h-full w-full">
+                            <div className="h-16 w-16 rounded-2xl bg-slate-50 dark:bg-slate-800 text-primary dark:text-emerald-400 flex items-center justify-center mb-4 group-hover:bg-primary group-hover:text-white dark:group-hover:bg-emerald-600 transition-all overflow-hidden border border-slate-100 dark:border-slate-700 shadow-xs shrink-0">
+                              <Icon size={26} />
+                            </div>
+                            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white leading-tight group-hover:text-primary dark:group-hover:text-emerald-400 transition-colors line-clamp-2">
+                              {s.name}
+                            </h4>
+                            <div className="mt-auto pt-4">
+                              {(s.base_price || s.inspection_fee) > 0 ? (
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wider">
+                                  Starts ₹{s.base_price || s.inspection_fee}
+                                </p>
+                              ) : (
+                                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                                  Price on selection
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </Link>
+                    </div>
+                  );
+                })}
+
+                {/* Final Card: View More Services CTA */}
+                <div className="w-[220px] sm:w-[250px] shrink-0 snap-start">
+                  <Link
+                    to="/services"
+                    className="group p-6 rounded-[1.35rem] bg-[#171918] dark:bg-slate-900 text-white hover:shadow-md hover:-translate-y-1 border border-slate-800 hover:border-primary dark:hover:border-emerald-500 transition-all text-center flex flex-col items-center justify-center h-full min-h-[220px] relative overflow-hidden"
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-[#2F6B5F] text-white flex items-center justify-center mb-3 group-hover:scale-105 transition-transform">
+                      <ArrowRight size={22} className="text-white group-hover:translate-x-1 transition-transform" />
+                    </div>
+                    <h4 className="font-bold text-base text-white leading-tight">
+                      View More Services
+                    </h4>
+                    <p className="text-[11px] text-slate-300 font-semibold mt-1 flex items-center gap-1 group-hover:text-emerald-400 transition-colors">
+                      Explore full catalog →
+                    </p>
+                  </Link>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </section>
 
       {/* How It Works Section */}
-      <section className="py-20 bg-slate-50">
+      <section className="py-20 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-xl mx-auto mb-16">
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Simple Booking</span>
-            <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">How It Works</h2>
-            <p className="text-slate-500 font-medium text-sm mt-3">Book home services with pricing guarantee in 4 quick steps.</p>
+            <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Simple Booking</span>
+            <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">How It Works</h2>
+            <p className="text-slate-500 dark:text-slate-400 font-medium text-sm mt-3">Book home services with pricing guarantee in 4 quick steps.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
@@ -309,79 +670,176 @@ const Home = () => {
             ].map((item, idx) => (
               <div 
                 key={idx} 
-                className="bg-white p-8 rounded-2xl border border-slate-100/80 shadow-sm hover:shadow-md transition-all text-center flex flex-col items-center"
+                className="elevated-card p-8 rounded-[1.4rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 transition-all text-center flex flex-col items-center shadow-sm hover:shadow-lg"
               >
-                <div className="h-12 w-12 rounded-full bg-primary/10 text-primary font-black text-base flex items-center justify-center mb-6">
+                <div className="h-12 w-12 rounded-full bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 font-black text-base flex items-center justify-center mb-6 border border-primary/20 dark:border-emerald-800/40">
                   {item.step}
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-2">{item.title}</h3>
-                <p className="text-slate-500 text-xs leading-relaxed font-semibold">{item.desc}</p>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-base mb-2">{item.title}</h3>
+                <p className="text-slate-500 dark:text-slate-400 text-xs leading-relaxed font-semibold">{item.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Service Region Badges */}
-      <section className="py-20 bg-white">
+      {/* Service Region & Expansion Hub */}
+      <section className="py-24 bg-white dark:bg-slate-950 border-b border-slate-100 dark:border-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row gap-12 items-center">
-            <div className="lg:w-1/3 space-y-4">
-              <span className="text-[10px] font-black uppercase tracking-widest text-primary">Expanded Coverage</span>
-              <h2 className="text-3xl font-extrabold text-slate-900 mt-1 tracking-tight">Serving Cities In Jharkhand</h2>
-              <p className="text-slate-500 text-sm font-semibold leading-relaxed">
-                Fixiva ensures on-site assignments are completed by verified nearby service partners in selected Indian towns.
+          
+          {/* Bring Fixiva to Your City Section */}
+          <div className="bg-slate-50 dark:bg-slate-900 rounded-[2rem] border border-slate-200/60 dark:border-slate-800 p-8 sm:p-12 grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
+            <div className="lg:col-span-5 space-y-4">
+              <h3 className="text-2xl font-black text-slate-900 dark:text-white">Bring Fixiva to Your City</h3>
+              <p className="text-slate-500 dark:text-slate-300 text-xs sm:text-sm font-medium leading-relaxed font-semibold">
+                Can't find your city? Tell us where you need Fixiva. Every request helps us decide where to expand next, and you'll be among the first to know when our services launch in your area.
               </p>
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-xs">
-                <p className="font-bold text-slate-700">Don't see your city?</p>
-                <button 
-                  onClick={() => alert("Fixiva interest logged! We will notify you once we launch in your area.")} 
-                  className="btn-secondary text-xs px-4 py-2.5 rounded-xl mt-2 block w-full sm:w-auto"
-                >
-                  Request Coverage Area
-                </button>
-              </div>
             </div>
 
-            <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-4 w-full">
-              {displayCities.map(c => (
-                <div 
-                  key={c.id} 
-                  className="p-5 border border-slate-100 rounded-2xl bg-white shadow-sm flex items-center gap-3.5 hover:shadow-md hover:border-slate-200 transition-all"
-                >
-                  <div className="p-2 bg-blue-50 text-primary rounded-xl">
-                    <MapPin size={18} />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">{c.name}</h4>
-                    <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{c.region || 'Jharkhand'}</p>
-                  </div>
+            <div className="lg:col-span-7 bg-white dark:bg-slate-950 p-6 sm:p-8 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm">
+              {isSuccess ? (
+                <div className="text-center space-y-4 py-4">
+                  <div className="text-4xl">🎉</div>
+                  <h4 className="text-lg font-extrabold text-slate-950 dark:text-white">Thank you!</h4>
+                  <p className="text-slate-500 dark:text-slate-300 text-xs sm:text-sm font-semibold max-w-md mx-auto leading-relaxed">
+                    Your city has been added to our expansion wishlist. Our team reviews every request carefully, and we'll notify you as soon as Fixiva launches in your area.
+                  </p>
+                  <button 
+                    onClick={() => setIsSuccess(false)}
+                    className="btn-secondary text-xs px-4 py-2 rounded-xl mt-2 cursor-pointer dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700"
+                  >
+                    Submit another request
+                  </button>
                 </div>
-              ))}
+              ) : (
+                <form onSubmit={handleRequestSubmit} className="space-y-5">
+                  {/* Unified Location Card */}
+                  <div className="p-5 bg-slate-50/90 dark:bg-slate-900/90 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-4 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                        <MapPin size={14} className="text-primary dark:text-emerald-400" /> Select Your Location
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleDetectCoverageLocation}
+                        disabled={detectingCoverageGps}
+                        className="text-xs font-black text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 bg-white dark:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs hover:border-red-300 dark:hover:border-red-800 transition-all cursor-pointer disabled:opacity-50"
+                      >
+                        <LocateFixed size={13} className={`text-red-500 shrink-0 ${detectingCoverageGps ? 'animate-spin' : ''}`} />
+                        <span>{detectingCoverageGps ? 'Detecting...' : 'Use Current Location'}</span>
+                      </button>
+                    </div>
+
+                    <HierarchicalLocationSelector
+                      selectedState={reqState}
+                      selectedDistrict={reqDistrict}
+                      selectedLocality={reqLocality}
+                      onChange={({ state, district, locality }) => {
+                        setReqDistrict(district);
+                        setReqState(state);
+                        if (locality) setReqLocality(locality);
+                      }}
+                      statePlaceholder="Select State"
+                      districtPlaceholder="Select District"
+                      localityPlaceholder="Select Locality"
+                      layout="row"
+                      className="w-full"
+                    />
+
+                    {/* Selected Location Summary Preview */}
+                    {(reqDistrict || reqState) && (
+                      <div className="p-3 bg-white dark:bg-slate-950 rounded-xl border border-primary/20 dark:border-slate-800 text-xs flex items-center justify-between gap-2 shadow-xs">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-lg bg-primary/10 dark:bg-emerald-950/60 text-primary dark:text-emerald-400 flex items-center justify-center shrink-0">
+                            <MapPin size={16} />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-black text-slate-900 dark:text-white truncate flex items-center gap-1.5">
+                              <LocateFixed size={13} className="text-red-500 shrink-0 inline" />
+                              <span>{[reqLocality, reqDistrict].filter(Boolean).join(', ')}</span>
+                            </p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold truncate">
+                              {[reqDistrict, reqState].filter(Boolean).join(', ')} {reqPincode ? `• ${reqPincode}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => { setReqState(''); setReqDistrict(''); setReqLocality(''); setReqPincode(''); setReqLat(null); setReqLng(null); }}
+                          className="text-[11px] font-black text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 shrink-0 px-2 py-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Email Address</label>
+                    <input 
+                      type="email" 
+                      required
+                      placeholder="Enter your email address..."
+                      value={reqEmail}
+                      onChange={(e) => setReqEmail(e.target.value)}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-primary/50 shadow-xs"
+                    />
+                  </div>
+
+                  <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    className="w-full btn-primary font-black text-xs py-3.5 rounded-xl shadow-md disabled:opacity-50 cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>{isSubmitting ? 'Submitting request...' : 'Request My City'}</span>
+                    <ArrowRight size={14} />
+                  </button>
+                </form>
+              )}
             </div>
           </div>
+
+          {/* Premium Statistics Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[
+              { emoji: '🏠', title: 'Expanding Across India', desc: 'Active growth focus' },
+              { emoji: '👨‍🔧', title: 'Verified Professionals', desc: 'Strict identity check' },
+              { emoji: '🎯', title: 'Multiple Cities Covered', desc: 'Growing footprint' },
+              { emoji: '⚡', title: 'New Cities Added Regularly', desc: 'Based on demand' }
+            ].map((stat, idx) => (
+              <div 
+                key={idx} 
+                className="p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/60 flex flex-col items-center text-center space-y-2 hover:shadow-md transition-shadow"
+              >
+                <span className="text-2xl">{stat.emoji}</span>
+                <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-xs">{stat.title}</h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider">{stat.desc}</p>
+              </div>
+            ))}
+          </div>
+
         </div>
       </section>
 
       {/* Guarantee Banner */}
-      <section className="py-16 bg-slate-900 text-white relative overflow-hidden">
+      <section className="py-16 bg-slate-900 dark:bg-slate-950 text-white relative overflow-hidden border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 md:grid-cols-3 gap-8">
           <div className="flex gap-4 items-start">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><ShieldCheck size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><ShieldCheck size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Identity Checked Experts</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Strict Aadhaar identity uploads check verification on all local workers.</p>
             </div>
           </div>
           <div className="flex gap-4 items-start border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><Clock size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><Clock size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Late Protection</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Automated reassignment tools protect bookings from partner delays.</p>
             </div>
           </div>
           <div className="flex gap-4 items-start border-t md:border-t-0 md:border-l border-slate-800 pt-6 md:pt-0 md:pl-8">
-            <div className="p-3 bg-white/10 rounded-xl text-primary"><ThumbsUp size={28} /></div>
+            <div className="p-3 bg-white/10 dark:bg-emerald-950/60 rounded-xl text-primary dark:text-emerald-400 shrink-0"><ThumbsUp size={28} /></div>
             <div className="space-y-1">
               <h3 className="font-bold text-sm text-white">Settlement Protections</h3>
               <p className="text-xs text-slate-400 font-semibold leading-relaxed">Upfront pricing details mean you only pay flat rates directly on-site.</p>
@@ -391,59 +849,60 @@ const Home = () => {
       </section>
 
       {/* Testimonials */}
-      <section className="py-20 bg-slate-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-xl mx-auto mb-16">
-            <span className="text-[10px] font-black uppercase tracking-widest text-primary">Reviews & Feedback</span>
-            <h2 className="text-3xl font-extrabold text-slate-900 mt-2 tracking-tight">Verified Testimonials</h2>
-          </div>
+      {settings.enableReviews !== false && (
+        <section className="py-20 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-900">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center max-w-xl mx-auto mb-16">
+              <span className="text-[10px] font-black uppercase tracking-widest text-primary dark:text-emerald-400">Reviews & Feedback</span>
+              <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mt-2 tracking-tight">Verified Testimonials</h2>
+            </div>
 
-          {reviews.length === 0 ? (
-            <div className="py-16 text-center bg-white rounded-3xl border border-slate-200/60 max-w-lg mx-auto shadow-sm">
-              <Star size={36} className="mx-auto text-slate-300 mb-2" />
-              <p className="text-slate-400 text-sm font-semibold">No reviews registered in the system yet.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {reviews.slice(0, 3).map((r, idx) => (
-                <div key={idx} className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-between h-full">
-                  <div>
-                    <div className="flex gap-1 text-warning mb-4">
-                      {[...Array(5)].map((_, j) => (
-                        <Star key={j} size={14} fill={j < r.rating ? "currentColor" : "none"} />
-                      ))}
+            {reviews.length === 0 ? (
+              <div className="py-16 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800 max-w-lg mx-auto shadow-sm">
+                <Star size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
+                <p className="text-slate-400 dark:text-slate-500 text-sm font-semibold">No reviews registered in the system yet.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {reviews.slice(0, 3).map((r, idx) => (
+                  <div key={idx} className="elevated-card p-8 rounded-[1.5rem] bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 flex flex-col justify-between h-full shadow-sm hover:shadow-lg transition-all">
+                    <div>
+                      <div className="flex gap-1 text-warning mb-4">
+                        {[...Array(5)].map((_, j) => (
+                          <Star key={j} size={14} fill={j < r.rating ? "currentColor" : "none"} />
+                        ))}
+                      </div>
+                      <p className="text-slate-600 dark:text-slate-300 italic text-sm leading-relaxed">
+                        "{r.comment}"
+                      </p>
                     </div>
-                    <p className="text-slate-600 italic text-sm leading-relaxed">
-                      "{r.comment}"
-                    </p>
+                    <div className="flex justify-between items-center pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
+                      <span className="font-bold text-sm text-slate-900 dark:text-white">{r.userName || 'Customer'}</span>
+                      <span className="text-[9px] uppercase font-black tracking-widest text-primary dark:text-emerald-400">
+                        {r.serviceType}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between items-center pt-6 mt-6 border-t border-slate-50">
-                    <span className="font-bold text-sm text-slate-900">{r.userName || 'Customer'}</span>
-                    <span className="text-[9px] uppercase font-black tracking-widest text-primary">
-                      {r.serviceType}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Book CTA callout */}
-      <section className="py-16 bg-white">
+      <section className="py-16 bg-white dark:bg-slate-950">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="bg-gradient-to-br from-primary to-indigo-600 rounded-[2.5rem] p-12 text-center text-white shadow-xl shadow-primary/10 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-white/5 rounded-full blur-3xl"></div>
-            <div className="relative z-10 space-y-6 max-w-xl mx-auto">
+          <div className="bg-[#171918] dark:bg-slate-900 rounded-[2rem] p-10 sm:p-12 text-center text-white shadow-lg border border-slate-800 relative overflow-hidden">
+            <div className="relative z-10 space-y-5 max-w-xl mx-auto">
               <h2 className="text-3xl sm:text-4xl font-extrabold tracking-tight">Ready to clear your tasks list?</h2>
-              <p className="text-blue-100 text-sm font-medium">
+              <p className="text-slate-300 dark:text-slate-300 text-sm font-medium leading-relaxed">
                 Book professional assistance in a few clicks. Verified professionals, transparent platform billing.
               </p>
-              <div className="pt-4">
+              <div className="pt-2">
                 <Link 
                   to="/services" 
-                  className="inline-flex btn-secondary px-8 py-4 rounded-xl shadow-lg text-center"
+                  className="inline-flex btn-primary px-8 py-3.5 rounded-[10px] text-sm text-center font-bold"
                 >
                   Book Your First Service
                 </Link>
