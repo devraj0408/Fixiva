@@ -344,6 +344,7 @@ const BookingFlow = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                   {activeServices.map(s => {
                   const isSelected = selectedServiceId === s.id;
+                  const imgUrl = s.image_url || s.image || (s.icon && (s.icon.startsWith('http') || s.icon.startsWith('data:')) ? s.icon : null);
                   return (
                     <button
                       key={s.id}

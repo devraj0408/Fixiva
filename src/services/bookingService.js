@@ -427,21 +427,27 @@ export const createBooking = async (bookingData, actor = {}) => {
       } catch (e) { void e; }
     }
 
-    const payload = {
+    const isValidUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+
+    const cityVal = bookingData.district || bookingData.city || '';
+    const stateVal = bookingData.state || '';
+    const localityVal = bookingData.locality || '';
+    const fullLocText = [localityVal, cityVal, stateVal].filter(Boolean).join(', ');
+    const fullAddress = bookingData.address || fullLocText;
+
+    const initialPayload = {
       id: bookingId,
-      customer_id: currentCustomerId,
-      worker_id: bookingData.worker_id && !String(bookingData.worker_id).startsWith('mock-') ? bookingData.worker_id : null,
-      contractor_id: null,
+      customer_id: isValidUuid(currentCustomerId) ? currentCustomerId : null,
+      worker_id: isValidUuid(bookingData.worker_id) ? bookingData.worker_id : null,
+      contractor_id: isValidUuid(bookingData.contractor_id) ? bookingData.contractor_id : null,
       service_id: bookingData.service_id || 'general',
       service_name: bookingData.service_name || 'Home Service',
-      state: bookingData.state || '',
-      district: bookingData.district || bookingData.city || '',
-      locality: bookingData.locality || '',
-      pincode: bookingData.pincode || '',
-      address: bookingData.address || [bookingData.locality, bookingData.district || bookingData.city, bookingData.state].filter(Boolean).join(', '),
+      city: cityVal,
+      address: fullAddress,
+      customer_address: fullAddress,
+      location_text: fullLocText,
       customer_name: bookingData.customer_name || 'Customer',
       customer_phone: bookingData.customer_phone || '',
-      customer_address: bookingData.address || '',
       worker_name: bookingData.worker_name || 'Specialist Assigned',
       worker_phone: bookingData.worker_phone || '',
       price: Number(bookingData.price || 0),
@@ -450,23 +456,71 @@ export const createBooking = async (bookingData, actor = {}) => {
       payment_status: 'PENDING',
       paid_at: null,
       status: 'New Request',
-      booking_date: bookingData.booking_date || new Date().toISOString()
+      booking_date: bookingData.booking_date || new Date().toISOString(),
+      // Additional hierarchy columns if supported in DB
+      state: stateVal,
+      district: cityVal,
+      locality: localityVal,
+      pincode: bookingData.pincode || ''
     };
 
-    let { data, error } = await supabase
-      .from('bookings')
-      .insert(payload)
-      .select()
-      .maybeSingle();
+    let activePayload = { ...initialPayload };
+    let data = null;
+    let error = null;
+    let maxRetries = 10;
 
-    if (error && error.message && (error.message.includes('uuid') || error.message.includes('null value in column') || error.message.includes('syntax'))) {
-      const uuidId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : payload.id;
-      const uuidPayload = { ...payload, id: uuidId, booking_number: bookingId };
-      const retryRes = await supabase.from('bookings').insert(uuidPayload).select().maybeSingle();
-      if (!retryRes.error) {
-        data = retryRes.data;
-        error = null;
+    while (maxRetries > 0) {
+      const res = await supabase
+        .from('bookings')
+        .insert(activePayload)
+        .select()
+        .maybeSingle();
+
+      data = res.data;
+      error = res.error;
+
+      if (!error) break;
+
+      maxRetries--;
+      const msg = error.message || '';
+
+      // 1. Missing column error in PostgREST schema cache (e.g. Could not find the 'district' column)
+      const colMatch = msg.match(/Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/i)
+        || msg.match(/column ['"]?([a-zA-Z0-9_]+)['"]? of/i)
+        || msg.match(/column ['"]?([a-zA-Z0-9_]+)['"]? does not exist/i);
+
+      if (colMatch && colMatch[1] && activePayload[colMatch[1]] !== undefined) {
+        const colToRemove = colMatch[1];
+        console.warn(`[createBooking] Stripping non-existent DB column '${colToRemove}' from bookings insert`);
+        delete activePayload[colToRemove];
+        continue;
       }
+
+      // 2. Foreign key constraint or invalid uuid on worker / customer / contractor / id
+      if (msg.includes('foreign key') || msg.includes('violates foreign key constraint') || msg.includes('syntax') || msg.includes('uuid')) {
+        let changed = false;
+        if ((msg.includes('worker') || !isValidUuid(activePayload.worker_id)) && activePayload.worker_id) {
+          delete activePayload.worker_id;
+          changed = true;
+        }
+        if ((msg.includes('customer') || !isValidUuid(activePayload.customer_id)) && activePayload.customer_id) {
+          delete activePayload.customer_id;
+          changed = true;
+        }
+        if ((msg.includes('contractor') || !isValidUuid(activePayload.contractor_id)) && activePayload.contractor_id) {
+          delete activePayload.contractor_id;
+          changed = true;
+        }
+        if ((msg.includes('uuid') || msg.includes('syntax')) && activePayload.id === bookingId) {
+          if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            activePayload.id = crypto.randomUUID();
+            changed = true;
+          }
+        }
+        if (changed) continue;
+      }
+
+      break;
     }
 
     if (error) {
@@ -479,11 +533,11 @@ export const createBooking = async (bookingData, actor = {}) => {
       actorEmail: actor.email,
       action: 'create_booking',
       objectType: 'booking',
-      objectId: bookingId,
-      payload,
+      objectId: activePayload.id || bookingId,
+      payload: activePayload,
     });
 
-    return { data: data || payload, error: null };
+    return { data: data || activePayload, error: null };
   } catch (err) {
     return { data: null, error: err instanceof Error ? err.message : String(err) };
   }
