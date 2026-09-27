@@ -3,6 +3,8 @@ import { logAdminAction } from './auditService';
 import { calculateDistanceInKm } from './locationService';
 import { isDistrictActive } from './coverageService';
 import { BUSINESS_CONFIG } from '../config/businessConfig';
+import { AJMAL_WORKER_UUID, VERIFIED_SPECIALISTS, isAjmalSpecialist, resolveCanonicalWorkerId } from '../data/specialistData';
+
 
 /**
  * Unified Booking & Locality Matching Engine
@@ -164,19 +166,22 @@ export const findAvailableProfessionals = async ({
             if (raw) {
               const parsed = JSON.parse(raw);
               if (parsed && (parsed.role === 'worker' || parsed.skills || parsed.isWorker)) {
-                const id = parsed.id || parsed.profile_id || `local_${i}`;
+                const rawId = parsed.id || parsed.profile_id;
+                const isAj = isAjmalSpecialist(parsed);
+                const id = isAj ? AJMAL_WORKER_UUID : (rawId || `10ca1000-0000-4000-8000-${String(i).padStart(12, '0')}`);
                 const existing = workerMap.get(id) || {};
                 workerMap.set(id, {
                   ...existing,
                   ...parsed,
                   id,
-                  name: parsed.name || existing.name || 'Verified Specialist',
+                  name: isAj ? 'Ajmal' : (parsed.name || existing.name || 'Verified Specialist'),
                   district: parsed.district || parsed.city || existing.district || '',
                   city: parsed.city || parsed.district || existing.city || '',
                   skills: parsed.skills || existing.skills || '',
                   status: parsed.status || parsed.account_status || existing.status || 'Active',
-                  phone: parsed.phone || existing.phone || '',
+                  phone: parsed.phone || existing.phone || (isAj ? '7479928976' : ''),
                   whatsapp: parsed.whatsapp || existing.whatsapp || '',
+                  email: parsed.email || existing.email || (isAj ? 'b81219657@gmail.com' : ''),
                   source: 'local_storage'
                 });
               }
@@ -188,52 +193,21 @@ export const findAvailableProfessionals = async ({
       }
     }
 
-    // Default directory of verified specialists (ensures onboarded specialists like Ajmal are always active and discoverable)
-    const VERIFIED_SPECIALIST_DIRECTORY = [
-      {
-        id: 'w-ajmal-north-24-pgs',
-        name: 'Ajmal',
-        role: 'worker',
-        skills: 'Plumber',
-        city: 'North 24 Parganas',
-        district: 'North 24 Parganas',
-        state: 'West Bengal',
-        phone: '7479928976',
-        email: 'b81219657@gmail.com',
-        status: 'Active',
-        account_status: 'Active',
-        rating: '4.8',
-        trust_score: 40,
-        experience: '3+ years experience',
-        starting_price: 299,
-        visit_charge: 199,
-      },
-      {
-        id: 'w-ajbro-plumber',
-        name: 'Ajbro',
-        role: 'worker',
-        skills: 'Plumber',
-        city: "Other / Can't find your location?",
-        district: "Other / Can't find your location?",
-        state: 'West Bengal',
-        phone: '7479918719',
-        email: 'ayushcoderbaba@gmail.com',
-        status: 'Active',
-        account_status: 'Active',
-        rating: '4.5',
-        trust_score: 30,
-        experience: '2+ years experience',
-        starting_price: 249,
-        visit_charge: 149,
-      }
-    ];
-
-    VERIFIED_SPECIALIST_DIRECTORY.forEach(dw => {
+    // Default directory of verified specialists (ensures onboarded specialists like Ajmal are always active and discoverable with valid UUIDs)
+    VERIFIED_SPECIALISTS.forEach(dw => {
       const alreadyExists = Array.from(workerMap.values()).some(
-        w => (w.email && dw.email && w.email.toLowerCase() === dw.email.toLowerCase()) || w.id === dw.id
+        w => (w.email && dw.email && w.email.toLowerCase() === dw.email.toLowerCase()) || w.id === dw.id || (dw.id === AJMAL_WORKER_UUID && isAjmalSpecialist(w))
       );
       if (!alreadyExists) {
         workerMap.set(dw.id, { ...dw, source: 'verified_directory' });
+      } else {
+        const existing = Array.from(workerMap.values()).find(
+          w => (w.email && dw.email && w.email.toLowerCase() === dw.email.toLowerCase()) || (dw.id === AJMAL_WORKER_UUID && isAjmalSpecialist(w))
+        );
+        if (existing && existing.id !== dw.id) {
+          workerMap.delete(existing.id);
+          workerMap.set(dw.id, { ...existing, ...dw, id: dw.id, source: 'verified_directory' });
+        }
       }
     });
 
@@ -429,6 +403,32 @@ export const createBooking = async (bookingData, actor = {}) => {
 
     const isValidUuid = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
 
+    // Resolve Canonical Worker UUID
+    let resolvedWorkerId = resolveCanonicalWorkerId(bookingData.worker_id);
+    const isAjmal = isAjmalSpecialist({
+      id: bookingData.worker_id,
+      name: bookingData.worker_name,
+      email: bookingData.worker_email,
+      phone: bookingData.worker_phone
+    });
+
+    if (isAjmal) {
+      resolvedWorkerId = AJMAL_WORKER_UUID;
+    } else if (!isValidUuid(resolvedWorkerId)) {
+      if (bookingData.worker_email || bookingData.worker_phone) {
+        try {
+          const { data: matchedProfiles } = await supabase
+            .from('profiles')
+            .select('id, email, phone')
+            .or(`email.eq.${bookingData.worker_email || 'none'},phone.eq.${bookingData.worker_phone || 'none'}`)
+            .limit(1);
+          if (matchedProfiles && matchedProfiles.length > 0 && isValidUuid(matchedProfiles[0].id)) {
+            resolvedWorkerId = matchedProfiles[0].id;
+          }
+        } catch (e) { void e; }
+      }
+    }
+
     const cityVal = bookingData.district || bookingData.city || '';
     const stateVal = bookingData.state || '';
     const localityVal = bookingData.locality || '';
@@ -438,7 +438,7 @@ export const createBooking = async (bookingData, actor = {}) => {
     const initialPayload = {
       id: bookingId,
       customer_id: isValidUuid(currentCustomerId) ? currentCustomerId : null,
-      worker_id: isValidUuid(bookingData.worker_id) ? bookingData.worker_id : null,
+      worker_id: isValidUuid(resolvedWorkerId) ? resolvedWorkerId : null,
       contractor_id: isValidUuid(bookingData.contractor_id) ? bookingData.contractor_id : null,
       service_id: bookingData.service_id || 'general',
       service_name: bookingData.service_name || 'Home Service',
@@ -448,8 +448,9 @@ export const createBooking = async (bookingData, actor = {}) => {
       location_text: fullLocText,
       customer_name: bookingData.customer_name || 'Customer',
       customer_phone: bookingData.customer_phone || '',
-      worker_name: bookingData.worker_name || 'Specialist Assigned',
-      worker_phone: bookingData.worker_phone || '',
+      worker_name: isAjmal ? 'Ajmal' : (bookingData.worker_name || 'Specialist Assigned'),
+      worker_phone: isAjmal ? (bookingData.worker_phone || '7479928976') : (bookingData.worker_phone || ''),
+      worker_email: isAjmal ? (bookingData.worker_email || 'b81219657@gmail.com') : (bookingData.worker_email || ''),
       price: Number(bookingData.price || 0),
       platform_fee: 0,
       payment_method: 'CASH',
@@ -526,6 +527,79 @@ export const createBooking = async (bookingData, actor = {}) => {
     if (error) {
       console.error('createBooking DB error:', error);
       return { data: null, error: error.message || 'Booking creation failed in database' };
+    }
+
+    // Automatically trigger notification for the assigned worker
+    try {
+      const notifTargetUserId = isValidUuid(resolvedWorkerId) ? resolvedWorkerId : null;
+      if (notifTargetUserId) {
+        const notifPayload = {
+          user_id: notifTargetUserId,
+          title: 'New Service Job Assigned! 🚀',
+          message: `New booking #${activePayload.id || bookingId} for ${activePayload.service_name} at ${activePayload.address || activePayload.city}. Specialist: ${activePayload.worker_name || 'Assigned'}. Fee: ₹${activePayload.price}.`,
+          read: false,
+          created_at: new Date().toISOString()
+        };
+        await supabase.from('notifications').insert(notifPayload);
+      }
+    } catch (nErr) {
+      console.warn('[createBooking] Notification dispatch notice:', nErr);
+    }
+
+    const broadcastPayload = {
+      ...activePayload,
+      id: activePayload.id || bookingId,
+      worker_id: resolvedWorkerId || activePayload.worker_id,
+      worker_name: activePayload.worker_name,
+      worker_phone: activePayload.worker_phone,
+      worker_email: activePayload.worker_email,
+      service_name: activePayload.service_name,
+      price: activePayload.price,
+      address: activePayload.address,
+      locality: activePayload.locality,
+      district: activePayload.district || activePayload.city,
+      customer_name: activePayload.customer_name,
+      customer_phone: activePayload.customer_phone,
+      booking_date: activePayload.booking_date,
+      created_at: new Date().toISOString()
+    };
+
+    // 1. Supabase Global Realtime Broadcast (reaches mobile & desktop across all networks)
+    if (supabase) {
+      try {
+        const dispatchChan = supabase.channel('fixiva-global-dispatch');
+        dispatchChan.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            dispatchChan.send({
+              type: 'broadcast',
+              event: 'NEW_JOB_ASSIGNED',
+              payload: broadcastPayload
+            }).catch(() => null);
+          }
+        });
+      } catch (e) { void e; }
+    }
+
+    // 2. Same-browser broadcast channels & events
+    if (typeof window !== 'undefined') {
+      try {
+        window.dispatchEvent(new CustomEvent('fixiva:booking-created', { detail: broadcastPayload }));
+        if (typeof BroadcastChannel !== 'undefined') {
+          const bc = new BroadcastChannel('fixiva-channel');
+          bc.postMessage({ type: 'BOOKING_CREATED', payload: broadcastPayload });
+          bc.close();
+        }
+      } catch (e) { void e; }
+    }
+
+    // 3. Local storage offer cache for worker
+    if (typeof localStorage !== 'undefined' && resolvedWorkerId) {
+      try {
+        const storeKey = `fixiva_worker_offers_${resolvedWorkerId}`;
+        const existingOffers = JSON.parse(localStorage.getItem(storeKey) || '[]');
+        const updatedOffers = [broadcastPayload, ...existingOffers.filter(b => b.id !== broadcastPayload.id)];
+        localStorage.setItem(storeKey, JSON.stringify(updatedOffers));
+      } catch (e) { void e; }
     }
 
     await logAdminAction({

@@ -258,7 +258,8 @@ const BookingFlow = () => {
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         worker_name: selectedPro?.name || 'Assigned Specialist',
-        worker_phone: selectedPro?.whatsapp || '',
+        worker_phone: selectedPro?.phone || selectedPro?.whatsapp || '',
+        worker_email: selectedPro?.email || '',
         price: activeService.base_price || activeService.inspection_fee || 0,
         platform_fee: 0,
         booking_date: bookingDate
