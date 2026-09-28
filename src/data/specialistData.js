@@ -46,13 +46,17 @@ export const isAjmalSpecialist = (workerOrUser = {}) => {
   if (!workerOrUser) return false;
   const id = String(workerOrUser.id || workerOrUser.worker_id || workerOrUser.profile_id || '').trim();
   const email = String(workerOrUser.email || workerOrUser.worker_email || '').toLowerCase().trim();
-  const phone = String(workerOrUser.phone || workerOrUser.whatsapp || workerOrUser.worker_phone || '').replace(/\D/g, '').slice(-10);
+  const rawPhone = String(workerOrUser.phone || workerOrUser.whatsapp || workerOrUser.worker_phone || '').replace(/\D/g, '');
+  const phone = rawPhone.slice(-10);
   const name = String(workerOrUser.name || workerOrUser.worker_name || workerOrUser.assigned_worker_name || '').toLowerCase().trim();
+  const skills = String(workerOrUser.skills || '').toLowerCase();
+  const location = String(workerOrUser.city || workerOrUser.district || workerOrUser.address || '').toLowerCase();
 
   if (id === AJMAL_WORKER_UUID || id === 'w-ajmal-north-24-pgs' || id === 'local_3') return true;
-  if (email && (email === 'b81219657@gmail.com' || email.includes('b81219657'))) return true;
+  if (email && (email === 'b81219657@gmail.com' || email.includes('b81219657') || email.includes('ajm'))) return true;
   if (phone && phone === '7479928976') return true;
-  if (name && (name === 'ajmal' || name === 'ajmul' || name.startsWith('ajm'))) return true;
+  if (name && (name.includes('ajm') || name.includes('ajmal') || name.includes('ajmul') || name.includes('azmal') || name.includes('specialist'))) return true;
+  if (skills.includes('plumb') && (location.includes('north') || location.includes('24') || location.includes('belgharia') || !location)) return true;
   return false;
 };
 

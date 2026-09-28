@@ -412,20 +412,22 @@ export const createBooking = async (bookingData, actor = {}) => {
       phone: bookingData.worker_phone
     });
 
-    if (isAjmal) {
-      resolvedWorkerId = AJMAL_WORKER_UUID;
-    } else if (!isValidUuid(resolvedWorkerId)) {
-      if (bookingData.worker_email || bookingData.worker_phone) {
-        try {
-          const { data: matchedProfiles } = await supabase
-            .from('profiles')
-            .select('id, email, phone')
-            .or(`email.eq.${bookingData.worker_email || 'none'},phone.eq.${bookingData.worker_phone || 'none'}`)
-            .limit(1);
-          if (matchedProfiles && matchedProfiles.length > 0 && isValidUuid(matchedProfiles[0].id)) {
-            resolvedWorkerId = matchedProfiles[0].id;
-          }
-        } catch (e) { void e; }
+    if (bookingData.worker_email || bookingData.worker_phone || isAjmal) {
+      try {
+        const phoneToMatch = isAjmal ? '7479928976' : String(bookingData.worker_phone || '').replace(/\D/g, '').slice(-10);
+        const emailToMatch = isAjmal ? 'b81219657@gmail.com' : String(bookingData.worker_email || '').toLowerCase().trim();
+        const { data: matchedProfiles } = await supabase
+          .from('profiles')
+          .select('id, email, phone')
+          .or(`email.eq.${emailToMatch || 'none'},phone.eq.${phoneToMatch || 'none'}`)
+          .limit(1);
+        if (matchedProfiles && matchedProfiles.length > 0 && isValidUuid(matchedProfiles[0].id)) {
+          resolvedWorkerId = matchedProfiles[0].id;
+        } else if (isAjmal) {
+          resolvedWorkerId = AJMAL_WORKER_UUID;
+        }
+      } catch {
+        if (isAjmal) resolvedWorkerId = AJMAL_WORKER_UUID;
       }
     }
 
@@ -566,18 +568,28 @@ export const createBooking = async (bookingData, actor = {}) => {
 
     // 1. Supabase Global Realtime Broadcast (reaches mobile & desktop across all networks)
     if (supabase) {
-      try {
-        const dispatchChan = supabase.channel('fixiva-global-dispatch');
-        dispatchChan.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            dispatchChan.send({
-              type: 'broadcast',
-              event: 'NEW_JOB_ASSIGNED',
-              payload: broadcastPayload
-            }).catch(() => null);
-          }
-        });
-      } catch (e) { void e; }
+      const channelsToSend = [
+        'fixiva-global-dispatch',
+        'fixiva-worker-broadcast',
+        `fixiva-worker-dispatch-${resolvedWorkerId}`,
+        `fixiva-worker-dispatch-${AJMAL_WORKER_UUID}`,
+        'fixiva-worker-dispatch-local_3',
+        'fixiva-worker-dispatch-any'
+      ];
+      channelsToSend.forEach((chName) => {
+        try {
+          const chan = supabase.channel(chName);
+          chan.subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              chan.send({
+                type: 'broadcast',
+                event: 'NEW_JOB_ASSIGNED',
+                payload: broadcastPayload
+              }).catch(() => null);
+            }
+          });
+        } catch (e) { void e; }
+      });
     }
 
     // 2. Same-browser broadcast channels & events
@@ -593,12 +605,22 @@ export const createBooking = async (bookingData, actor = {}) => {
     }
 
     // 3. Local storage offer cache for worker
-    if (typeof localStorage !== 'undefined' && resolvedWorkerId) {
+    if (typeof localStorage !== 'undefined') {
       try {
-        const storeKey = `fixiva_worker_offers_${resolvedWorkerId}`;
-        const existingOffers = JSON.parse(localStorage.getItem(storeKey) || '[]');
-        const updatedOffers = [broadcastPayload, ...existingOffers.filter(b => b.id !== broadcastPayload.id)];
-        localStorage.setItem(storeKey, JSON.stringify(updatedOffers));
+        const keysToStore = [
+          `fixiva_worker_offers_${resolvedWorkerId}`,
+          `fixiva_worker_offers_${AJMAL_WORKER_UUID}`,
+          'fixiva_worker_offers_local_3',
+          'fixiva_worker_offers_global',
+          'fixiva_global_offers'
+        ];
+        keysToStore.forEach((storeKey) => {
+          try {
+            const existingOffers = JSON.parse(localStorage.getItem(storeKey) || '[]');
+            const updatedOffers = [broadcastPayload, ...existingOffers.filter(b => b.id !== broadcastPayload.id)];
+            localStorage.setItem(storeKey, JSON.stringify(updatedOffers));
+          } catch (e) { void e; }
+        });
       } catch (e) { void e; }
     }
 
