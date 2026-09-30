@@ -122,6 +122,7 @@ const HelpCenter = () => {
   const [speakLang, setSpeakLang] = useState(language || 'en');
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSpeakLang(language || 'en');
   }, [language]);
 

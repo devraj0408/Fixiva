@@ -164,9 +164,9 @@ export const calculateWorkerTrustScore = (worker, bookings = [], reviews = [], t
   const finalScore = Math.min(100, Math.max(0, positiveTotal - netDeductions));
 
   // Determine visual tier
-  let tier = 'Average';
-  let badgeBg = 'bg-amber-50 text-amber-700 border-amber-200';
-  let tierColor = 'amber';
+  let tier;
+  let badgeBg;
+  let tierColor;
 
   if (finalScore >= 90) {
     tier = 'Excellent';

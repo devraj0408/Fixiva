@@ -27,7 +27,6 @@ import {
   Camera,
   MapPin,
   Loader2,
-  Navigation,
   LocateFixed
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';

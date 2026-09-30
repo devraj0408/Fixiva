@@ -4,7 +4,7 @@ import { Bot, Sparkles, X, Send, Loader2, ShieldCheck, RefreshCw, Zap, LogIn, Us
 import { useApp } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 import { generateAIResponse } from '../../services/aiChatService';
-import { startListening, stopListening, speakText, stopSpeaking, isSpeechRecognitionSupported } from '../../services/voiceService';
+import { startListening, stopListening, speakText, stopSpeaking } from '../../services/voiceService';
 
 const getActionIcon = (type) => {
   if (type === 'register') return <UserPlus size={14} />;
@@ -62,6 +62,7 @@ export default function AIChatBotWidget() {
 
   // Sync speakLang when active site language changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSpeakLang(language || 'en');
   }, [language]);
 
@@ -70,6 +71,7 @@ export default function AIChatBotWidget() {
     if (!isOpen) {
       stopSpeaking();
       stopListening();
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsListening(false);
     }
   }, [isOpen]);

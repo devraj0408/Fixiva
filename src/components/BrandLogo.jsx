@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * BrandLogo - Ultra-Professional Fixiva Brand Emblem & Wordmark Typography
  * @param {string} mode - 'light' (dark text), 'dark' (white text), 'auto' (theme dynamic)

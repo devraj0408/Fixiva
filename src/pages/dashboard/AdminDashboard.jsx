@@ -1,6 +1,6 @@
 import React, { useMemo, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Briefcase, CheckCircle, Clock, FileText, MessageCircle, ShieldCheck, Users } from 'lucide-react';
+import { Briefcase, CheckCircle, Clock, FileText, MessageCircle, Users } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import { useCms } from '../../context/CmsContext';
 import AdminShell from '../../components/admin/AdminShell';
@@ -10,8 +10,6 @@ const BookingManagementPanel = React.lazy(() => import('../../components/admin/B
 const UserManagementPanel = React.lazy(() => import('../../components/admin/UserManagementPanel'));
 const ServicesPanel = React.lazy(() => import('../../components/admin/ServicesPanel'));
 const CategoriesPanel = React.lazy(() => import('../../components/admin/CategoriesPanel'));
-const AreasPanel = React.lazy(() => import('../../components/admin/AreasPanel'));
-const CoveragePanel = React.lazy(() => import('../../components/admin/CoveragePanel'));
 const CoverageRequestsPanel = React.lazy(() => import('../../components/admin/CoverageRequestsPanel'));
 const PricingPanel = React.lazy(() => import('../../components/admin/PricingPanel'));
 const BannersPanel = React.lazy(() => import('../../components/admin/BannersPanel'));
@@ -20,7 +18,6 @@ const OffersPanel = React.lazy(() => import('../../components/admin/OffersPanel'
 const NotificationsPanel = React.lazy(() => import('../../components/admin/NotificationsPanel'));
 const FaqsPanel = React.lazy(() => import('../../components/admin/FaqsPanel'));
 const WorkersPanel = React.lazy(() => import('../../components/admin/WorkersPanel'));
-const ContractorsPanel = React.lazy(() => import('../../components/admin/ContractorsPanel'));
 const ReviewsPanel = React.lazy(() => import('../../components/admin/ReviewsPanel'));
 const PaymentsPanel = React.lazy(() => import('../../components/admin/PaymentsPanel'));
 const RevenuePanel = React.lazy(() => import('../../components/admin/RevenuePanel'));
@@ -46,7 +43,6 @@ const AdminDashboard = () => {
     user,
     bookings,
     workers,
-    contractors,
     tickets,
     profiles,
     logout,
@@ -69,7 +65,6 @@ const AdminDashboard = () => {
 
     const customersCount = Math.max(profileCustomersCount, (cmsCustomers || []).length);
     const workersCount = (workers || []).filter((worker) => !worker.isContractor).length;
-    const contractorsCount = (contractors || []).length;
     const pendingBookings = (bookings || []).filter((booking) => booking.status === 'New Request').length;
     const completedBookings = (bookings || []).filter((booking) => booking.status === 'Completed').length;
 

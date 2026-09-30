@@ -169,13 +169,8 @@ const HeroSlideshow = ({ services: propServices }) => {
     return () => clearInterval(interval);
   }, [isPaused, nextSlide, slides.length]);
 
-  useEffect(() => {
-    if (currentIndex >= slides.length && slides.length > 0) {
-      setCurrentIndex(0);
-    }
-  }, [slides.length, currentIndex]);
-
-  const currentSlide = slides[currentIndex] || slides[0];
+  const effectiveIndex = (currentIndex < slides.length && currentIndex >= 0) ? currentIndex : 0;
+  const currentSlide = slides[effectiveIndex] || slides[0];
   if (!currentSlide) return null;
 
   const IconComponent = currentSlide.badgeIcon || Wrench;

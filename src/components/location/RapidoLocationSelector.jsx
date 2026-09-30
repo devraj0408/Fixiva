@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Navigation,
   Search,
   MapPin,
   Map as MapIcon,
@@ -28,7 +27,7 @@ const RapidoLocationSelector = ({
   className = ''
 }) => {
   // Mode: 'initial' | 'detected' | 'change' | 'map'
-  const [viewMode, setViewMode] = useState('initial');
+  const [viewMode, setViewMode] = useState(() => (initialAddress && String(initialAddress).trim().length > 0 ? 'detected' : 'initial'));
   const [detecting, setDetecting] = useState(false);
   const [gpsError, setGpsError] = useState(null);
 
@@ -54,6 +53,7 @@ const RapidoLocationSelector = ({
 
   useEffect(() => {
     if (initialAddress && String(initialAddress).trim().length > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setViewMode('detected');
     }
   }, [initialAddress]);

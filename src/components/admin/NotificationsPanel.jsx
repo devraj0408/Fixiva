@@ -9,7 +9,6 @@ const NotificationsPanel = () => {
     deleteNotification,
     filterItems,
     paginateItems,
-    showToast,
   } = useCms();
 
   const [search, setSearch] = useState('');
@@ -23,6 +22,7 @@ const NotificationsPanel = () => {
 
   useEffect(() => {
     if (page > paginated.totalPages && paginated.totalPages > 0) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setPage(paginated.totalPages);
     }
   }, [page, paginated.totalPages]);

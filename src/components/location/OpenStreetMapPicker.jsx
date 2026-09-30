@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { MapPin, Loader2, Check, Search, Navigation, LocateFixed } from 'lucide-react';
+import { MapPin, Loader2, Check, Search, LocateFixed } from 'lucide-react';
 import { reverseGeocodeCoords, searchAddressNominatim, createLocationObject } from '../../services/locationService';
 
 const OpenStreetMapPicker = ({

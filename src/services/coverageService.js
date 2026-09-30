@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabaseClient';
 import { logAdminAction } from './auditService';
-import { getDistricts, isMissingTableError, saveDistrictUpdateToStorage } from './locationService';
+import { getDistricts, saveDistrictUpdateToStorage } from './locationService';
 import { getAllStaticDistricts } from '../data/locationData';
 
 /**
@@ -272,7 +272,7 @@ export const isDistrictActive = async (stateName, districtName, serviceId = null
       return String(str)
         .toLowerCase()
         .replace(/\s+district$/i, '')
-        .replace(/[\-_\.]+/g, ' ')
+        .replace(/[-_.]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
     };

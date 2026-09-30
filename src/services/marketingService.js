@@ -225,7 +225,7 @@ export const updateCoupon = async (id, updates, actor = {}) => {
 
   if (supabase) {
     try {
-      let { data, error } = await supabase.from('coupons').update(updates).eq('id', id).select();
+      const { error } = await supabase.from('coupons').update(updates).eq('id', id);
       if (error) {
         console.warn('updateCoupon DB warning:', error);
       }

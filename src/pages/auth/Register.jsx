@@ -3,7 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useApp } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
 
-import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed, Navigation, MapPin } from 'lucide-react';
+import { Loader2, Mail, User, ShieldCheck, Phone, ArrowRight, LocateFixed, MapPin } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
 import { detectCurrentLocation, saveUserGpsLocation } from '../../services/locationService';
 

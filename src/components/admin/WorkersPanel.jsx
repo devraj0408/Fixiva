@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useCms } from '../../context/CmsContext';
 import { useApp } from '../../context/AuthContext';
-import { Info, X, ShieldCheck, CheckCircle2, AlertTriangle, Award, Star } from 'lucide-react';
+import { Info, X, ShieldCheck, CheckCircle2, AlertTriangle, Award } from 'lucide-react';
 import { calculateWorkerTrustScore } from '../../services/trustScoreService';
 
 const WorkersPanel = () => {

@@ -7,8 +7,7 @@ import {
   Wrench, 
   CheckCircle2, 
   XCircle,
-  Clock,
-  Sparkles
+  Clock
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -210,7 +209,6 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false, workerName = '
           {STAGES.map((stage, idx) => {
             const isDone = idx < currentIndex;
             const isCurrent = idx === currentIndex;
-            const isUpcoming = idx > currentIndex;
             const StageIcon = stage.icon;
 
             return (

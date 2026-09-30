@@ -20,7 +20,7 @@ export const getLocalServices = () => {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(SERVICES_LOCAL_STORAGE_KEY) : null;
     return raw ? JSON.parse(raw) : [];
-  } catch (e) {
+  } catch {
     return [];
   }
 };
@@ -54,7 +54,7 @@ export const getLocalCategories = () => {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CATEGORIES_LOCAL_STORAGE_KEY) : null;
     return raw ? JSON.parse(raw) : [];
-  } catch (e) {
+  } catch {
     return [];
   }
 };
@@ -89,7 +89,7 @@ const getServiceImagesCache = () => {
   try {
     const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(IMAGE_CACHE_KEY) : null;
     return raw ? JSON.parse(raw) : {};
-  } catch (e) {
+  } catch {
     return {};
   }
 };
@@ -518,7 +518,7 @@ export const createCategory = async (categoryData, actor = {}) => {
     if (supabase) {
       try {
         const cleanPayload = Object.fromEntries(
-          Object.entries(fullRecord).filter(([_, v]) => v !== undefined && v !== null)
+          Object.entries(fullRecord).filter(([, v]) => v !== undefined && v !== null)
         );
 
         let { data, error } = await supabase.from('categories').insert(cleanPayload).select().maybeSingle();

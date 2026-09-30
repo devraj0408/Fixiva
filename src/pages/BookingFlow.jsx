@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -11,9 +11,7 @@ import {
   LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
-import HierarchicalLocationSelector from '../components/HierarchicalLocationSelector';
 import RapidoLocationSelector from '../components/location/RapidoLocationSelector';
-import { detectCurrentLocation } from '../services/locationService';
 import { findAvailableProfessionals, createBooking } from '../services/bookingService';
 import { submitCoverageRequest } from '../services/coverageService';
 import { BUSINESS_CONFIG } from '../config/businessConfig';
@@ -58,7 +56,6 @@ const BookingFlow = () => {
   const [detectedLocality, setDetectedLocality] = useState('');
   const [detectedLat, setDetectedLat] = useState(null);
   const [detectedLng, setDetectedLng] = useState(null);
-  const [detectingGps, setDetectingGps] = useState(false);
 
   // Active computed location strictly based on active locationMode
   const selectedState = locationMode === 'gps' ? (detectedState || user?.state || '') : manualState;
@@ -121,81 +118,56 @@ const BookingFlow = () => {
     }
   ) : null;
 
-  // Run Locality Matching Engine when step 3 or location/service changes
-  const runMatchingEngine = useCallback(async () => {
-    if (!selectedServiceId) return;
-    setMatchingLoading(true);
-    setCoverageRequested(false);
-    try {
-      const res = await findAvailableProfessionals({
-        serviceId: selectedServiceId,
-        serviceName: activeService?.name,
-        category: activeService?.category,
-        state: selectedState,
-        district: selectedDistrict,
-        locality: selectedLocality,
-        userLat,
-        userLng,
-        customWorkers: workers
-      });
+  const activeServiceName = activeService?.name || '';
+  const activeServiceCategory = activeService?.category || '';
 
-      setIsDistrictActiveStatus(res.districtActive);
-      setAvailablePros(res.professionals || []);
-      if (res.professionals && res.professionals.length > 0) {
-        if (initialParamWorkerId) {
-          const matchedById = res.professionals.find(p => p.id === initialParamWorkerId);
-          setSelectedPro(matchedById || res.professionals[0]);
-        } else {
-          setSelectedPro(res.professionals[0]);
-        }
-      }
-    } catch {
-      showToast('Error matching nearby professionals', 'error');
-    } finally {
-      setMatchingLoading(false);
-    }
-  }, [selectedServiceId, activeService?.name, activeService?.category, selectedState, selectedDistrict, selectedLocality, userLat, userLng, initialParamWorkerId, workers, showToast]);
-
+  // Run Locality Matching Engine when step >= 2 or location/service changes
   useEffect(() => {
-    if (selectedServiceId && step >= 2) {
-      queueMicrotask(() => {
-        runMatchingEngine();
-      });
-    }
-  }, [selectedServiceId, step, runMatchingEngine]);
+    if (!selectedServiceId || step < 2) return;
 
-  // Handle GPS location detection (Switch strictly to GPS mode)
-  const handleDetectGps = async () => {
-    setDetectingGps(true);
-    setLocationMode('gps');
-    try {
-      const loc = await detectCurrentLocation();
-      const st = loc.state || user?.state || '';
-      const dt = loc.district || user?.district || user?.city || '';
-      const lc = loc.locality || user?.locality || '';
-      const lat = loc.latitude || user?.location_latitude || null;
-      const lng = loc.longitude || user?.location_longitude || null;
+    let isMounted = true;
+    const executeMatching = async () => {
+      setMatchingLoading(true);
+      setCoverageRequested(false);
+      try {
+        const res = await findAvailableProfessionals({
+          serviceId: selectedServiceId,
+          serviceName: activeServiceName,
+          category: activeServiceCategory,
+          state: selectedState,
+          district: selectedDistrict,
+          locality: selectedLocality,
+          userLat,
+          userLng,
+          customWorkers: workers
+        });
 
-      setDetectedState(st);
-      setDetectedDistrict(dt);
-      setDetectedLocality(lc);
-      setDetectedLat(lat);
-      setDetectedLng(lng);
-      if (dt) showToast(`🎯 Current location detected: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'success');
-    } catch {
-      const st = user?.state || '';
-      const dt = user?.district || user?.city || '';
-      const lc = user?.locality || '';
-      setDetectedState(st);
-      setDetectedDistrict(dt);
-      setDetectedLocality(lc);
-      setDetectedLat(user?.location_latitude || null);
-      setDetectedLng(user?.location_longitude || null);
-      if (dt) showToast(`Location set to: ${[lc, dt, st].filter(Boolean).join(', ')}`, 'info');
-    } finally {
-      setDetectingGps(false);
-    }
-  };
+        if (!isMounted) return;
+        setIsDistrictActiveStatus(res.districtActive);
+        setAvailablePros(res.professionals || []);
+        if (res.professionals && res.professionals.length > 0) {
+          if (initialParamWorkerId) {
+            const matchedById = res.professionals.find(p => p.id === initialParamWorkerId);
+            setSelectedPro(matchedById || res.professionals[0]);
+          } else {
+            setSelectedPro(res.professionals[0]);
+          }
+        }
+      } catch {
+        if (isMounted) showToast('Error matching nearby professionals', 'error');
+      } finally {
+        if (isMounted) setMatchingLoading(false);
+      }
+    };
+
+    queueMicrotask(() => {
+      executeMatching();
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedServiceId, step, activeServiceName, activeServiceCategory, selectedState, selectedDistrict, selectedLocality, userLat, userLng, initialParamWorkerId, workers, showToast]);
 
   // Explicit Coverage Request Click
   const handleRequestCoverage = async () => {

@@ -381,7 +381,6 @@ const ServicesPanel = () => {
             ) : (
               paginated.data.map((service) => {
                 const activeCount = getActiveCityCount(service.id);
-                const totalCitiesCount = cities.length || 0;
 
                 return (
                   <div

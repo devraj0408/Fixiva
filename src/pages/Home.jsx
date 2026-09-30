@@ -1,10 +1,10 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import {
   Zap, Droplets, Paintbrush, Hammer, Wind, Tv, Sparkles, Bug,
   Trash2, Truck, HardHat, Home as HomeIcon,
-  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle, MapPin, Navigation, ChevronLeft, ChevronRight, LocateFixed
+  Star, Users, ShieldCheck, ArrowRight, Clock, ThumbsUp, Search, Lock, HelpCircle, MapPin, LocateFixed
 } from 'lucide-react';
 import { useApp } from '../context/AuthContext';
 import { useCms } from '../context/CmsContext';
@@ -158,8 +158,8 @@ const HomePromotionalBanner = ({ banners, navigate }) => {
 const HeroServiceSlideshow = HeroSlideshow;
 
 const Home = () => {
-  const { services, reviews: appReviews, cities = [], showToast, submitCoverageRequest, settings: authSettings } = useApp();
-  const { reviews: cmsReviews, banners, cities: cmsCities, settings: cmsSettings } = useCms();
+  const { services, reviews: appReviews, showToast, submitCoverageRequest, settings: authSettings } = useApp();
+  const { reviews: cmsReviews, banners, settings: cmsSettings } = useCms();
   const settings = cmsSettings || authSettings || {};
   const { t } = useLanguage();
   const navigate = useNavigate();

@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowRight } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useApp } from '../../context/AuthContext';
 import { useLanguage } from '../../context/LanguageContext';
-import HierarchicalLocationSelector from '../HierarchicalLocationSelector';
 import RapidoLocationSelector from '../location/RapidoLocationSelector';
 import { findAvailableProfessionals, createBooking } from '../../services/bookingService';
 import { submitCoverageRequest } from '../../services/coverageService';
@@ -31,7 +30,6 @@ const UnifiedBookingModal = () => {
     try { return localStorage.getItem('fixiva:last-locality') || ''; } catch { return ''; }
   });
 
-  const [matchingLoading, setMatchingLoading] = useState(false);
   const [isDistrictActiveStatus, setIsDistrictActiveStatus] = useState(true);
   const [availablePros, setAvailablePros] = useState([]);
   const [selectedPro, setSelectedPro] = useState(null);
@@ -71,31 +69,6 @@ const UnifiedBookingModal = () => {
       platform_fee: BUSINESS_CONFIG.PLATFORM_FEE
     }
   ) : null;
-
-  const handleSearchPros = async () => {
-    setMatchingLoading(true);
-    try {
-      const res = await findAvailableProfessionals({
-        serviceId,
-        serviceName: activeService?.name,
-        category: activeService?.category,
-        state: selectedState,
-        district: selectedDistrict,
-        locality: selectedLocality,
-        customWorkers: workers
-      });
-      setIsDistrictActiveStatus(res.districtActive);
-      setAvailablePros(res.professionals || []);
-      if (res.professionals && res.professionals.length > 0) {
-        setSelectedPro(res.professionals[0]);
-      }
-      setStep(2);
-    } catch {
-      showToast(t('somethingWentWrong', 'Error matching professionals'), 'error');
-    } finally {
-      setMatchingLoading(false);
-    }
-  };
 
   const handleConfirm = async () => {
     if (settings?.maintenanceMode) {
@@ -177,7 +150,6 @@ const UnifiedBookingModal = () => {
                       setSelectedState(loc.state);
                       setSelectedDistrict(loc.district);
                       setSelectedLocality(loc.locality);
-                      setMatchingLoading(true);
                       try {
                         const res = await findAvailableProfessionals({
                           serviceId,
@@ -198,8 +170,6 @@ const UnifiedBookingModal = () => {
                         setStep(2);
                       } catch {
                         showToast(t('somethingWentWrong', 'Error matching professionals'), 'error');
-                      } finally {
-                        setMatchingLoading(false);
                       }
                     }}
                   />

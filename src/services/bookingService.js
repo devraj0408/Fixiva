@@ -74,19 +74,16 @@ export const findAvailableProfessionals = async ({
   try {
     // 2. Fetch Active Workers, Contractors & Profiles from Supabase
     let rawWorkers = [];
-    let rawContractors = [];
     let rawProfiles = [];
 
     if (supabase) {
       try {
-        const [{ data: wData }, { data: cData }, { data: pData }, { data: skillsData }] = await Promise.all([
+        const [{ data: wData }, { data: pData }, { data: skillsData }] = await Promise.all([
           supabase.from('workers').select('*'),
-          supabase.from('contractors').select('*'),
           supabase.from('profiles').select('*').in('role', ['worker', 'contractor']),
           supabase.from('worker_skills').select('*').eq('active', true).catch(() => ({ data: [] }))
         ]);
         rawWorkers = wData || [];
-        rawContractors = cData || [];
         rawProfiles = pData || [];
         if (skillsData && skillsData.length > 0) {
           skillsData.forEach(s => {
@@ -222,7 +219,7 @@ export const findAvailableProfessionals = async ({
       return String(str)
         .toLowerCase()
         .replace(/\s+district$/i, '')
-        .replace(/[\-_\.]+/g, ' ')
+        .replace(/[-_.]+/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
     };
