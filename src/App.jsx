@@ -13,6 +13,7 @@ import ScrollToTop from './components/ScrollToTop';
 import UnifiedBookingModal from './components/booking/UnifiedBookingModal';
 import AIChatBotWidget from './components/support/AIChatBotWidget';
 import BrandLogo from './components/BrandLogo';
+import ErrorBoundary from './components/ErrorBoundary';
 
 import { lazyWithRetry } from './utils/lazyWithRetry';
 
@@ -106,34 +107,36 @@ function AppShell() {
       <div className="app-container">
         <Navbar />
         <main className="content">
-          <Suspense fallback={<LoadingSkeleton />}>
-            <Routes>
-              <Route path="/" element={<Home />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/book/:serviceId?" element={<BookingFlow />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/forgot-password" element={<ForgotPassword />} />
-              <Route path="/reset-password" element={<ResetPassword />} />
-              <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-              <Route path="/dashboard/contractor" element={<ContractorDisabled />} />
-              <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
-              <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
-              <Route path="/contractor-dashboard" element={<ContractorDisabled />} />
-              <Route path="/contractor-disabled" element={<ContractorDisabled />} />
-              <Route path="/dashboard" element={<ProtectedRoute><RoleBasedDashboardRedirect /></ProtectedRoute>} />
-              <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
-              <Route path="/help" element={<HelpCenter />} />
-              <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-              <Route path="/contact" element={<ContactUs />} />
-              <Route path="/terms" element={<TermsAndConditions />} />
-              <Route path="/privacy" element={<PrivacyPolicy />} />
-              <Route path="/refund" element={<RefundPolicy />} />
-              <Route path="/cancellation" element={<RefundPolicy />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<LoadingSkeleton />}>
+              <Routes>
+                <Route path="/" element={<Home />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/book/:serviceId?" element={<BookingFlow />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
+                <Route path="/dashboard/customer" element={<ProtectedRoute allowedRoles={['customer']}><CustomerDashboard /></ProtectedRoute>} />
+                <Route path="/dashboard/worker" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+                <Route path="/dashboard/contractor" element={<ContractorDisabled />} />
+                <Route path="/dashboard/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboard /></ProtectedRoute>} />
+                <Route path="/worker-dashboard" element={<ProtectedRoute allowedRoles={['worker']}><WorkerDashboard /></ProtectedRoute>} />
+                <Route path="/contractor-dashboard" element={<ContractorDisabled />} />
+                <Route path="/contractor-disabled" element={<ContractorDisabled />} />
+                <Route path="/dashboard" element={<ProtectedRoute><RoleBasedDashboardRedirect /></ProtectedRoute>} />
+                <Route path="/fixiva-admin/*" element={<Navigate to="/dashboard/admin" replace />} />
+                <Route path="/help" element={<HelpCenter />} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="/contact" element={<ContactUs />} />
+                <Route path="/terms" element={<TermsAndConditions />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/refund" element={<RefundPolicy />} />
+                <Route path="/cancellation" element={<RefundPolicy />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </main>
         <Footer />
         <UnifiedBookingModal />

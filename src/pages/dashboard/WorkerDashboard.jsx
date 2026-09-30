@@ -298,10 +298,14 @@ const WorkerDashboard = () => {
 
   // Notifications state
   const [notifications, setNotifications] = useState([]);
+  const userRef = useRef(user);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   // Global Realtime Dispatch listener (across all devices/mobile/desktop)
   useEffect(() => {
-    if (!supabase || !user) return;
+    if (!supabase || !user?.id) return;
 
     const channelNames = [
       'fixiva-global-dispatch',
@@ -318,15 +322,16 @@ const WorkerDashboard = () => {
       const job = message?.payload;
       if (!job) return;
 
-      const uPhone = String(user.phone || '').replace(/\D/g, '').slice(-10);
+      const currentUser = userRef.current || {};
+      const uPhone = String(currentUser.phone || '').replace(/\D/g, '').slice(-10);
       const jPhone = String(job.worker_phone || '').replace(/\D/g, '').slice(-10);
-      const uEmail = String(user.email || '').toLowerCase().trim();
+      const uEmail = String(currentUser.email || '').toLowerCase().trim();
       const jEmail = String(job.worker_email || '').toLowerCase().trim();
-      const uName = String(user.name || '').toLowerCase().trim();
+      const uName = String(currentUser.name || '').toLowerCase().trim();
       const jName = String(job.worker_name || '').toLowerCase().trim();
 
       const isTarget =
-        (job.worker_id && String(job.worker_id).trim() === String(user.id).trim()) ||
+        (job.worker_id && String(job.worker_id).trim() === String(currentUser.id).trim()) ||
         (isAjmalUser && (String(job.worker_id).trim() === AJMAL_WORKER_UUID || String(job.worker_id).trim() === 'local_3' || isAjmalSpecialist(job))) ||
         (jPhone && uPhone && jPhone === uPhone) ||
         (jEmail && uEmail && jEmail === uEmail) ||
@@ -339,7 +344,7 @@ const WorkerDashboard = () => {
           const next = [job, ...prev.filter(b => b.id !== job.id)];
           try {
             const keysToStore = [
-              `fixiva_worker_offers_${user.id}`,
+              `fixiva_worker_offers_${currentUser.id}`,
               `fixiva_worker_offers_${AJMAL_WORKER_UUID}`,
               'fixiva_worker_offers_local_3',
               'fixiva_worker_offers_global',
@@ -382,7 +387,7 @@ const WorkerDashboard = () => {
         try { supabase.removeChannel(c); } catch (e) { void e; }
       });
     };
-  }, [user, isAjmalUser, showToast]);
+  }, [user?.id, isAjmalUser, showToast]);
 
   useEffect(() => {
     if (user) {
@@ -446,12 +451,10 @@ const WorkerDashboard = () => {
     } catch (err) {
       console.error('Exception fetching worker notifications:', err);
     }
-  }, [user, isAjmalUser]);
+  }, [user?.id, isAjmalUser]);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      fetchNotifications();
-    });
+    fetchNotifications();
 
     if (!user?.id || !supabase) return;
 
@@ -473,26 +476,26 @@ const WorkerDashboard = () => {
 
   // Mark Worker Notifications as read when opening notifications tab
   useEffect(() => {
-    if (activeTab === 'notifications' && user?.id && notifications.length > 0) {
-      const unread = notifications.filter((n) => !n.read);
-      if (unread.length > 0) {
+    if (activeTab === 'notifications' && user?.id) {
+      setNotifications((prev) => {
+        const unread = prev.filter((n) => !n.read);
+        if (unread.length === 0) return prev;
+
         let readIds = [];
         try {
           const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
           readIds = stored ? JSON.parse(stored) : [];
         } catch (e) { void e; }
 
-        const newReadIds = [...new Set([...readIds, ...notifications.map((n) => n.id)])];
+        const newReadIds = [...new Set([...readIds, ...prev.map((n) => n.id)])];
         try {
           localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
         } catch (e) { void e; }
 
-        queueMicrotask(() => {
-          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-        });
-      }
+        return prev.map((n) => ({ ...n, read: true }));
+      });
     }
-  }, [activeTab, user?.id, notifications]);
+  }, [activeTab, user?.id]);
 
   // Filter jobs for this worker dynamically
   const myJobs = useMemo(() => {
@@ -604,7 +607,13 @@ const WorkerDashboard = () => {
     const todayStr = new Date().toISOString().split('T')[0];
     return myJobs.filter((b) => {
       const bDate = b.booking_date || b.preferred_date || b.created_at;
-      return bDate && new Date(bDate).toISOString().split('T')[0] === todayStr && b.status !== 'Completed';
+      if (!bDate) return false;
+      try {
+        const d = new Date(bDate);
+        return !isNaN(d.getTime()) && d.toISOString().split('T')[0] === todayStr && b.status !== 'Completed';
+      } catch {
+        return false;
+      }
     }).length;
   }, [myJobs]);
 
@@ -619,11 +628,16 @@ const WorkerDashboard = () => {
     });
   }, [myJobs]);
 
+  const activeAssignedJobRef = useRef(activeAssignedJob);
+  useEffect(() => {
+    activeAssignedJobRef.current = activeAssignedJob;
+  }, [activeAssignedJob]);
+
   const lastGpsRef = useRef({ timestamp: 0, lat: null, lng: null, hasWrittenFirst: false });
 
-  // GPS Watcher for Active Assigned Job
+  // GPS Watcher for Active Assigned Job - uses stable primitive dependencies to prevent infinite loop
   useEffect(() => {
-    if (!liveLocationEnabled || !activeAssignedJob || !user?.id || !navigator.geolocation) return;
+    if (!liveLocationEnabled || !activeAssignedJobRef.current || !user?.id || !navigator.geolocation) return;
 
     let watchId = null;
     try {
@@ -656,12 +670,13 @@ const WorkerDashboard = () => {
               console.warn('Skipping GPS noise spike:', distKm, 'km in', timeDiffSec, 's');
               return;
             }
-            // Throttle Check (3s or 10m displacement)
-            if (timeDiffSec < 3 && distKm < 0.01) {
+            // Throttle Check: Don't send more frequently than 8s unless moved > 25m
+            if (timeDiffSec < 8 && distKm < 0.025) {
               return;
             }
           }
 
+          const currentJob = activeAssignedJobRef.current;
           // Direct Supabase UPSERT to public.worker_locations
           const res = await updateWorkerLiveLocation({
             workerId: user.id,
@@ -670,22 +685,17 @@ const WorkerDashboard = () => {
             heading: heading,
             speed: speed,
             accuracy: accuracy,
-            address: `Active Job #${activeAssignedJob.id}`
+            address: currentJob?.id ? `Active Job #${currentJob.id}` : 'On Duty'
           });
 
           if (res.data) {
             lastGpsRef.current = { timestamp: now, lat, lng, hasWrittenFirst: true };
-          } else if (res.error) {
-            console.error('[Worker Locations Direct UPSERT Error]', res.error);
           }
         },
         (err) => {
           console.warn('Worker GPS watch error:', err);
-          if (err.code === 1) {
-            showToast('GPS permission denied. Please allow location access for live tracking.', 'error');
-          }
         },
-        { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
       );
     } catch (e) {
       console.warn('Failed to start worker geolocation watchPosition:', e);
@@ -696,7 +706,7 @@ const WorkerDashboard = () => {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [liveLocationEnabled, activeAssignedJob, user?.id, showToast]);
+  }, [liveLocationEnabled, activeAssignedJob?.id, activeAssignedJob?.status, user?.id]);
 
   const activeJobs = useMemo(() => {
     return myJobs.filter((b) => ['Accepted', 'Worker Assigned', 'Confirmed', 'On The Way', 'Work Started', 'In Progress'].includes(b.status));
@@ -722,18 +732,21 @@ const WorkerDashboard = () => {
       const amount = Number(j.price || 0);
       lifetimeRev += amount;
 
-      const dateObj = new Date(j.created_at || j.booking_date || j.preferred_date || 0);
-      const dateStr = dateObj.toISOString().split('T')[0];
-
-      if (dateStr === todayStr) {
-        todayRev += amount;
-      }
-      if (dateObj >= sevenDaysAgo) {
-        weeklyRev += amount;
-      }
-      if (dateObj >= startOfMonth) {
-        monthlyRev += amount;
-      }
+      try {
+        const dateObj = new Date(j.created_at || j.booking_date || j.preferred_date || 0);
+        if (!isNaN(dateObj.getTime())) {
+          const dateStr = dateObj.toISOString().split('T')[0];
+          if (dateStr === todayStr) {
+            todayRev += amount;
+          }
+          if (dateObj >= sevenDaysAgo) {
+            weeklyRev += amount;
+          }
+          if (dateObj >= startOfMonth) {
+            monthlyRev += amount;
+          }
+        }
+      } catch { void 0; }
     });
 
     const avgJobVal = completedJobs.length > 0 ? Math.round(lifetimeRev / completedJobs.length) : 0;
@@ -747,9 +760,17 @@ const WorkerDashboard = () => {
     };
   }, [completedJobs]);
 
-  // Realtime Booking & Reviews Subscription for Worker
+  // Realtime Booking & Reviews Subscription for Worker (debounced to avoid UI stutter)
   useEffect(() => {
     if (!user?.id || !supabase) return;
+
+    let debounceTimer = null;
+    const debouncedRefresh = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (refreshData) refreshData();
+      }, 1000);
+    };
 
     const workerChannel = supabase
       .channel(`worker-realtime-${user.id}`)
@@ -757,27 +778,55 @@ const WorkerDashboard = () => {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings' },
         () => {
-          if (refreshData) refreshData();
+          debouncedRefresh();
         }
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'reviews' },
         () => {
-          if (refreshData) refreshData();
+          debouncedRefresh();
         }
       )
       .subscribe();
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       supabase.removeChannel(workerChannel);
     };
   }, [user?.id, refreshData]);
 
   // Action handlers
+  const handleCollectCashPayment = async (bookingId) => {
+    // 1. Instant optimistic update
+    setLiveOffers((prev) => prev.map((j) => (j.id === bookingId ? { ...j, payment_status: 'PAID', payment_method: 'CASH' } : j)));
+    try {
+      const keys = [
+        `fixiva_worker_offers_${user?.id}`,
+        `fixiva_worker_offers_${AJMAL_WORKER_UUID}`,
+        'fixiva_worker_offers_local_3',
+        'fixiva_worker_offers_global',
+        'fixiva_global_offers'
+      ];
+      keys.forEach((k) => {
+        const item = localStorage.getItem(k);
+        if (item) {
+          try {
+            const list = JSON.parse(item);
+            if (Array.isArray(list)) {
+              const updated = list.map((j) => (j.id === bookingId ? { ...j, payment_status: 'PAID', payment_method: 'CASH' } : j));
+              localStorage.setItem(k, JSON.stringify(updated));
+            }
+          } catch (e) { void e; }
+        }
+      });
+    } catch (e) { void e; }
+
+    await collectCashPayment(bookingId);
+  };
+
   const handleJobStatusUpdate = async (bookingId, newStatus) => {
-    await updateBookingStatus(bookingId, newStatus, user?.id);
-    showToast(`Job status updated to ${newStatus}.`, 'success');
+    // 1. Instant optimistic update in liveOffers
     setLiveOffers((prev) => prev.map((j) => (j.id === bookingId ? { ...j, status: newStatus, worker_id: user?.id } : j)));
     try {
       const keys = [
@@ -800,7 +849,9 @@ const WorkerDashboard = () => {
         }
       });
     } catch (e) { void e; }
-    if (refreshData) refreshData();
+
+    showToast(`Job status updated to ${newStatus}.`, 'success');
+    await updateBookingStatus(bookingId, newStatus, user?.id);
   };
 
   const handleRejectJob = async (bookingId) => {
@@ -1108,7 +1159,7 @@ const WorkerDashboard = () => {
                           </div>
                         ) : (
                           <button
-                            onClick={() => collectCashPayment(job.id)}
+                            onClick={() => handleCollectCashPayment(job.id)}
                             className="flex-1 rounded-2xl bg-emerald-600 py-3 text-xs font-extrabold text-white shadow-sm hover:bg-emerald-700 transition-all flex items-center justify-center gap-1.5"
                           >
                             💵 Cash Collected (₹{job.price || 0})

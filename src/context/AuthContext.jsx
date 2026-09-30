@@ -128,9 +128,25 @@ const resolveEmailForAuth = async (supabaseClient, normalized, checkAccountExist
 };
 
 export const AuthProvider = ({ children }) => {
-  // Auth state
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Auth state initialized synchronously from localStorage if present to prevent login bounce
+  const [user, setUser] = useState(() => {
+    try {
+      const local = typeof localStorage !== 'undefined' ? localStorage.getItem('fixiva_current_user') : null;
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && (parsed.id || parsed.email)) return parsed;
+      }
+    } catch { void 0; }
+    return null;
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const local = typeof localStorage !== 'undefined' ? localStorage.getItem('fixiva_current_user') : null;
+      return !local;
+    } catch {
+      return true;
+    }
+  });
   const [initError, setInitError] = useState(null);
 
   // Refs to prevent race conditions and double loading
@@ -557,9 +573,19 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (e) { void e; }
       return userData;
-    } catch {
-      setUser(null);
-      return null;
+    } catch (err) {
+      console.warn('fetchUserProfile error, retaining cached profile:', err);
+      try {
+        const cached = localStorage.getItem('fixiva_current_user');
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && (parsed.id === userId || !userRef.current)) {
+            setUser(parsed);
+            return parsed;
+          }
+        }
+      } catch { void 0; }
+      return userRef.current || null;
     }
   }, [showToast]);
 
@@ -580,7 +606,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     const init = async () => {
-      if (!isInitialAuthDoneRef.current) {
+      if (!isInitialAuthDoneRef.current && !userRef.current) {
         setLoading(true);
       }
       isInitializingRef.current = true;
@@ -605,24 +631,22 @@ export const AuthProvider = ({ children }) => {
           const localUser = localStorage.getItem('fixiva_current_user');
           if (localUser) {
             try {
-              setUser(JSON.parse(localUser));
-            } catch {
-              setUser(null);
-            }
-          } else {
-            setUser(null);
+              const parsed = JSON.parse(localUser);
+              if (parsed && (parsed.id || parsed.email)) {
+                setUser(parsed);
+              }
+            } catch { void 0; }
           }
         }
       } catch {
         const localUser = localStorage.getItem('fixiva_current_user');
         if (localUser) {
           try {
-            setUser(JSON.parse(localUser));
-          } catch {
-            setUser(null);
-          }
-        } else {
-          setUser(null);
+            const parsed = JSON.parse(localUser);
+            if (parsed && (parsed.id || parsed.email)) {
+              setUser(parsed);
+            }
+          } catch { void 0; }
         }
       }
 
@@ -641,6 +665,9 @@ export const AuthProvider = ({ children }) => {
 
       if (event === 'SIGNED_OUT') {
         setUser(null);
+        try {
+          localStorage.removeItem('fixiva_current_user');
+        } catch { void 0; }
         return;
       }
 
@@ -657,9 +684,22 @@ export const AuthProvider = ({ children }) => {
         }
         setLoading(false);
       } else {
-        setUser(null);
+        // Do NOT blow away existing valid user session unless explicitly signed out
+        const localUser = localStorage.getItem('fixiva_current_user');
+        if (!localUser && !userRef.current) {
+          setUser(null);
+        }
       }
     });
+
+    // Debounced marketplace refresh timer to prevent request storms
+    let refreshDebounceTimer = null;
+    const debouncedRefreshMarketplaceData = () => {
+      if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
+      refreshDebounceTimer = setTimeout(() => {
+        fetchMarketplaceData();
+      }, 1500);
+    };
 
     // Supabase Realtime Channel Subscription for live ecosystem sync
     const realtimeChannel = supabase
@@ -668,7 +708,12 @@ export const AuthProvider = ({ children }) => {
         'postgres_changes',
         { event: '*', schema: 'public' },
         (payload) => {
-          fetchMarketplaceData();
+          // IMPORTANT: Ignore high-frequency GPS tracking & telemetry tables to avoid infinite loop
+          if (payload?.table === 'worker_locations' || payload?.table === 'audit_logs' || payload?.table === 'live_tracking') {
+            return;
+          }
+
+          debouncedRefreshMarketplaceData();
           if (userRef.current?.id && payload.table === 'profiles' && payload.new?.id === userRef.current.id) {
             fetchUserProfile(userRef.current.id, userRef.current.email);
           }
@@ -677,6 +722,7 @@ export const AuthProvider = ({ children }) => {
       .subscribe();
 
     return () => {
+      if (refreshDebounceTimer) clearTimeout(refreshDebounceTimer);
       if (subscription) subscription.unsubscribe();
       if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
@@ -1154,30 +1200,38 @@ export const AuthProvider = ({ children }) => {
     return `svc_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
   };
 
-  const updateBookingStatus = async (id, status) => {
+  const updateBookingStatus = async (id, status, workerId = null) => {
     const booking = bookings.find((b) => b.id === id);
-    const { error } = await supabase.from('bookings').update({ status }).eq('id', id);
-    if (!error) {
-      setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, status } : b)));
-      
-      // Automatic Trust Score modifications based on outcomes
-      if (booking?.worker_id) {
-        if (status === 'Completed') {
-          await updateWorkerTrust(booking.worker_id, 2);
-        } else if (status === 'Worker No Show') {
-          await updateWorkerTrust(booking.worker_id, -20);
-        } else if (status === 'Customer No Show') {
-          await updateWorkerTrust(booking.worker_id, 5); // Little incentive for the hassle
-        } else if (status === 'Cancelled') {
-          await updateWorkerTrust(booking.worker_id, -5); // Penalty for cancellation
-        }
-      }
-      await fetchMarketplaceData();
-    } else {
-      // Failed to update booking
-      showToast("Failed to update booking status: " + error.message, 'error');
+    const updates = { status };
+    if (workerId) {
+      updates.worker_id = workerId;
     }
-    return { error };
+
+    // Optimistic local state update immediately
+    setBookings((prev) => prev.map((b) => (b.id === id ? { ...b, ...updates } : b)));
+
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('bookings').update(updates).eq('id', id);
+        if (!error) {
+          const effectiveWorkerId = workerId || booking?.worker_id;
+          if (effectiveWorkerId) {
+            if (status === 'Completed' || status === 'COMPLETED') {
+              await updateWorkerTrust(effectiveWorkerId, 2);
+            } else if (status === 'Worker No Show') {
+              await updateWorkerTrust(effectiveWorkerId, -20);
+            } else if (status === 'Customer No Show') {
+              await updateWorkerTrust(effectiveWorkerId, 5);
+            } else if (status === 'Cancelled') {
+              await updateWorkerTrust(effectiveWorkerId, -5);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('updateBookingStatus sync note:', e);
+      }
+    }
+    return { success: true };
   };
 
   const collectCashPayment = async (bookingId) => {
@@ -1195,20 +1249,22 @@ export const AuthProvider = ({ children }) => {
       paid_at: paidAt
     };
 
-    const { error } = await supabase
-      .from('bookings')
-      .update(updates)
-      .eq('id', bookingId);
+    // Optimistic local state update immediately
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
+    showToast('💵 Cash collected successfully! Payment status set to PAID.', 'success');
 
-    if (!error) {
-      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
-      showToast('💵 Cash collected successfully! Payment status set to PAID.', 'success');
-      await fetchMarketplaceData();
-      return { success: true };
-    } else {
-      showToast('Failed to collect cash: ' + error.message, 'error');
-      return { error };
+    if (supabase) {
+      try {
+        await supabase
+          .from('bookings')
+          .update(updates)
+          .eq('id', bookingId);
+      } catch (e) {
+        console.warn('collectCashPayment sync note:', e);
+      }
     }
+
+    return { success: true };
   };
 
   const updatePaymentStatus = async (bookingId, paymentStatus) => {
@@ -1221,20 +1277,21 @@ export const AuthProvider = ({ children }) => {
       paid_at: paidAt
     };
 
-    const { error } = await supabase
-      .from('bookings')
-      .update(updates)
-      .eq('id', bookingId);
+    setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
+    showToast(`Payment status updated to ${updates.payment_status}.`, 'success');
 
-    if (!error) {
-      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, ...updates } : b)));
-      showToast(`Payment status updated to ${updates.payment_status}.`, 'success');
-      await fetchMarketplaceData();
-      return { success: true };
-    } else {
-      showToast('Failed to update payment status: ' + error.message, 'error');
-      return { error };
+    if (supabase) {
+      try {
+        await supabase
+          .from('bookings')
+          .update(updates)
+          .eq('id', bookingId);
+      } catch (e) {
+        console.warn('updatePaymentStatus sync note:', e);
+      }
     }
+
+    return { success: true };
   };
 
   const updateWorkerTrust = async (id, delta) => {

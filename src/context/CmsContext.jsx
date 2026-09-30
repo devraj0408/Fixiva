@@ -204,15 +204,29 @@ export const CmsProvider = ({ children }) => {
     });
 
     if (!supabase) return () => { isMounted = false; };
+
+    let cmsDebounceTimer = null;
+    const debouncedRefreshCms = () => {
+      if (cmsDebounceTimer) clearTimeout(cmsDebounceTimer);
+      cmsDebounceTimer = setTimeout(() => {
+        if (isMounted) refreshCmsData(true);
+      }, 2000);
+    };
+
     const cmsRealtimeChannel = supabase
       .channel('fixiva-cms-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-        if (isMounted) refreshCmsData(true);
+      .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
+        // Ignore high-frequency GPS tracking & telemetry tables
+        if (payload?.table === 'worker_locations' || payload?.table === 'audit_logs' || payload?.table === 'live_tracking') {
+          return;
+        }
+        debouncedRefreshCms();
       })
       .subscribe();
 
     return () => {
       isMounted = false;
+      if (cmsDebounceTimer) clearTimeout(cmsDebounceTimer);
       supabase.removeChannel(cmsRealtimeChannel);
     };
   }, [refreshCmsData]);
