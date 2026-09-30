@@ -24,7 +24,6 @@ import {
   ShieldCheck,
   Send,
   Loader2,
-  Navigation,
   LocateFixed
 } from 'lucide-react';
 import ProfileCard from '../../components/ProfileCard';
@@ -404,15 +403,17 @@ const WorkerDashboard = () => {
     }
   }, [user]);
 
+  const userId = user?.id;
+
   // Fetch Notifications & Realtime Subscription
   const fetchNotifications = useCallback(async () => {
-    if (!user?.id || !supabase) return;
+    if (!userId || !supabase) return;
     try {
       let data = null;
       const res = await supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', user.id)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false });
 
       if (!res.error && res.data) {
@@ -421,13 +422,13 @@ const WorkerDashboard = () => {
 
       let readIds = [];
       try {
-        const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
+        const stored = localStorage.getItem(`fixiva_read_notifs_${userId}`);
         readIds = stored ? JSON.parse(stored) : [];
       } catch (e) { void e; }
 
       let processed = (data || []).map((n) => ({
         ...n,
-        read: n.user_id === user.id ? Boolean(n.read) : readIds.includes(n.id)
+        read: n.user_id === userId ? Boolean(n.read) : readIds.includes(n.id)
       }));
 
       // Ensure that for Ajmal/Ajmul, if notifications don't have the assigned booking notification, it is present
@@ -451,15 +452,16 @@ const WorkerDashboard = () => {
     } catch (err) {
       console.error('Exception fetching worker notifications:', err);
     }
-  }, [user?.id, isAjmalUser]);
+  }, [userId, isAjmalUser]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchNotifications();
 
-    if (!user?.id || !supabase) return;
+    if (!userId || !supabase) return;
 
     const notifChannel = supabase
-      .channel(`worker-notifications-${user.id}`)
+      .channel(`worker-notifications-${userId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'notifications' },
@@ -472,30 +474,31 @@ const WorkerDashboard = () => {
     return () => {
       supabase.removeChannel(notifChannel);
     };
-  }, [user?.id, fetchNotifications]);
+  }, [userId, fetchNotifications]);
 
   // Mark Worker Notifications as read when opening notifications tab
   useEffect(() => {
-    if (activeTab === 'notifications' && user?.id) {
+    if (activeTab === 'notifications' && userId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setNotifications((prev) => {
         const unread = prev.filter((n) => !n.read);
         if (unread.length === 0) return prev;
 
         let readIds = [];
         try {
-          const stored = localStorage.getItem(`fixiva_read_notifs_${user.id}`);
+          const stored = localStorage.getItem(`fixiva_read_notifs_${userId}`);
           readIds = stored ? JSON.parse(stored) : [];
         } catch (e) { void e; }
 
         const newReadIds = [...new Set([...readIds, ...prev.map((n) => n.id)])];
         try {
-          localStorage.setItem(`fixiva_read_notifs_${user.id}`, JSON.stringify(newReadIds));
+          localStorage.setItem(`fixiva_read_notifs_${userId}`, JSON.stringify(newReadIds));
         } catch (e) { void e; }
 
         return prev.map((n) => ({ ...n, read: true }));
       });
     }
-  }, [activeTab, user?.id]);
+  }, [activeTab, userId]);
 
   // Filter jobs for this worker dynamically
   const myJobs = useMemo(() => {
@@ -590,17 +593,18 @@ const WorkerDashboard = () => {
     });
   }, [allReviews, user]);
 
+  const profileRatingRaw = user?.rating || user?.avg_rating || user?.rating_score;
   const averageWorkerRating = useMemo(() => {
     if (workerReviews.length > 0) {
       const sum = workerReviews.reduce((acc, curr) => acc + Number(curr.rating || 0), 0);
       return (sum / workerReviews.length).toFixed(1);
     }
-    const profileRating = Number(user?.rating || user?.avg_rating || user?.rating_score);
+    const profileRating = Number(profileRatingRaw);
     if (!isNaN(profileRating) && profileRating > 0) {
       return profileRating.toFixed(1);
     }
     return 'N/A';
-  }, [workerReviews, user?.rating, user?.avg_rating, user?.rating_score]);
+  }, [workerReviews, profileRatingRaw]);
 
   // Specific Worker Dashboard Metrics
   const todaysJobsCount = useMemo(() => {

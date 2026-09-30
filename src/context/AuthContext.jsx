@@ -587,6 +587,7 @@ export const AuthProvider = ({ children }) => {
       } catch { void 0; }
       return userRef.current || null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showToast]);
 
   useEffect(() => {
@@ -726,6 +727,7 @@ export const AuthProvider = ({ children }) => {
       if (subscription) subscription.unsubscribe();
       if (realtimeChannel) supabase.removeChannel(realtimeChannel);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const requestOtp = async (identifier, purpose = 'sign-in', metadata = null) => {

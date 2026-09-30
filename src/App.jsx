@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import { Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -27,7 +27,6 @@ const ResetPassword = lazyWithRetry(() => import('./pages/auth/ResetPassword'));
 const CustomerDashboard = lazyWithRetry(() => import('./pages/dashboard/CustomerDashboard'));
 const WorkerDashboard = lazyWithRetry(() => import('./pages/dashboard/WorkerDashboard'));
 const AdminDashboard = lazyWithRetry(() => import('./pages/dashboard/AdminDashboard'));
-const ContractorDashboard = lazyWithRetry(() => import('./pages/dashboard/ContractorDashboard'));
 const HelpCenter = lazyWithRetry(() => import('./pages/HelpCenter'));
 const Profile = lazyWithRetry(() => import('./pages/Profile'));
 const ContactUs = lazyWithRetry(() => import('./pages/ContactUs'));
