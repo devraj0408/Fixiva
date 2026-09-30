@@ -1,75 +1,13 @@
 import React from 'react';
-import { 
-  Check, 
-  ClipboardCheck, 
-  UserCheck, 
-  Navigation, 
-  Wrench, 
-  CheckCircle2, 
+import {
+  Check,
   XCircle,
-  Clock
+  Clock,
+  PhoneCall,
+  PhoneOff
 } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
-
-// 5 Direct Customer-Centric Stages (No contractor middleman)
-const STAGES = [
-  { 
-    id: 'booked', 
-    key: 'statusBooked', 
-    label: 'Booked', 
-    shortDesc: 'Request Confirmed',
-    icon: ClipboardCheck,
-    statuses: ['NEW', 'LEAD SENT', 'Pending', 'New Request', 'BOOKED', 'Confirmed'] 
-  },
-  { 
-    id: 'assigned', 
-    key: 'statusWorkerAssigned', 
-    label: 'Assigned', 
-    shortDesc: 'Specialist Assigned',
-    icon: UserCheck,
-    statuses: ['WORKER ASSIGNED', 'PENDING ACCEPTANCE', 'Assigned', 'ACCEPTED', 'CONTRACTOR ACCEPTED', 'Worker Accepted'] 
-  },
-  { 
-    id: 'on_the_way', 
-    key: 'statusOnTheWay', 
-    label: 'On The Way', 
-    shortDesc: 'En Route',
-    icon: Navigation,
-    statuses: ['ON THE WAY', 'Dispatched', 'En Route'] 
-  },
-  { 
-    id: 'in_progress', 
-    key: 'statusWorkStarted', 
-    label: 'In Progress', 
-    shortDesc: 'Service Active',
-    icon: Wrench,
-    statuses: ['ARRIVED', 'Arrived', 'WORK IN PROGRESS', 'Work Started', 'In Progress', 'In Service'] 
-  },
-  { 
-    id: 'completed', 
-    key: 'statusCompleted', 
-    label: 'Completed', 
-    shortDesc: 'Work Done',
-    icon: CheckCircle2,
-    statuses: ['COMPLETED', 'Completed', 'Reviewed', 'REVIEWED'] 
-  }
-];
-
-const getActiveStageIndex = (status) => {
-  if (!status) return 0;
-  const normalized = String(status).trim().toLowerCase();
-  
-  if (normalized.includes('cancel') || normalized.includes('reject')) {
-    return -1;
-  }
-
-  for (let i = STAGES.length - 1; i >= 0; i--) {
-    if (STAGES[i].statuses.some((s) => s.toLowerCase() === normalized)) {
-      return i;
-    }
-  }
-  return 0;
-};
+import { getActiveStageIndex, STAGES } from './bookingStatusUtils';
 
 const getStatusDetails = (stageIndex, workerName) => {
   switch (stageIndex) {
@@ -122,7 +60,7 @@ const getStatusDetails = (stageIndex, workerName) => {
   }
 };
 
-const BookingStatusTimeline = ({ status = 'NEW', compact = false, workerName = '', booking = null }) => {
+const BookingStatusTimeline = ({ status = 'NEW', compact = false, workerName = '', booking = null, onCallSpecialist = null }) => {
   const { t } = useLanguage();
   const currentIndex = getActiveStageIndex(status);
   const isCancelled = currentIndex === -1;
@@ -191,6 +129,35 @@ const BookingStatusTimeline = ({ status = 'NEW', compact = false, workerName = '
             </p>
           </div>
         </div>
+
+        {/* Dynamic Contextual Action: Call Specialist */}
+        {onCallSpecialist && (
+          <div className="shrink-0">
+            {currentIndex >= 1 ? (
+              <button
+                type="button"
+                onClick={() => onCallSpecialist(booking)}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ring-2 ring-emerald-500/20"
+                title={`Call ${effectiveWorkerName || 'Specialist'}`}
+              >
+                <PhoneCall size={13} className="shrink-0 animate-pulse" />
+                <span className="hidden sm:inline">Call Specialist</span>
+                <span className="sm:hidden">Call</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onCallSpecialist(booking)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 text-slate-400 text-xs font-semibold cursor-not-allowed flex items-center gap-1.5 border border-slate-200"
+                title={t('callSpecialistDisabledNotice', 'Call feature is only activated after a specialist is assigned')}
+              >
+                <PhoneOff size={12} className="shrink-0 text-slate-400" />
+                <span className="hidden sm:inline text-[11px]">Call (Inactive)</span>
+                <span className="sm:hidden text-[10px]">Call</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Enhanced Connected Flow Graph */}

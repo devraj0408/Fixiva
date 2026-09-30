@@ -319,8 +319,10 @@ export const translations = {
     acceptDispatch: 'Accept Dispatch',
     declineDispatch: 'Decline Dispatch',
     jobLocation: 'Job Location',
-    customerDetails: 'Customer Details',
     callCustomer: 'Call Customer',
+    callSpecialist: 'Call Specialist',
+    callSpecialistPending: 'Call (After Assigned)',
+    callSpecialistDisabledNotice: 'Call feature is only activated after a specialist is assigned to your booking.',
 
     // Admin Panel
     adminControlPlane: 'Fixiva Admin Control Plane',
@@ -722,8 +724,10 @@ export const translations = {
     acceptDispatch: 'स्वीकार करें',
     declineDispatch: 'अस्वीकार करें',
     jobLocation: 'काम का स्थान',
-    customerDetails: 'ग्राहक का विवरण',
     callCustomer: 'ग्राहक को कॉल करें',
+    callSpecialist: 'विशेषज्ञ को कॉल करें',
+    callSpecialistPending: 'कॉल (असाइन होने के बाद)',
+    callSpecialistDisabledNotice: 'विशेषज्ञ के असाइन होने के बाद कॉलिंग सक्रिय होगी।',
 
     // Admin Panel
     adminControlPlane: 'फ़िक्सिवा एडमिन कंट्रोल प्लेन',
@@ -1123,8 +1127,10 @@ export const translations = {
     acceptDispatch: 'গ্রহণ করুন',
     declineDispatch: 'প্রত্যাখ্যান করুন',
     jobLocation: 'কাজের স্থান',
-    customerDetails: 'গ্রাহকের বিবরণ',
     callCustomer: 'গ্রাহককে কল করুন',
+    callSpecialist: 'বিশেষজ্ঞকে কল করুন',
+    callSpecialistPending: 'কল (অ্যাসাইন করার পর)',
+    callSpecialistDisabledNotice: 'বিশেষজ্ঞ নিযুক্ত হওয়ার পরে কলিং সক্রিয় হবে।',
 
     // Admin Panel
     adminControlPlane: 'ফিক্সিভা অ্যাডমিন কন্ট্রোল প্যানেল',
@@ -1524,8 +1530,10 @@ export const translations = {
     acceptDispatch: 'Accept Dispatch',
     declineDispatch: 'Decline Dispatch',
     jobLocation: 'Job Location',
-    customerDetails: 'Customer Details',
     callCustomer: 'Customer Ko Call Karein',
+    callSpecialist: 'Specialist Ko Call Karein',
+    callSpecialistPending: 'Call (Worker assign hone ke baad)',
+    callSpecialistDisabledNotice: 'Worker assign hone ke baad call feature active ho jayega.',
 
     // Admin Panel
     adminControlPlane: 'Fixiva Admin Control Plane',

@@ -20,15 +20,23 @@ import {
   Send,
   Headphones,
   Camera,
-  LocateFixed
+  LocateFixed,
+  Phone,
+  PhoneCall,
+  PhoneOff,
+  Copy,
+  Check,
+  MessageCircle
 } from 'lucide-react';
 import HierarchicalLocationSelector from '../../components/HierarchicalLocationSelector';
 import ProfileCard from '../../components/ProfileCard';
 import BookingStatusTimeline from '../../components/booking/BookingStatusTimeline';
+import { getActiveStageIndex } from '../../components/booking/bookingStatusUtils';
 import { uploadImage } from '../../services/storageService';
 import { getAssignedWorkerLocation, subscribeToWorkerLiveLocation, calculateDistanceInKm } from '../../services/locationService';
+import { VERIFIED_SPECIALISTS, isAjmalSpecialist } from '../../data/specialistData';
 
-const WorkerLiveTrackingCard = ({ booking }) => {
+const WorkerLiveTrackingCard = ({ booking, onCallSpecialist = null, resolveWorkerPhone = null }) => {
   const { t } = useLanguage();
   const [workerLoc, setWorkerLoc] = useState(null);
 
@@ -110,14 +118,24 @@ const WorkerLiveTrackingCard = ({ booking }) => {
           </div>
         </div>
 
-        {booking.worker_phone && (
-          <a
-            href={`tel:${booking.worker_phone}`}
-            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm"
+        {onCallSpecialist ? (
+          <button
+            type="button"
+            onClick={() => onCallSpecialist(booking)}
+            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
           >
-            {t('callCustomer', 'Call Specialist')}
+            <PhoneCall size={12} className="animate-pulse" />
+            <span>{t('callSpecialist', 'Call Specialist')}</span>
+          </button>
+        ) : (booking.worker_phone || (resolveWorkerPhone && resolveWorkerPhone(booking)?.rawPhone)) ? (
+          <a
+            href={`tel:${booking.worker_phone || (resolveWorkerPhone && resolveWorkerPhone(booking)?.rawPhone)}`}
+            className="px-3 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+          >
+            <PhoneCall size={12} />
+            <span>{t('callSpecialist', 'Call Specialist')}</span>
           </a>
-        )}
+        ) : null}
       </div>
 
       {/* Live Map Frame */}
@@ -211,6 +229,112 @@ const CustomerDashboard = () => {
   const [chatInputMessage, setChatInputMessage] = useState('');
   const [chatSending, setChatSending] = useState(false);
   const chatBottomRef = useRef(null);
+
+  // Call Specialist Modal State & Handlers
+  const [callingBooking, setCallingBooking] = useState(null);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+
+  // Helper to determine if booking has reached worker assigned stage or later
+  const isWorkerAssigned = useCallback((status) => {
+    if (!status) return false;
+    const stageIdx = getActiveStageIndex(status);
+    return stageIdx >= 1; // Stage 1 (Assigned), Stage 2 (On The Way), Stage 3 (In Progress), Stage 4 (Completed)
+  }, []);
+
+  // Helper to resolve worker's contact number reliably
+  const resolveWorkerPhone = useCallback((b) => {
+    if (!b) return { rawPhone: '7479928976', displayPhone: '+91 74799 28976', name: 'Specialist' };
+    const name = b.worker_name || 'Assigned Specialist';
+    let rawPhone = b.worker_phone || null;
+
+    if (!rawPhone && workers && workers.length > 0) {
+      const match = workers.find(
+        (w) => (b.worker_id && (String(w.id) === String(b.worker_id) || String(w.worker_id) === String(b.worker_id))) ||
+               (b.worker_name && w.name && w.name.trim().toLowerCase() === b.worker_name.trim().toLowerCase())
+      );
+      if (match?.phone || match?.whatsapp) rawPhone = match.phone || match.whatsapp;
+    }
+
+    if (!rawPhone) {
+      const verified = VERIFIED_SPECIALISTS.find(
+        (s) => (b.worker_id && String(s.id) === String(b.worker_id)) ||
+               (b.worker_name && s.name.toLowerCase() === b.worker_name.toLowerCase())
+      );
+      if (verified?.phone) rawPhone = verified.phone;
+    }
+
+    if (!rawPhone && (isAjmalSpecialist(b) || (b.worker_name && b.worker_name.toLowerCase().includes('ajmal')))) {
+      rawPhone = '7479928976';
+    }
+
+    const clean = rawPhone ? String(rawPhone).replace(/\D/g, '').slice(-10) : '7479928976';
+    return {
+      name,
+      rawPhone: clean,
+      displayPhone: clean && clean.length === 10 ? `+91 ${clean.slice(0, 5)} ${clean.slice(5)}` : (rawPhone || '+91 74799 28976')
+    };
+  }, [workers]);
+
+  const handleCallSpecialist = useCallback((booking) => {
+    if (!booking) return;
+    const assigned = isWorkerAssigned(booking.status);
+    if (!assigned) {
+      showToast(
+        t('callSpecialistDisabledNotice', 'Call feature is only activated after a specialist is assigned to your booking.'),
+        'info'
+      );
+      return;
+    }
+    setCallingBooking(booking);
+    setCopiedPhone(false);
+  }, [isWorkerAssigned, showToast, t]);
+
+  const handleCopyPhone = useCallback((phone) => {
+    if (!phone) return;
+    try {
+      navigator.clipboard?.writeText(phone);
+      setCopiedPhone(true);
+      showToast('Phone number copied to clipboard!', 'success');
+      setTimeout(() => setCopiedPhone(false), 2500);
+    } catch (err) {
+      void err;
+    }
+  }, [showToast]);
+
+  const CallSpecialistButton = ({ booking, size = 'default' }) => {
+    const assigned = isWorkerAssigned(booking?.status);
+    const workerInfo = resolveWorkerPhone(booking);
+
+    if (assigned) {
+      return (
+        <button
+          type="button"
+          onClick={() => handleCallSpecialist(booking)}
+          className={`rounded-xl font-bold flex items-center gap-1.5 transition-all shadow-sm active:scale-95 bg-emerald-600 hover:bg-emerald-700 text-white ring-2 ring-emerald-500/20 ${
+            size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-xs'
+          }`}
+          title={`Call ${workerInfo.name}: ${workerInfo.displayPhone}`}
+        >
+          <PhoneCall size={size === 'sm' ? 12 : 13} className="shrink-0 animate-pulse" />
+          <span>{t('callSpecialist', 'Call Specialist')}</span>
+        </button>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => handleCallSpecialist(booking)}
+        className={`rounded-xl font-semibold flex items-center gap-1.5 border transition-all cursor-not-allowed opacity-75 bg-slate-100 text-slate-400 border-slate-200 ${
+          size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1.5 text-xs'
+        }`}
+        title={t('callSpecialistDisabledNotice', 'Call feature is only activated after a specialist is assigned')}
+      >
+        <PhoneOff size={size === 'sm' ? 12 : 13} className="shrink-0 text-slate-400" />
+        <span>{t('callSpecialistPending', 'Call (After Assigned)')}</span>
+      </button>
+    );
+  };
 
   // Search & Filter States
   const [savedContractorIds, setSavedContractorIds] = useState(() => []);
@@ -720,15 +844,32 @@ const CustomerDashboard = () => {
                         <h3 className="font-extrabold text-slate-900 text-sm">{b.service_name || 'Home Service'}</h3>
                       </div>
 
-                      <span className="px-3 py-1 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6] w-fit">
-                        ● {getStatusLabel(b.status)}
-                      </span>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Call Specialist Button (Active only after worker assigned status) */}
+                        <CallSpecialistButton booking={b} />
+
+                        <span className="px-3 py-1 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6] w-fit">
+                          ● {getStatusLabel(b.status)}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs bg-slate-50 p-3 rounded-2xl border border-slate-100">
                       <div>
                         <span className="text-slate-400 font-bold block text-[10px] uppercase">Specialist</span>
-                        <span className="font-extrabold text-slate-900">{b.worker_name || 'Dispatch Pending'}</span>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="font-extrabold text-slate-900">{b.worker_name || 'Dispatch Pending'}</span>
+                          {isWorkerAssigned(b.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleCallSpecialist(b)}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-colors"
+                              title={`Call ${b.worker_name || 'Specialist'}`}
+                            >
+                              <Phone size={10} /> Call
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-slate-400 font-bold block text-[10px] uppercase">Payment Method</span>
@@ -753,12 +894,21 @@ const CustomerDashboard = () => {
 
                     {/* Direct Worker Booking Lifecycle Timeline */}
                     <div className="pt-1 border-t border-slate-100">
-                      <BookingStatusTimeline status={b.status} workerName={b.worker_name} booking={b} />
+                      <BookingStatusTimeline
+                        status={b.status}
+                        workerName={b.worker_name}
+                        booking={b}
+                        onCallSpecialist={handleCallSpecialist}
+                      />
                     </div>
 
                     {/* Active Worker Live Tracking Card */}
-                    {['Assigned', 'In Progress', 'Accepted', 'On The Way', 'Worker Assigned'].includes(b.status) && b.worker_id && (
-                      <WorkerLiveTrackingCard booking={b} />
+                    {['Assigned', 'In Progress', 'Accepted', 'On The Way', 'Worker Assigned'].includes(b.status) && (b.worker_id || b.worker_name) && (
+                      <WorkerLiveTrackingCard
+                        booking={b}
+                        onCallSpecialist={handleCallSpecialist}
+                        resolveWorkerPhone={resolveWorkerPhone}
+                      />
                     )}
 
                     {b.status === 'Completed' && (
@@ -1126,20 +1276,40 @@ const CustomerDashboard = () => {
                     <div key={b.id} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-sm space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                         <span className="text-[10px] font-black uppercase text-primary">BOOKING ID: {b.id}</span>
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6]">
-                          ● {getStatusLabel(b.status)}
-                        </span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <CallSpecialistButton booking={b} size="sm" />
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-[#E8F0ED] text-[#2F6B5F] border border-[#E7E9E6]">
+                            ● {getStatusLabel(b.status)}
+                          </span>
+                        </div>
                       </div>
 
                       <div>
                         <h4 className="font-extrabold text-slate-900 text-sm">{b.service_name || 'Home Service'}</h4>
-                        <p className="text-xs text-slate-500 font-medium">
-                          Direct Specialist: <strong className="text-slate-800">{b.worker_name || 'Matching Nearby Specialist'}</strong>
-                        </p>
+                        <div className="flex items-center justify-between gap-1 text-xs text-slate-500 font-medium">
+                          <span>
+                            Direct Specialist: <strong className="text-slate-800">{b.worker_name || 'Matching Nearby Specialist'}</strong>
+                          </span>
+                          {isWorkerAssigned(b.status) && (
+                            <button
+                              type="button"
+                              onClick={() => handleCallSpecialist(b)}
+                              className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[10px] font-bold flex items-center gap-1 transition-colors"
+                              title={`Call ${b.worker_name || 'Specialist'}`}
+                            >
+                              <Phone size={10} /> Call
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Reusable Booking Lifecycle Status Timeline */}
-                      <BookingStatusTimeline status={b.status} workerName={b.worker_name} booking={b} />
+                      <BookingStatusTimeline
+                        status={b.status}
+                        workerName={b.worker_name}
+                        booking={b}
+                        onCallSpecialist={handleCallSpecialist}
+                      />
 
                       <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-xs space-y-1">
                         <div className="flex justify-between items-center text-slate-600 font-medium">
@@ -1397,6 +1567,117 @@ const CustomerDashboard = () => {
                 <button type="submit" className="rounded-xl bg-primary px-5 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-700">Submit Review</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Contact Specialist Call Modal */}
+      {callingBooking && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <PhoneCall size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Direct Specialist Call</h3>
+                  <p className="text-[11px] text-slate-500 font-medium">Fixiva Verified Direct Connection</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCallingBooking(null)}
+                className="w-8 h-8 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Specialist Profile Details */}
+            {(() => {
+              const workerInfo = resolveWorkerPhone(callingBooking);
+              return (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100 flex items-center gap-3.5">
+                    <div className="w-12 h-12 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-md shrink-0">
+                      👤
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-extrabold text-slate-900 text-base leading-tight truncate">
+                          {workerInfo.name}
+                        </h4>
+                        <span className="inline-flex items-center gap-0.5 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100 shrink-0">
+                          <ShieldCheck size={11} /> Verified Pro
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 truncate">
+                        {callingBooking.service_name || 'Home Service'} • Booking #{callingBooking.id}
+                      </p>
+                      <div className="mt-1">
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ● {getStatusLabel(callingBooking.status)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Phone Number Display Box */}
+                  <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200/80 flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-[10px] font-black uppercase text-emerald-800 tracking-wider block">Specialist Direct Contact</span>
+                      <span className="text-base font-black text-slate-900 tracking-wide font-mono">
+                        {workerInfo.displayPhone}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyPhone(workerInfo.rawPhone)}
+                      className="px-3 py-1.5 rounded-xl bg-white border border-emerald-200 text-emerald-800 hover:bg-emerald-50 text-xs font-bold flex items-center gap-1.5 shadow-2xs transition-all shrink-0"
+                    >
+                      {copiedPhone ? (
+                        <>
+                          <Check size={13} className="text-emerald-600" />
+                          <span className="text-emerald-600">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy size={13} />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                    <a
+                      href={`tel:${workerInfo.rawPhone}`}
+                      className="btn-primary py-3 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all"
+                    >
+                      <PhoneCall size={15} />
+                      <span>Direct Phone Call</span>
+                    </a>
+
+                    <a
+                      href={`https://wa.me/91${workerInfo.rawPhone}?text=${encodeURIComponent(`Hello ${workerInfo.name}, I am contacting you regarding Fixiva Booking #${callingBooking.id} (${callingBooking.service_name || 'Service'}).`)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-3 px-4 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-md transition-all"
+                    >
+                      <MessageCircle size={15} />
+                      <span>WhatsApp Chat</span>
+                    </a>
+                  </div>
+
+                  <p className="text-[11px] text-center text-slate-400 font-medium pt-1">
+                    🔒 Direct calling is active for coordination during your service request.
+                  </p>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}
