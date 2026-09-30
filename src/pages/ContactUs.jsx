@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Mail, MapPin, Loader2, CheckCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { useApp } from '../context/AuthContext';
 
 const ContactUs = () => {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const { showToast } = useApp();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,7 +28,7 @@ const ContactUs = () => {
     
     setLoading(false);
     if (error) {
-      alert('Failed to send message: ' + error.message);
+      showToast('Failed to send message: ' + error.message, 'error');
     } else {
       setSubmitted(true);
       e.target.reset();
@@ -57,10 +59,10 @@ const ContactUs = () => {
                 <div className="w-10 h-10 bg-blue-50 text-primary rounded-xl flex items-center justify-center shrink-0">
                   <Mail size={18} />
                 </div>
-                <div className="space-y-0.5">
+                 <div className="space-y-0.5">
                   <h4 className="font-bold text-slate-950 text-xs uppercase tracking-wider">Email Support</h4>
-                  <a href="mailto:sinhadev739@gmail.com" className="text-primary text-xs font-bold hover:underline break-all">
-                    sinhadev739@gmail.com
+                  <a href="mailto:fixiva869@gmail.com" className="text-primary text-xs font-bold hover:underline break-all">
+                    fixiva869@gmail.com
                   </a>
                 </div>
               </div>

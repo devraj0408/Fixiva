@@ -1,9 +1,8 @@
-import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Mail, Shield, Edit } from 'lucide-react';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, showToast } = useAuth();
 
   const getInitials = (name) => {
     if (!name) return 'U';
@@ -21,15 +20,23 @@ const Profile = () => {
         <div className="bg-white rounded-3xl border border-slate-100 p-8 sm:p-10 shadow-xl shadow-slate-100/50 space-y-8 animate-fade-in">
           
           <div className="flex flex-col sm:flex-row items-center gap-6 pb-6 border-b border-slate-100">
-            <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md">
-              {getInitials(user?.name)}
-            </div>
+            {user?.profile_photo_url ? (
+              <img
+                src={user.profile_photo_url}
+                alt={user?.name || 'User Profile'}
+                className="h-16 w-16 rounded-full object-cover shadow-md"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-full bg-gradient-to-tr from-primary to-blue-500 text-white font-extrabold text-lg flex items-center justify-center uppercase tracking-wider shadow-md">
+                {getInitials(user?.name)}
+              </div>
+            )}
             <div className="text-center sm:text-left space-y-1">
               <h2 className="text-2xl font-black text-slate-900 tracking-tight">{user?.name || 'Fixiva Member'}</h2>
               <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{user?.role} Account</p>
             </div>
             <button 
-              onClick={() => alert("Profile edits are coming soon in next deployment release.")}
+              onClick={() => showToast("Profile edits are coming soon in next deployment release.", 'info')}
               className="mt-4 sm:mt-0 sm:ml-auto btn-secondary text-xs px-4 py-2.5 rounded-xl flex items-center gap-1.5"
             >
               <Edit size={14} /> Edit Details
@@ -65,7 +72,7 @@ const Profile = () => {
           <div className="pt-6 border-t border-slate-100">
              <h3 className="font-extrabold text-slate-800 text-sm mb-4">Security</h3>
              <button 
-              onClick={() => alert("Password changes reset coordinates dispatched on registered emails.")}
+              onClick={() => showToast("Password changes reset coordinates dispatched on registered emails.", 'info')}
               className="btn-secondary text-xs px-4 py-2 rounded-xl"
              >
               Change Account Password
